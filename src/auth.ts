@@ -21,6 +21,32 @@ function toUser(raw: { id: string; name?: string | null; email?: string | null }
   return { id: raw.id, name: raw.name?.trim() || raw.email?.split('@')[0] || 'You', email: raw.email ?? '' };
 }
 
+const REMEMBERED = 'blank.lastUser';
+
+function remembered(): AuthUser | null {
+  try {
+    return JSON.parse(localStorage.getItem(REMEMBERED) ?? 'null');
+  } catch {
+    return null;
+  }
+}
+
+function remember(user: AuthUser | null) {
+  try {
+    if (user) localStorage.setItem(REMEMBERED, JSON.stringify(user));
+    else localStorage.removeItem(REMEMBERED);
+  } catch {
+    /* private mode: offline sign-in is simply not remembered */
+  }
+}
+
+/** Called when the server rejects the saved sign-in, so the app stops pretending to be signed in. */
+export function forgetSession() {
+  remember(null);
+}
+
+export const SESSION_EXPIRED = 'blank:session-expired';
+
 function neonBackend(): Backend {
   const make = (url: string) => createAuthClient(url);
   let instance: ReturnType<typeof make> | null = null;
@@ -31,26 +57,50 @@ function neonBackend(): Backend {
     return (instance ??= make(AUTH_URL));
   };
   return {
+    // With no connection the session cannot be checked, so the last signed-in user keeps the library and
+    // downloaded songs reachable. Requests that need the server still fail until the connection is back.
     async session() {
-      const { data } = await get().getSession();
-      return data?.user ? toUser(data.user) : null;
+      if (navigator.onLine === false) return remembered();
+      try {
+        const { data, error } = await get().getSession();
+        if (data?.user) {
+          const user = toUser(data.user);
+          remember(user);
+          return user;
+        }
+        const status = (error as { status?: number } | null)?.status;
+        if (error && !status) return remembered();
+        remember(null);
+        return null;
+      } catch {
+        return remembered();
+      }
     },
     async signIn(email, password) {
       const { data, error } = await get().signIn.email({ email, password });
       if (error || !data?.user) fail(error, 'Could not sign in');
-      return toUser(data.user);
+      const user = toUser(data.user);
+      remember(user);
+      return user;
     },
     async signUp(name, email, password) {
       const { data, error } = await get().signUp.email({ email, password, name });
       if (error || !data?.user) fail(error, 'Could not create the account');
-      return toUser(data.user);
+      const user = toUser(data.user);
+      remember(user);
+      return user;
     },
     async signOut() {
+      remember(null);
       await get().signOut();
     },
     async token() {
-      const { data } = await get().token();
-      return data?.token ?? null;
+      try {
+        const { data } = await get().token();
+        return data?.token ?? null;
+      } catch {
+        return null;
+      }
     },
   };
 }

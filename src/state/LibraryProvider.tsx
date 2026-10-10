@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { api, forgetCover } from '../api';
+import { api, forgetCover, type Library } from '../api';
 import { hueFromName } from '../lib/format';
+import { loadLibrarySnapshot, saveLibrarySnapshot } from '../lib/offline';
 import { coverFileFromPicture, isAudioFile, readMetadata } from '../lib/metadata';
 import { peaksForUpload } from '../lib/peaks';
 import type { Album, Folder, PlaylistTrack, Track, UploadProgress } from '../types';
@@ -15,6 +16,8 @@ type ImportTarget = {
 
 type LibraryContextValue = {
   ready: boolean;
+  /** False while showing the last saved copy of the library because the server cannot be reached. */
+  live: boolean;
   syncing: boolean;
   upload: UploadProgress | null;
   folders: Folder[];
@@ -48,6 +51,7 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
   const [ready, setReady] = useState(false);
   const [syncing, setSyncing] = useState(false);
+  const [live, setLive] = useState(true);
   const [upload, setUpload] = useState<UploadProgress | null>(null);
   const [folders, setFolders] = useState<Folder[]>([]);
   const [albums, setAlbums] = useState<Album[]>([]);
@@ -55,23 +59,44 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
   const [playlistTracks, setPlaylistTracks] = useState<PlaylistTrack[]>([]);
   const importing = useRef(false);
 
+  const userId = user?.id;
+  const apply = useCallback((next: Library) => {
+    setFolders(next.folders);
+    setAlbums(next.albums);
+    setTracks(next.tracks);
+    setPlaylistTracks(next.playlistTracks);
+  }, []);
+
   const refresh = useCallback(async () => {
     setSyncing(true);
     try {
       const next = await api.library();
-      setFolders(next.folders);
-      setAlbums(next.albums);
-      setTracks(next.tracks);
-      setPlaylistTracks(next.playlistTracks);
+      apply(next);
+      setLive(true);
+      if (userId) void saveLibrarySnapshot(userId, next).catch(() => undefined);
+    } catch (err) {
+      setLive(false);
+      throw err;
     } finally {
       setSyncing(false);
       setReady(true);
     }
-  }, []);
+  }, [apply, userId]);
 
   useEffect(() => {
-    void refresh().catch(() => setReady(true));
-  }, [refresh]);
+    let cancelled = false;
+    void (async () => {
+      const saved = userId ? await loadLibrarySnapshot(userId).catch(() => null) : null;
+      if (saved && !cancelled) {
+        apply(saved);
+        setReady(true);
+      }
+      await refresh().catch(() => setReady(true));
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [apply, refresh, userId]);
 
   useEffect(() => {
     const poll = () => {
@@ -291,6 +316,7 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
   const value = useMemo<LibraryContextValue>(
     () => ({
       ready,
+      live,
       syncing,
       upload,
       folders,
@@ -315,6 +341,7 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
     }),
     [
       ready,
+      live,
       syncing,
       upload,
       folders,

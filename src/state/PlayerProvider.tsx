@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { audioObjectUrl } from '../api';
+import { artworkFor, nativeControls, type ControlAction } from '../lib/media-controls';
 import type { Track } from '../types';
 import { useLibrary } from './LibraryProvider';
 
@@ -51,7 +52,7 @@ function shuffleAfter(tracks: Track[], startIndex: number): Track[] {
 }
 
 export function PlayerProvider({ children }: { children: ReactNode }) {
-  const { tracks } = useLibrary();
+  const { tracks, albums } = useLibrary();
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const queueRef = useRef<Track[]>([]);
   const indexRef = useRef(0);
@@ -203,6 +204,71 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       navigator.mediaSession.setActionHandler('previoustrack', null);
     };
   }, [next, previous]);
+
+  const controlsRef = useRef<(action: ControlAction) => void>(() => undefined);
+  controlsRef.current = (control) => {
+    const audio = audioRef.current;
+    if (control.action === 'play') void audio?.play();
+    else if (control.action === 'pause') audio?.pause();
+    else if (control.action === 'next') next();
+    else if (control.action === 'previous') previous();
+    else if (control.action === 'seekto' && audio && control.position !== undefined) {
+      audio.currentTime = Math.max(0, control.position);
+      setCurrentTime(audio.currentTime);
+    }
+  };
+
+  const nowPlaying = queue[index] ?? null;
+  const nowPlayingCover = albums.find((item) => item.id === nowPlaying?.albumId)?.coverFileId ?? nowPlaying?.coverFileId ?? null;
+  const shownArtwork = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (!nativeControls) return;
+    const handle = nativeControls.addListener('action', (control) => controlsRef.current(control));
+    return () => {
+      void handle.then((listener) => listener.remove());
+    };
+  }, []);
+
+  useEffect(() => {
+    const audio = audioRef.current;
+    const controls = nativeControls;
+    if (!controls || !audio) return;
+    if (!nowPlaying) {
+      shownArtwork.current = null;
+      void controls.clear();
+      return;
+    }
+    let cancelled = false;
+    const push = async () => {
+      const artKey = `${nowPlaying.id}:${nowPlayingCover ?? ''}`;
+      let artwork: string | undefined;
+      if (shownArtwork.current !== artKey) {
+        artwork = (await artworkFor(nowPlayingCover, nowPlaying.hue)) ?? undefined;
+        if (cancelled) return;
+        shownArtwork.current = artKey;
+      }
+      const seconds = Number.isFinite(audio.duration) && audio.duration > 0 ? audio.duration : nowPlaying.durationMs / 1000;
+      await controls.update({
+        title: nowPlaying.title,
+        artist: nowPlaying.artist,
+        album: albums.find((item) => item.id === nowPlaying.albumId)?.name ?? '',
+        durationMs: seconds * 1000,
+        positionMs: audio.currentTime * 1000,
+        playing: !audio.paused,
+        artwork,
+      });
+    };
+    const refresh = () => void push().catch(() => undefined);
+    refresh();
+    audio.addEventListener('seeked', refresh);
+    audio.addEventListener('durationchange', refresh);
+    return () => {
+      cancelled = true;
+      audio.removeEventListener('seeked', refresh);
+      audio.removeEventListener('durationchange', refresh);
+    };
+  }, [albums, nowPlaying, nowPlayingCover, playing]);
 
   const playTracks = useCallback(
     (list: Track[], startIndex = 0) => {
