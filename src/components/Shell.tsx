@@ -411,7 +411,7 @@ export function Shell() {
             </button>
           ) : (
             <button
-              className="icon-btn"
+              className="icon-btn bell-btn"
               aria-label="Notifications"
               onClick={() => setPanel(panel === 'bell' ? null : 'bell')}
             >

@@ -675,7 +675,9 @@ button { cursor: pointer; }
 /* ---------- Lyrics ---------- */
 .lyrics {
   position: fixed;
-  inset: 0 0 100px 0;
+  inset: 0;
+  padding-bottom: 100px;
+  box-sizing: border-box;
   z-index: 28;
   display: flex;
   flex-direction: column;
@@ -813,8 +815,8 @@ button { cursor: pointer; }
 @keyframes page-in { from { opacity: 0; transform: translateY(10px); } }
 @keyframes shimmer { to { background-position: -200% 0; } }
 @keyframes breathe { 0%, 100% { transform: scale(0.7); opacity: 0.35; } 50% { transform: scale(1); opacity: 0.9; } }
-@keyframes lyrics-in { from { opacity: 0; transform: translateY(36px); } }
-@keyframes lyrics-out { to { opacity: 0; transform: translateY(36px); } }
+@keyframes lyrics-in { from { opacity: 0; } }
+@keyframes lyrics-out { to { opacity: 0; } }
 
 :root { --ease-out: cubic-bezier(0.2, 0.85, 0.25, 1); }
 
@@ -987,12 +989,12 @@ button.offline-note { cursor: pointer; color: var(--text, #fff); }
   .waveform { height: 26px; min-width: 0; }
   .player-time { font-size: 12px; }
   .player-controls { gap: 0; margin-left: 0; flex: none; }
-  .ctrl { width: 36px; }
-  .player-controls .ctrl[aria-label="Shuffle"],
+  .ctrl { width: 34px; }
   .player-controls .ctrl[aria-label="Repeat"],
   .player-controls .volume { display: none; }
+  .bell-btn { display: none; }
 
-  .lyrics { inset: 0 0 var(--player-space) 0; }
+  .lyrics { padding-bottom: var(--player-space); }
   .lyrics-head { padding-top: env(safe-area-inset-top); }
   .lyrics-scroll { padding: 12vh 22px 30vh; }
   .ly { font-size: clamp(24px, 7vw, 32px); }

@@ -39,6 +39,17 @@ type PlayerContextValue = {
 
 const PlayerContext = createContext<PlayerContextValue | null>(null);
 
+function shuffled<T>(items: T[]): T[] {
+  const copy = [...items];
+  for (let i = copy.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(Math.random() * (i + 1));
+    const swap = copy[i]!;
+    copy[i] = copy[j]!;
+    copy[j] = swap;
+  }
+  return copy;
+}
+
 function shuffleAfter(tracks: Track[], startIndex: number): Track[] {
   const current = tracks[startIndex];
   const rest = tracks.filter((_, index) => index !== startIndex);
@@ -55,6 +66,8 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   const { tracks, albums } = useLibrary();
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const queueRef = useRef<Track[]>([]);
+  /** The queue in its unshuffled order, so turning shuffle off can put it back. */
+  const orderedRef = useRef<Track[]>([]);
   const indexRef = useRef(0);
   const repeatRef = useRef<RepeatMode>('off');
   const lastVolume = useRef(0.9);
@@ -170,11 +183,12 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     return () => {
       cancelled = true;
     };
-  }, [generation, index]);
+  }, [generation]);
 
   useEffect(() => {
     setQueue((current) => current.map((track) => tracks.find((item) => item.id === track.id) ?? track));
     queueRef.current = queueRef.current.map((track) => tracks.find((item) => item.id === track.id) ?? track);
+    orderedRef.current = orderedRef.current.map((track) => tracks.find((item) => item.id === track.id) ?? track);
   }, [tracks]);
 
   const previous = useCallback(() => {
@@ -274,6 +288,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     (list: Track[], startIndex = 0) => {
       if (!list.length) return;
       const safeIndex = Math.min(Math.max(startIndex, 0), list.length - 1);
+      orderedRef.current = list;
       const ordered = shuffleRef.current ? shuffleAfter(list, safeIndex) : list;
       go(shuffleRef.current ? 0 : safeIndex, ordered);
     },
@@ -324,7 +339,31 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     else setVolume(0);
   }, [muted, setVolume, volume]);
 
-  const toggleShuffle = useCallback(() => setShuffle((value) => !value), []);
+  const toggleShuffle = useCallback(() => {
+    const turningOn = !shuffleRef.current;
+    shuffleRef.current = turningOn;
+    setShuffle(turningOn);
+    const list = queueRef.current;
+    const current = list[indexRef.current];
+    if (!current) return;
+    let nextList: Track[];
+    let nextIndex: number;
+    if (turningOn) {
+      orderedRef.current = list;
+      nextIndex = indexRef.current;
+      nextList = [...list.slice(0, nextIndex + 1), ...shuffled(list.slice(nextIndex + 1))];
+    } else {
+      const ordered = orderedRef.current;
+      const at = ordered.findIndex((item) => item.id === current.id);
+      if (at < 0) return;
+      nextList = ordered;
+      nextIndex = at;
+    }
+    queueRef.current = nextList;
+    indexRef.current = nextIndex;
+    setQueue(nextList);
+    setIndex(nextIndex);
+  }, []);
 
   const cycleRepeat = useCallback(() => {
     setRepeat((value) => (value === 'off' ? 'all' : value === 'all' ? 'one' : 'off'));
@@ -333,9 +372,15 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   const playNext = useCallback((track: Track) => {
     const list = [...queueRef.current];
     if (!list.length) {
+      orderedRef.current = [track];
       go(0, [track]);
       return;
     }
+    const currentId = list[indexRef.current]?.id;
+    const ordered = [...orderedRef.current];
+    const orderedAt = ordered.findIndex((item) => item.id === currentId);
+    ordered.splice(orderedAt < 0 ? ordered.length : orderedAt + 1, 0, track);
+    orderedRef.current = ordered;
     const insertAt = indexRef.current + 1;
     list.splice(insertAt, 0, track);
     queueRef.current = list;
