@@ -1,4 +1,11 @@
 # [blank]
+[blank] is a minimalist music player for people to play their own curated music library on their devices
+
+![Screenshot_20261010-141408.png](https://res.craft.do/user/full/de51101e-a7a3-46b3-331b-7ba5959ea98a/doc/f86ec001-4d6c-49d6-bcfd-c73e0be00083/3a0a5148-a4b7-4077-80e3-4f57644ff225)
+
+![Screenshot_20261010-141411.png](https://res.craft.do/user/full/de51101e-a7a3-46b3-331b-7ba5959ea98a/doc/f86ec001-4d6c-49d6-bcfd-c73e0be00083/e8f898ad-ba1f-4ba0-8854-7f1224de9a5a)
+
+# [blank]
 
 A desktop music library for the records you already own. Upload a collection, keep it in the cloud, and play it back. The layout follows the quiet dark player in the reference shots: a library of covers, an album page, and a pill-shaped waveform bar along the bottom.
 

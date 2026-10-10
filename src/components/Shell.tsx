@@ -1,10 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { App } from '@capacitor/app';
 import { Bell, ChevronLeft, Link, MoreHorizontal, Plus, Search, Settings, WifiOff } from 'lucide-react';
-import { videoToAudio } from '../lib/convert';
-import { errorMessage, formatBytes, plural, relativeTime } from '../lib/format';
+import { errorMessage, plural, relativeTime } from '../lib/format';
 import { isNativeApp } from '../lib/shell-cache';
-import { startRecorder, type RecorderHandle } from '../lib/record';
 import { useAuth } from '../state/AuthProvider';
 import { useLibrary } from '../state/LibraryProvider';
 import { LOCAL_ONLY } from '../config';
@@ -15,6 +13,7 @@ import { AlbumView } from './AlbumView';
 import { LibraryView } from './LibraryView';
 import { navigateWithTransition } from '../lib/transition';
 import { PlayerBar } from './PlayerBar';
+import { SettingsView } from './SettingsView';
 import { Presence } from './Presence';
 import {
   AddMenu,
@@ -22,13 +21,12 @@ import {
   ConfirmDialog,
   NameDialog,
   PickerDialog,
-  RecordCard,
   below,
   type MenuItem,
   type Point,
 } from './overlays';
 
-type Route = { name: 'library' } | { name: 'folder'; folderId: string } | { name: 'album'; albumId: string };
+type Route = { name: 'library' } | { name: 'settings' } | { name: 'folder'; folderId: string } | { name: 'album'; albumId: string };
 
 type Dialog =
   | { kind: 'folder' }
@@ -51,22 +49,16 @@ export function Shell() {
   const offline = useOffline();
   const online = useOnline();
   const fileRef = useRef<HTMLInputElement>(null);
-  const videoRef = useRef<HTMLInputElement>(null);
-  const recorderRef = useRef<RecorderHandle | null>(null);
   const [stack, setStack] = useState<Route[]>([{ name: 'library' }]);
   const [addOpen, setAddOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [query, setQuery] = useState('');
-  const [panel, setPanel] = useState<'bell' | 'settings' | null>(null);
+  const [panel, setPanel] = useState<'bell' | null>(null);
   const [menu, setMenu] = useState<{ x: number; y: number; items: MenuItem[] } | null>(null);
   const [dialog, setDialog] = useState<Dialog | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const [dragOver, setDragOver] = useState(false);
-  const [recording, setRecording] = useState(false);
-  const [elapsed, setElapsed] = useState(0);
-  const [converting, setConverting] = useState<string | null>(null);
   const dragDepth = useRef(0);
-  const recordStarted = useRef(0);
   const toastId = useRef(0);
   const route = stack[stack.length - 1] ?? { name: 'library' as const };
 
@@ -92,12 +84,6 @@ export function Shell() {
   }
 
   useEffect(() => {
-    if (!recording) return;
-    const id = window.setInterval(() => setElapsed((Date.now() - recordStarted.current) / 1000), 200);
-    return () => window.clearInterval(id);
-  }, [recording]);
-
-  useEffect(() => {
     if (!library.ready) return;
     if (route.name === 'album' && !library.albums.some((item) => item.id === route.albumId)) {
       setStack((current) => current.slice(0, -1));
@@ -108,14 +94,14 @@ export function Shell() {
   }, [library.albums, library.folders, library.ready, route]);
 
   function closeTopmost(): boolean {
-    if (recording) cancelRecording();
-    else if (dialog) setDialog(null);
+    if (dialog) setDialog(null);
     else if (addOpen) setAddOpen(false);
     else if (menu) setMenu(null);
     else if (searchOpen) {
       setSearchOpen(false);
       setQuery('');
     } else if (panel) setPanel(null);
+    else if (player.expandedOpen) player.setExpandedOpen(false);
     else if (player.lyricsOpen) player.setLyricsOpen(false);
     else if (player.queueOpen) player.setQueueOpen(false);
     else return false;
@@ -162,7 +148,7 @@ export function Shell() {
     }
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [addOpen, dialog, menu, panel, player, recording, searchOpen]);
+  }, [addOpen, dialog, menu, panel, player, searchOpen]);
 
   function push(next: Route) {
     setSearchOpen(false);
@@ -203,56 +189,6 @@ export function Shell() {
   function openFiles() {
     setAddOpen(false);
     fileRef.current?.click();
-  }
-
-  function openVideo() {
-    setAddOpen(false);
-    videoRef.current?.click();
-  }
-
-  async function convertFiles(files: File[]) {
-    for (const file of files) {
-      setConverting(file.name);
-      try {
-        const audio = await videoToAudio(file);
-        await importFiles([audio]);
-      } catch (err) {
-        notify(errorMessage(err));
-      } finally {
-        setConverting(null);
-      }
-    }
-  }
-
-  async function beginRecording() {
-    setAddOpen(false);
-    try {
-      recorderRef.current = await startRecorder();
-      recordStarted.current = Date.now();
-      setElapsed(0);
-      setRecording(true);
-    } catch (err) {
-      notify(errorMessage(err));
-    }
-  }
-
-  function cancelRecording() {
-    recorderRef.current?.cancel();
-    recorderRef.current = null;
-    setRecording(false);
-  }
-
-  async function finishRecording() {
-    const recorder = recorderRef.current;
-    recorderRef.current = null;
-    setRecording(false);
-    if (!recorder) return;
-    const file = recorder.stop();
-    if (file.size < 1000) {
-      notify('That recording was empty');
-      return;
-    }
-    await importFiles([file]);
   }
 
   function playCollection(item: Album) {
@@ -462,11 +398,14 @@ export function Shell() {
               <MoreHorizontal size={18} />
             </button>
           ) : null}
-          {route.name !== 'album' ? (
+          {route.name !== 'album' && route.name !== 'settings' ? (
             <button
               className="icon-btn"
               aria-label="Settings"
-              onClick={() => setPanel(panel === 'settings' ? null : 'settings')}
+              onClick={() => {
+                setPanel(null);
+                push({ name: 'settings' });
+              }}
             >
               <Settings size={18} />
             </button>
@@ -489,6 +428,16 @@ export function Shell() {
         <main className="stage">
           <p className="empty-note">Opening your library</p>
         </main>
+      ) : route.name === 'settings' ? (
+        <SettingsView
+          onNewPlaylist={() => setDialog({ kind: 'playlist' })}
+          onRemoveDownloads={() => void run(() => offline.removeAll(), 'Removed all downloads')}
+          onSignOut={() => void run(() => signOut())}
+          onChangeName={() => {
+            const next = window.prompt('Your name', user?.name ?? '')?.trim();
+            if (next) void run(() => signUp(next, '', ''), 'Name updated');
+          }}
+        />
       ) : route.name === 'album' && album ? (
         <AlbumView
           album={album}
@@ -533,18 +482,12 @@ export function Shell() {
         />
       )}
 
-      {route.name !== 'album' ? (
+      {route.name !== 'album' && route.name !== 'settings' ? (
         <button className="add-btn" onClick={() => setAddOpen(true)}>
           <Plus size={18} /> Add
         </button>
       ) : null}
 
-      {converting ? (
-        <div className="upload-pill">
-          Converting
-          <span>{converting}</span>
-        </div>
-      ) : null}
       {library.upload ? (
         <div className="upload-pill">
           Adding {library.upload.current} of {library.upload.total}
@@ -566,24 +509,10 @@ export function Shell() {
           if (files.length) void run(() => importFiles(files));
         }}
       />
-      <input
-        ref={videoRef}
-        className="hidden-input"
-        type="file"
-        accept="video/*,.mp4,.mov,.mkv,.webm,.m4v"
-        onChange={(event) => {
-          const files = [...(event.target.files ?? [])];
-          event.target.value = '';
-          if (files.length) void convertFiles(files);
-        }}
-      />
-
       <Presence show={addOpen}>
         <AddMenu
           onClose={() => setAddOpen(false)}
           onAudio={openFiles}
-          onConvert={openVideo}
-          onRecord={() => void beginRecording()}
           onFolder={() => {
             setAddOpen(false);
             setDialog({ kind: 'folder' });
@@ -594,14 +523,6 @@ export function Shell() {
           }}
         />
       </Presence>
-      <Presence show={recording}>
-        <RecordCard
-          elapsed={elapsed}
-          onStop={() => void run(() => finishRecording())}
-          onCancel={cancelRecording}
-        />
-      </Presence>
-
       <Presence show={menu !== null}>
         {menu ? <AnchoredMenu x={menu.x} y={menu.y} items={menu.items} onClose={() => setMenu(null)} /> : null}
       </Presence>
@@ -620,59 +541,6 @@ export function Shell() {
               <small>{relativeTime(track.createdAt)}</small>
             </button>
           ))}
-        </aside>
-      ) : null}
-      {panel === 'settings' ? (
-        <aside className="popover settings" data-overlay>
-          <h2>{LOCAL_ONLY ? 'Profile' : 'Account'}</h2>
-          <p className="account-name">{user?.name || 'Listener'}</p>
-          {LOCAL_ONLY ? (
-            <p className="account-note">
-              {plural(library.tracks.length, 'song')} stored on this phone
-            </p>
-          ) : (
-            <>
-              <p className="account-email">{user?.email}</p>
-              <p className="account-note">Library synced to the cloud</p>
-              <p className="account-note">
-                {offline.count
-                  ? `${plural(offline.count, 'song')} saved on this device · ${formatBytes(offline.bytes)}`
-                  : 'Right-click a song or album to make it available offline'}
-              </p>
-              {offline.count ? (
-                <button
-                  className="text-btn create-inline"
-                  onClick={() => void run(() => offline.removeAll(), 'Removed all downloads')}
-                >
-                  Remove all downloads
-                </button>
-              ) : null}
-            </>
-          )}
-          <button
-            className="text-btn create-inline"
-            onClick={() => {
-              setPanel(null);
-              setDialog({ kind: 'playlist' });
-            }}
-          >
-            New playlist
-          </button>
-          {LOCAL_ONLY ? (
-            <button
-              className="white-btn"
-              onClick={() => {
-                const next = window.prompt('Your name', user?.name ?? '')?.trim();
-                if (next) void run(() => signUp(next, '', ''), 'Name updated');
-              }}
-            >
-              Change name
-            </button>
-          ) : (
-            <button className="white-btn" onClick={() => void run(() => signOut())}>
-              Sign out
-            </button>
-          )}
         </aside>
       ) : null}
       </Presence>

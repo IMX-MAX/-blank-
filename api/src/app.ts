@@ -277,6 +277,33 @@ export function createApp({ db, store, verify, origins }: AppDeps) {
     return c.json(albumOut(row));
   });
 
+  app.put('/tracks/:id/cover', async (c) => {
+    const owner = c.get('userId');
+    const id = requireId(c.req.param('id'), 'track');
+    const type = (c.req.header('content-type') ?? '').split(';')[0]!.trim().toLowerCase();
+    if (!IMAGE_TYPES.test(type)) throw new HttpError(415, 'Choose an image: jpg, png, webp, or gif');
+    const existing = (await db.query('select cover_file_id from tracks where id = $1 and owner_id = $2', [id, owner])).rows[0];
+    if (!existing) throw new HttpError(404, 'Track not found');
+    const bytes = await bodyBytes(c.req.raw, MAX_COVER_BYTES);
+    const fileId = crypto.randomUUID();
+    await store.put(objectKey(owner, 'cover', fileId), bytes, type);
+    let row: Row | undefined;
+    try {
+      row = (
+        await db.query('update tracks set cover_file_id = $3 where id = $1 and owner_id = $2 returning *', [id, owner, fileId])
+      ).rows[0];
+    } catch (err) {
+      await removeFiles(store, owner, [['cover', fileId]]);
+      throw err;
+    }
+    if (!row) {
+      await removeFiles(store, owner, [['cover', fileId]]);
+      throw new HttpError(404, 'Track not found');
+    }
+    await removeFiles(store, owner, [['cover', existing.cover_file_id]]);
+    return c.json(trackOut(row));
+  });
+
   app.post('/files/audio', async (c) => {
     const owner = c.get('userId');
     const body = await c.req.json().catch(() => ({}));
@@ -373,7 +400,10 @@ export function createApp({ db, store, verify, origins }: AppDeps) {
     const id = requireId(c.req.param('id'), 'track');
     const track = (await db.query('delete from tracks where id = $1 and owner_id = $2 returning *', [id, owner])).rows[0];
     if (!track) throw new HttpError(404, 'Track not found');
-    await removeFiles(store, owner, [['audio', track.audio_file_id]]);
+    await removeFiles(store, owner, [
+      ['audio', track.audio_file_id],
+      ['cover', track.cover_file_id],
+    ]);
     return c.json({ ok: true });
   });
 

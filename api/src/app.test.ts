@@ -86,6 +86,16 @@ test('upload, track, playlist and delete flow', async () => {
   assert.equal(cover.status, 200);
   assert.equal(store.keys().length, 2);
 
+  const own = await call(t, 'PUT', `/tracks/${trackRow.id}/cover`, undefined, { bytes: new Uint8Array([7, 7]), type: 'image/jpeg' });
+  assert.equal(own.status, 200);
+  const ownRow = (await own.json()) as { coverFileId: string | null };
+  assert.ok(ownRow.coverFileId);
+  assert.equal(store.keys().length, 3);
+  assert.equal((await call(await tokenFor('user-b'), 'PUT', `/tracks/${trackRow.id}/cover`, undefined, { bytes: new Uint8Array([7]), type: 'image/jpeg' })).status, 404);
+  const swapped = await call(t, 'PUT', `/tracks/${trackRow.id}/cover`, undefined, { bytes: new Uint8Array([8, 8]), type: 'image/jpeg' });
+  assert.equal(swapped.status, 200);
+  assert.equal(store.keys().length, 3);
+
   assert.equal((await call(t, 'DELETE', `/albums/${album.id}`)).status, 200);
   lib = (await (await call(t, 'GET', '/library')).json()) as { playlistTracks: unknown[]; tracks: unknown[] };
   assert.equal(lib.tracks.length, 0);

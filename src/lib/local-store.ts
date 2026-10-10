@@ -187,6 +187,19 @@ export async function localDeleteAlbum(id: string): Promise<void> {
   });
 }
 
+export async function localSetTrackCover(trackId: string, file: Blob): Promise<Track> {
+  return transact(['tracks', 'files'], 'readwrite', async (tx) => {
+    const track = await get<Track>(tx, 'tracks', trackId);
+    if (!track) throw new Error('Track not found');
+    const fileId = crypto.randomUUID();
+    await put(tx, 'files', { id: fileId, kind: 'cover', blob: file } satisfies StoredFile);
+    if (track.coverFileId) await remove(tx, 'files', track.coverFileId);
+    const next = { ...track, coverFileId: fileId };
+    await put(tx, 'tracks', next);
+    return next;
+  });
+}
+
 export async function localStoreAudio(file: Blob): Promise<{ fileId: string; contentType: string }> {
   const fileId = crypto.randomUUID();
   const contentType = file.type || 'application/octet-stream';
@@ -236,6 +249,7 @@ export async function localDeleteTrack(id: string): Promise<void> {
     }
     await remove(tx, 'tracks', id);
     await remove(tx, 'files', track.audioFileId);
+    if (track.coverFileId) await remove(tx, 'files', track.coverFileId);
   });
 }
 
