@@ -71,3 +71,20 @@ With `VITE_NEON_AUTH_URL` unset, `npm run dev` uses a local stand-in so you can 
 | `npm test` | API tests (embedded Postgres) and lyrics parser tests |
 | `npm run db:schema` | Prints the schema SQL |
 | `npm run build` | Typechecks and builds the app |
+
+## Android app
+
+The Android app is the same web app wrapped with [Capacitor](https://capacitorjs.com) (`android/`). It talks to the same Neon Auth and API as the web version, using the public URLs in `.env.production`.
+
+Build a debug APK (needs JDK 21 and the Android SDK with platform 36; set `ANDROID_HOME` or `android/local.properties`):
+
+```bash
+npm run android:apk
+# android/app/build/outputs/apk/debug/app-debug.apk
+```
+
+The Android app's origin is `https://localhost`, which must be a trusted Neon Auth domain: `neon neon-auth domain add https://localhost`.
+
+## Offline
+
+Right-click (long-press on Android) a song or album and choose **Make available offline**. The audio, cover art and lyrics are stored on the device in IndexedDB, and a snapshot of the library is kept so the app opens and plays downloaded songs with no connection. Songs that are not downloaded are greyed out while offline. **Settings** shows how much space downloads use and can remove them all.

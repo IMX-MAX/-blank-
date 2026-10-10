@@ -2,8 +2,11 @@ import { Folder, MoreHorizontal, Play } from 'lucide-react';
 import type { Album, Folder as FolderRecord, Track } from '../types';
 import { formatTrackTime, matchesQuery } from '../lib/format';
 import { useLibrary } from '../state/LibraryProvider';
+import { useOffline, useOnline } from '../state/OfflineProvider';
 import { usePlayer } from '../state/PlayerProvider';
 import { Cover } from './Cover';
+import { OfflineBadge } from './OfflineBadge';
+import { atPointer, below, type Point } from './overlays';
 
 export function LibraryView({
   title,
@@ -16,6 +19,7 @@ export function LibraryView({
   onPlayAlbum,
   onAlbumMenu,
   onFolderMenu,
+  onTrackMenu,
   onPlayTrack,
 }: {
   title?: string;
@@ -26,12 +30,15 @@ export function LibraryView({
   onOpenFolder: (id: string) => void;
   onOpenAlbum: (id: string) => void;
   onPlayAlbum: (album: Album) => void;
-  onAlbumMenu: (album: Album, anchor: HTMLElement) => void;
-  onFolderMenu: (folder: FolderRecord, anchor: HTMLElement) => void;
+  onAlbumMenu: (album: Album, at: Point) => void;
+  onFolderMenu: (folder: FolderRecord, at: Point) => void;
+  onTrackMenu: (track: Track, at: Point) => void;
   onPlayTrack: (track: Track) => void;
 }) {
   const player = usePlayer();
   const { tracksFor } = useLibrary();
+  const offline = useOffline();
+  const online = useOnline();
   const visibleFolders = query ? [] : folders;
   const visibleAlbums = albums.filter((album) => matchesQuery(query, album.name, album.artist));
   const visibleTracks = query
@@ -45,7 +52,12 @@ export function LibraryView({
       {empty && query ? <p className="empty-note">No matches</p> : null}
       <div className="grid">
         {visibleFolders.map((folder, index) => (
-          <div className="card" key={folder.id} style={{ ["--i" as string]: index }}>
+          <div
+            className="card"
+            key={folder.id}
+            style={{ ["--i" as string]: index }}
+            onContextMenu={(event) => onFolderMenu(folder, atPointer(event))}
+          >
             <button className="card-art folder-art" onClick={() => onOpenFolder(folder.id)} aria-label={folder.name}>
               <Folder size={42} strokeWidth={1.5} />
             </button>
@@ -58,7 +70,7 @@ export function LibraryView({
                 <button
                   className="ghost-more"
                   aria-label={`Options for ${folder.name}`}
-                  onClick={(event) => onFolderMenu(folder, event.currentTarget)}
+                  onClick={(event) => onFolderMenu(folder, below(event.currentTarget))}
                 >
                   <MoreHorizontal size={16} />
                 </button>
@@ -71,7 +83,13 @@ export function LibraryView({
           const playingHere =
             player.playing && tracksFor(album).some((track) => track.id === player.track?.id);
           return (
-            <div className="card" key={album.id} data-album-id={album.id} style={{ ["--i" as string]: index }}>
+            <div
+              className="card"
+              key={album.id}
+              data-album-id={album.id}
+              style={{ ["--i" as string]: index }}
+              onContextMenu={(event) => onAlbumMenu(album, atPointer(event))}
+            >
               <div className="card-art-wrap">
                 <button className="card-open" onClick={() => onOpenAlbum(album.id)} aria-label={album.name}>
                   <Cover fileId={album.coverFileId} hue={album.hue} radius={32} className="card-cover" />
@@ -93,7 +111,7 @@ export function LibraryView({
                   <button
                     className="ghost-more"
                     aria-label={`Options for ${album.name}`}
-                    onClick={(event) => onAlbumMenu(album, event.currentTarget)}
+                    onClick={(event) => onAlbumMenu(album, below(event.currentTarget))}
                   >
                     <MoreHorizontal size={16} />
                   </button>
@@ -106,13 +124,22 @@ export function LibraryView({
       {visibleTracks.length ? (
         <div className="search-tracks">
           {visibleTracks.map((track) => (
-            <button key={track.id} className="search-track" onClick={() => onPlayTrack(track)}>
+            <button
+              key={track.id}
+              className="search-track"
+              disabled={!online && !offline.isSaved(track.id)}
+              onClick={() => onPlayTrack(track)}
+              onContextMenu={(event) => onTrackMenu(track, atPointer(event))}
+            >
               <Cover fileId={track.coverFileId} hue={track.hue} radius={8} className="search-art" />
               <span>
                 <span className="track-title">{track.title}</span>
                 <span className="track-sub">{track.artist}</span>
               </span>
-              <span className="track-dur">{formatTrackTime(track.durationMs)}</span>
+              <span className="track-dur">
+                <OfflineBadge trackId={track.id} />
+                {formatTrackTime(track.durationMs)}
+              </span>
             </button>
           ))}
         </div>

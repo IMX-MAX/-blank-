@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { ChevronDown, Music2, RotateCw } from 'lucide-react';
 import { activeLineIndex, findLyrics, type LyricLine, type Lyrics, type LyricsResult } from '../lib/lyrics';
+import { getOfflineLyrics, setOfflineLyrics } from '../lib/offline';
 import { useLibrary } from '../state/LibraryProvider';
 import { usePlayer } from '../state/PlayerProvider';
 import type { Track } from '../types';
@@ -20,8 +21,16 @@ function useLyrics(track: Track | null, album: string | undefined) {
     if (!trackId || !title) return;
     const controller = new AbortController();
     setState({ status: 'loading' });
-    findLyrics({ title, artist: artist ?? '', album, duration: seconds }, controller.signal)
-      .then(setState)
+    void (async () => {
+      const kept = await getOfflineLyrics(trackId).catch(() => null);
+      if (kept) return kept;
+      const found = await findLyrics({ title, artist: artist ?? '', album, duration: seconds }, controller.signal);
+      if (found.status !== 'none') void setOfflineLyrics(trackId, found).catch(() => undefined);
+      return found;
+    })()
+      .then((result) => {
+        if (!controller.signal.aborted) setState(result);
+      })
       .catch(() => {
         if (!controller.signal.aborted) setState({ status: 'error' });
       });

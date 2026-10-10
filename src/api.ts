@@ -1,5 +1,6 @@
 import { API_URL } from './config';
 import { auth } from './auth';
+import { getOfflineAudio, getOfflineCover } from './lib/offline';
 import type { Album, Folder, PlaylistTrack, Track } from './types';
 
 export class ApiError extends Error {
@@ -113,7 +114,8 @@ const coverUrls = new Map<string, string>();
 export async function coverObjectUrl(fileId: string): Promise<string> {
   const cached = coverUrls.get(fileId);
   if (cached) return cached;
-  const url = URL.createObjectURL(await api.file('cover', fileId));
+  const saved = await getOfflineCover(fileId).catch(() => null);
+  const url = URL.createObjectURL(saved ?? (await api.file('cover', fileId)));
   coverUrls.set(fileId, url);
   return url;
 }
@@ -142,10 +144,16 @@ export async function audioObjectUrl(fileId: string): Promise<string> {
     return cached.url;
   }
   if (cached) dropAudio(fileId);
-  const direct = await api.fileUrl('audio', fileId);
-  const entry = direct.url
-    ? { url: direct.url, blob: false, expires: Date.now() + ((direct.expiresIn ?? 3600) * 1000) / 2 }
-    : { url: URL.createObjectURL(await api.file('audio', fileId)), blob: true, expires: Infinity };
+  const saved = await getOfflineAudio(fileId).catch(() => null);
+  let entry: { url: string; blob: boolean; expires: number };
+  if (saved) {
+    entry = { url: URL.createObjectURL(saved), blob: true, expires: Infinity };
+  } else {
+    const direct = await api.fileUrl('audio', fileId);
+    entry = direct.url
+      ? { url: direct.url, blob: false, expires: Date.now() + ((direct.expiresIn ?? 3600) * 1000) / 2 }
+      : { url: URL.createObjectURL(await api.file('audio', fileId)), blob: true, expires: Infinity };
+  }
   audioUrls.set(fileId, entry);
   while (audioUrls.size > MAX_AUDIO) {
     const oldest = audioUrls.keys().next().value;
@@ -153,4 +161,38 @@ export async function audioObjectUrl(fileId: string): Promise<string> {
     dropAudio(oldest);
   }
   return entry.url;
+}
+
+async function readWithProgress(response: Response, onProgress?: (fraction: number) => void): Promise<Blob> {
+  const type = response.headers.get('content-type') ?? '';
+  const total = Number(response.headers.get('content-length')) || 0;
+  if (!response.body) return response.blob();
+  const reader = response.body.getReader();
+  const chunks: BlobPart[] = [];
+  let received = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    chunks.push(value as BlobPart);
+    received += value.byteLength;
+    if (total) onProgress?.(Math.min(1, received / total));
+  }
+  return new Blob(chunks, { type });
+}
+
+/** Downloads the whole audio file so it can be kept for offline playback. */
+export async function downloadAudio(fileId: string, onProgress?: (fraction: number) => void): Promise<Blob> {
+  const direct = await api.fileUrl('audio', fileId);
+  let response: Response;
+  try {
+    response = direct.url ? await fetch(direct.url) : await request(`/files/audio/${fileId}`);
+  } catch {
+    throw new ApiError(0, 'Could not reach the server');
+  }
+  if (!response.ok) throw new ApiError(response.status, `Download failed (${response.status})`);
+  return readWithProgress(response, onProgress);
+}
+
+export async function downloadCover(fileId: string): Promise<Blob> {
+  return api.file('cover', fileId);
 }

@@ -1,10 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
-import { Bell, ChevronLeft, Link, MoreHorizontal, Plus, Search, Settings } from 'lucide-react';
+import { App } from '@capacitor/app';
+import { Bell, ChevronLeft, Link, MoreHorizontal, Plus, Search, Settings, WifiOff } from 'lucide-react';
 import { videoToAudio } from '../lib/convert';
-import { errorMessage, plural, relativeTime } from '../lib/format';
+import { errorMessage, formatBytes, plural, relativeTime } from '../lib/format';
+import { isNativeApp } from '../lib/shell-cache';
 import { startRecorder, type RecorderHandle } from '../lib/record';
 import { useAuth } from '../state/AuthProvider';
 import { useLibrary } from '../state/LibraryProvider';
+import { useOffline, useOnline } from '../state/OfflineProvider';
 import { usePlayer } from '../state/PlayerProvider';
 import type { Album, Folder, Track } from '../types';
 import { AlbumView } from './AlbumView';
@@ -12,7 +15,17 @@ import { LibraryView } from './LibraryView';
 import { navigateWithTransition } from '../lib/transition';
 import { PlayerBar } from './PlayerBar';
 import { Presence } from './Presence';
-import { AddMenu, AnchoredMenu, ConfirmDialog, NameDialog, PickerDialog, RecordCard, type MenuItem } from './overlays';
+import {
+  AddMenu,
+  AnchoredMenu,
+  ConfirmDialog,
+  NameDialog,
+  PickerDialog,
+  RecordCard,
+  below,
+  type MenuItem,
+  type Point,
+} from './overlays';
 
 type Route = { name: 'library' } | { name: 'folder'; folderId: string } | { name: 'album'; albumId: string };
 
@@ -34,6 +47,8 @@ export function Shell() {
   const { user, signOut } = useAuth();
   const library = useLibrary();
   const player = usePlayer();
+  const offline = useOffline();
+  const online = useOnline();
   const fileRef = useRef<HTMLInputElement>(null);
   const videoRef = useRef<HTMLInputElement>(null);
   const recorderRef = useRef<RecorderHandle | null>(null);
@@ -91,21 +106,42 @@ export function Shell() {
     }
   }, [library.albums, library.folders, library.ready, route]);
 
+  function closeTopmost(): boolean {
+    if (recording) cancelRecording();
+    else if (dialog) setDialog(null);
+    else if (addOpen) setAddOpen(false);
+    else if (menu) setMenu(null);
+    else if (searchOpen) {
+      setSearchOpen(false);
+      setQuery('');
+    } else if (panel) setPanel(null);
+    else if (player.lyricsOpen) player.setLyricsOpen(false);
+    else if (player.queueOpen) player.setQueueOpen(false);
+    else return false;
+    return true;
+  }
+
+  const backButton = useRef<() => void>(() => undefined);
+  backButton.current = () => {
+    if (closeTopmost()) return;
+    if (stack.length > 1) back();
+    else void App.minimizeApp();
+  };
+
+  useEffect(() => {
+    if (!isNativeApp()) return;
+    const handle = App.addListener('backButton', () => backButton.current());
+    return () => {
+      void handle.then((listener) => listener.remove());
+    };
+  }, []);
+
   useEffect(() => {
     function onKey(event: KeyboardEvent) {
       const target = event.target as HTMLElement | null;
       const typing = Boolean(target?.closest('input, textarea'));
       if (event.key === 'Escape') {
-        if (recording) cancelRecording();
-        else if (dialog) setDialog(null);
-        else if (addOpen) setAddOpen(false);
-        else if (menu) setMenu(null);
-        else if (searchOpen) {
-          setSearchOpen(false);
-          setQuery('');
-        } else if (panel) setPanel(null);
-        else if (player.lyricsOpen) player.setLyricsOpen(false);
-        else if (player.queueOpen) player.setQueueOpen(false);
+        closeTopmost();
         return;
       }
       if (typing || document.querySelector('[data-overlay]')) return;
@@ -228,10 +264,41 @@ export function Shell() {
     else player.playTracks(list, 0);
   }
 
-  function albumMenu(item: Album, anchor: HTMLElement): MenuItem[] {
-    const rect = anchor.getBoundingClientRect();
+  function offlineItem(tracks: Track[], noun: string): MenuItem[] {
+    if (!tracks.length) return [];
+    const pending = tracks.filter((track) => !offline.isSaved(track.id));
+    if (!pending.length) {
+      return [
+        {
+          id: 'offline-remove',
+          label: 'Remove download',
+          onClick: () => void run(() => offline.remove(tracks), `Removed from this device`),
+        },
+      ];
+    }
+    if (tracks.every((track) => offline.progress[track.id] !== undefined)) {
+      return [{ id: 'offline-busy', label: 'Downloading…', onClick: () => undefined }];
+    }
+    return [
+      {
+        id: 'offline',
+        label: 'Make available offline',
+        onClick: () => {
+          if (!online) {
+            notify('Connect to the internet to download songs');
+            return;
+          }
+          notify(pending.length > 1 ? `Downloading ${plural(pending.length, 'song')}` : `Downloading ${noun}`);
+          void run(() => offline.makeAvailable(pending), pending.length > 1 ? 'Songs are available offline' : 'Available offline');
+        },
+      },
+    ];
+  }
+
+  function albumMenu(item: Album, at: Point) {
     const items: MenuItem[] = [
       { id: 'play', label: 'Play', onClick: () => playCollection(item) },
+      ...offlineItem(library.tracksFor(item), item.name),
       { id: 'rename', label: 'Rename', onClick: () => setDialog({ kind: 'rename-album', album: item }) },
       { id: 'move', label: 'Move to folder', onClick: () => setDialog({ kind: 'move', album: item }) },
       {
@@ -241,8 +308,30 @@ export function Shell() {
         onClick: () => setDialog({ kind: 'delete-album', album: item }),
       },
     ];
-    setMenu({ x: rect.left, y: rect.bottom + 6, items });
-    return items;
+    setMenu({ ...at, items });
+  }
+
+  function trackMenu(track: Track, at: Point, from?: Album) {
+    const items: MenuItem[] = [
+      { id: 'play', label: 'Play', onClick: () => player.playTracks(from ? library.tracksFor(from) : [track], from ? Math.max(0, library.tracksFor(from).findIndex((item) => item.id === track.id)) : 0) },
+      { id: 'next', label: 'Play next', onClick: () => player.playNext(track) },
+      ...offlineItem([track], track.title),
+      { id: 'add', label: 'Add to playlist', onClick: () => setDialog({ kind: 'add-playlist', track }) },
+    ];
+    if (from?.kind === 'playlist') {
+      items.push({
+        id: 'remove',
+        label: 'Remove from playlist',
+        onClick: () => void run(() => library.removeFromPlaylist(from.id, track.id)),
+      });
+    }
+    items.push({
+      id: 'delete',
+      label: 'Delete from library',
+      danger: true,
+      onClick: () => setDialog({ kind: 'delete-track', track }),
+    });
+    setMenu({ ...at, items });
   }
 
   const recent = [...library.tracks].sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1)).slice(0, 8);
@@ -290,7 +379,12 @@ export function Shell() {
             </button>
           )}
           {route.name === 'folder' ? <h1 className="wordmark folder-title">{headerTitle}</h1> : null}
-          {library.syncing && library.ready && route.name === 'library' ? <span className="sync-dot" title="Syncing" /> : null}
+          {library.syncing && library.ready && route.name === 'library' && online ? <span className="sync-dot" title="Syncing" /> : null}
+          {!online || !library.live ? (
+            <span className="offline-note" title="Songs saved on this device still play">
+              <WifiOff size={14} /> Offline
+            </span>
+          ) : null}
         </div>
         <div className="topbar-right">
           {route.name === 'album' && album ? (
@@ -335,7 +429,7 @@ export function Shell() {
             <button
               className="icon-btn"
               aria-label="Album options"
-              onClick={(event) => albumMenu(album, event.currentTarget)}
+              onClick={(event) => albumMenu(album, below(event.currentTarget))}
             >
               <MoreHorizontal size={18} />
             </button>
@@ -345,10 +439,9 @@ export function Shell() {
               className="icon-btn"
               aria-label="Folder options"
               onClick={(event) => {
-                const rect = event.currentTarget.getBoundingClientRect();
+                const at = below(event.currentTarget, 'right');
                 setMenu({
-                  x: rect.right - 228,
-                  y: rect.bottom + 6,
+                  ...at,
                   items: [
                     { id: 'rename', label: 'Rename folder', onClick: () => setDialog({ kind: 'rename-folder', folder }) },
                     {
@@ -398,27 +491,7 @@ export function Shell() {
           query={activeQuery}
           onPlay={() => playCollection(album)}
           onTrack={(track) => player.toggleTrack(track, library.tracksFor(album))}
-          onTrackMenu={(track, anchor) => {
-            const rect = anchor.getBoundingClientRect();
-            const items: MenuItem[] = [
-              { id: 'next', label: 'Play next', onClick: () => player.playNext(track) },
-              { id: 'add', label: 'Add to playlist', onClick: () => setDialog({ kind: 'add-playlist', track }) },
-            ];
-            if (album.kind === 'playlist') {
-              items.push({
-                id: 'remove',
-                label: 'Remove from playlist',
-                onClick: () => void run(() => library.removeFromPlaylist(album.id, track.id)),
-              });
-            }
-            items.push({
-              id: 'delete',
-              label: 'Delete from library',
-              danger: true,
-              onClick: () => setDialog({ kind: 'delete-track', track }),
-            });
-            setMenu({ x: rect.right - 228, y: rect.bottom + 6, items });
-          }}
+          onTrackMenu={(track, at) => trackMenu(track, at, album)}
           onAdd={() => {
             if (album.kind === 'playlist') setDialog({ kind: 'pick-tracks', playlist: album });
             else openFiles();
@@ -434,12 +507,10 @@ export function Shell() {
           onOpenFolder={(folderId) => push({ name: 'folder', folderId })}
           onOpenAlbum={(albumId) => push({ name: 'album', albumId })}
           onPlayAlbum={playCollection}
-          onAlbumMenu={(item, anchor) => albumMenu(item, anchor)}
-          onFolderMenu={(item, anchor) => {
-            const rect = anchor.getBoundingClientRect();
+          onAlbumMenu={albumMenu}
+          onFolderMenu={(item, at) =>
             setMenu({
-              x: rect.left,
-              y: rect.bottom + 6,
+              ...at,
               items: [
                 { id: 'open', label: 'Open', onClick: () => push({ name: 'folder', folderId: item.id }) },
                 { id: 'rename', label: 'Rename', onClick: () => setDialog({ kind: 'rename-folder', folder: item }) },
@@ -450,8 +521,9 @@ export function Shell() {
                   onClick: () => setDialog({ kind: 'delete-folder', folder: item }),
                 },
               ],
-            });
-          }}
+            })
+          }
+          onTrackMenu={(track, at) => trackMenu(track, at)}
           onPlayTrack={(track) => player.playTracks([track], 0)}
         />
       )}
@@ -551,6 +623,19 @@ export function Shell() {
           <p className="account-name">{user?.name || 'Listener'}</p>
           <p className="account-email">{user?.email}</p>
           <p className="account-note">Library synced to the cloud</p>
+          <p className="account-note">
+            {offline.count
+              ? `${plural(offline.count, 'song')} saved on this device · ${formatBytes(offline.bytes)}`
+              : 'Right-click a song or album to make it available offline'}
+          </p>
+          {offline.count ? (
+            <button
+              className="text-btn create-inline"
+              onClick={() => void run(() => offline.removeAll(), 'Removed all downloads')}
+            >
+              Remove all downloads
+            </button>
+          ) : null}
           <button
             className="text-btn create-inline"
             onClick={() => {

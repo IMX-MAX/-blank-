@@ -1,5 +1,6 @@
 import { AuthProvider, useAuth } from './state/AuthProvider';
 import { LibraryProvider } from './state/LibraryProvider';
+import { OfflineProvider } from './state/OfflineProvider';
 import { PlayerProvider } from './state/PlayerProvider';
 import { AuthScreen } from './components/AuthScreen';
 import { Shell } from './components/Shell';
@@ -16,9 +17,11 @@ function Gate() {
   if (!user) return <AuthScreen />;
   return (
     <LibraryProvider key={user.id}>
-      <PlayerProvider>
-        <Shell />
-      </PlayerProvider>
+      <OfflineProvider>
+        <PlayerProvider>
+          <Shell />
+        </PlayerProvider>
+      </OfflineProvider>
     </LibraryProvider>
   );
 }

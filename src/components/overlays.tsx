@@ -2,6 +2,22 @@ import { useState, type ReactNode } from 'react';
 import { AudioLines, Folder, Plus, Video, X } from 'lucide-react';
 import { formatClock } from '../lib/format';
 
+export type Point = { x: number; y: number };
+
+const MENU_WIDTH = 228;
+
+/** Menu position just under a button; `right` lines the menu's right edge up with the button. */
+export function below(element: HTMLElement, side: 'left' | 'right' = 'left'): Point {
+  const rect = element.getBoundingClientRect();
+  return { x: side === 'right' ? rect.right - MENU_WIDTH : rect.left, y: rect.bottom + 6 };
+}
+
+/** Menu position at the pointer for right-click and long-press. */
+export function atPointer(event: { clientX: number; clientY: number; preventDefault: () => void }): Point {
+  event.preventDefault();
+  return { x: event.clientX, y: event.clientY };
+}
+
 export type MenuItem = {
   id: string;
   label: string;

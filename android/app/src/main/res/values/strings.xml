@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">[blank]</string>
+    <string name="title_activity_main">[blank]</string>
+    <string name="package_name">app.blank.player</string>
+    <string name="custom_url_scheme">app.blank.player</string>
+</resources>
