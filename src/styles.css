@@ -987,10 +987,10 @@ button.offline-note { cursor: pointer; color: var(--text, #fff); }
   .waveform { height: 26px; min-width: 0; }
   .player-time { font-size: 12px; }
   .player-controls { gap: 0; margin-left: 0; flex: none; }
-  .ctrl { width: 36px; }
-  .player-controls .ctrl[aria-label="Shuffle"],
+  .ctrl { width: 34px; }
   .player-controls .ctrl[aria-label="Repeat"],
   .player-controls .volume { display: none; }
+  .bell-btn { display: none; }
 
   .lyrics { inset: 0 0 var(--player-space) 0; }
   .lyrics-head { padding-top: env(safe-area-inset-top); }

@@ -9,6 +9,13 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.pm.ServiceInfo;
 import android.graphics.Bitmap;
+import android.graphics.Canvas;
+import android.graphics.Color;
+import android.graphics.LinearGradient;
+import android.graphics.Paint;
+import android.graphics.Path;
+import android.graphics.RectF;
+import android.graphics.Shader;
 import android.graphics.drawable.Icon;
 import android.media.MediaMetadata;
 import android.media.session.MediaSession;
@@ -54,6 +61,7 @@ public class PlaybackService extends Service {
     private MediaSession session;
     private NotificationManager notifications;
     private Bitmap artwork;
+    private Bitmap fallbackArt;
     private boolean foreground;
     private PowerManager.WakeLock wakeLock;
 
@@ -134,18 +142,18 @@ public class PlaybackService extends Service {
     }
 
     private void apply(State state) {
-        if (state.artwork != null) artwork = state.artwork;
+        if (state.artwork != null) artwork = BracketArt.frame(state.artwork);
         else if (!state.keepArtwork) artwork = null;
+        if (artwork == null && fallbackArt == null) fallbackArt = BracketArt.placeholder();
+        Bitmap shown = artwork != null ? artwork : fallbackArt;
 
         MediaMetadata.Builder metadata = new MediaMetadata.Builder()
             .putString(MediaMetadata.METADATA_KEY_TITLE, state.title)
             .putString(MediaMetadata.METADATA_KEY_ARTIST, state.artist)
             .putString(MediaMetadata.METADATA_KEY_ALBUM, state.album)
             .putLong(MediaMetadata.METADATA_KEY_DURATION, state.durationMs);
-        if (artwork != null) {
-            metadata.putBitmap(MediaMetadata.METADATA_KEY_ALBUM_ART, artwork);
-            metadata.putBitmap(MediaMetadata.METADATA_KEY_ART, artwork);
-        }
+        metadata.putBitmap(MediaMetadata.METADATA_KEY_ALBUM_ART, shown);
+        metadata.putBitmap(MediaMetadata.METADATA_KEY_ART, shown);
         session.setMetadata(metadata.build());
 
         long actions = PlaybackState.ACTION_PLAY | PlaybackState.ACTION_PAUSE | PlaybackState.ACTION_PLAY_PAUSE
@@ -158,7 +166,7 @@ public class PlaybackService extends Service {
             .build());
 
         holdWakeLock(state.playing);
-        Notification notification = buildNotification(state);
+        Notification notification = buildNotification(state, shown);
         if (!foreground) {
             if (Build.VERSION.SDK_INT >= 29) {
                 startForeground(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK);
@@ -189,7 +197,7 @@ public class PlaybackService extends Service {
         }
     }
 
-    private Notification buildNotification(State state) {
+    private Notification buildNotification(State state, Bitmap shown) {
         Notification.Builder builder = Build.VERSION.SDK_INT >= 26 ? new Notification.Builder(this, CHANNEL) : new Notification.Builder(this);
         Intent open = new Intent(this, MainActivity.class).setFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP | Intent.FLAG_ACTIVITY_CLEAR_TOP);
         PendingIntent contentIntent = PendingIntent.getActivity(this, 0, open, PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT);
@@ -197,8 +205,9 @@ public class PlaybackService extends Service {
         builder
             .setSmallIcon(R.drawable.ic_stat_music)
             .setContentTitle(state.title)
-            .setContentText(state.artist)
-            .setSubText(state.album)
+            .setContentText(state.album == null || state.album.isEmpty() ? state.artist : state.artist + " \u00b7 " + state.album)
+            .setSubText("[blank]")
+            .setColor(0xFFE6C84A)
             .setContentIntent(contentIntent)
             .setDeleteIntent(servicePending(ACTION_STOP))
             .setVisibility(Notification.VISIBILITY_PUBLIC)
@@ -206,7 +215,7 @@ public class PlaybackService extends Service {
             .setOnlyAlertOnce(true)
             .setShowWhen(false)
             .setOngoing(state.playing);
-        if (artwork != null) builder.setLargeIcon(artwork);
+        builder.setLargeIcon(shown);
 
         builder.addAction(action(R.drawable.ic_skip_previous, "Previous", ACTION_PREVIOUS));
         builder.addAction(state.playing
@@ -264,5 +273,67 @@ public class PlaybackService extends Service {
     @Override
     public IBinder onBind(Intent intent) {
         return null;
+    }
+
+    /** Artwork wrapped in the [ ] brand marks, so the lock screen and shade card look like the app. */
+    private static final class BracketArt {
+        private static final int SIZE = 512;
+        private static final int GOLD = 0xFFE6C84A;
+
+        static Bitmap frame(Bitmap source) {
+            Bitmap out = Bitmap.createBitmap(SIZE, SIZE, Bitmap.Config.ARGB_8888);
+            Canvas canvas = new Canvas(out);
+            int side = Math.min(source.getWidth(), source.getHeight());
+            android.graphics.Rect from = new android.graphics.Rect(
+                (source.getWidth() - side) / 2, (source.getHeight() - side) / 2,
+                (source.getWidth() + side) / 2, (source.getHeight() + side) / 2);
+            Paint bitmapPaint = new Paint(Paint.ANTI_ALIAS_FLAG | Paint.FILTER_BITMAP_FLAG);
+            canvas.drawBitmap(source, from, new RectF(0, 0, SIZE, SIZE), bitmapPaint);
+
+            Paint shade = new Paint();
+            shade.setShader(new LinearGradient(0, 0, 0, SIZE,
+                new int[] {0x33000000, 0x00000000, 0x66000000}, new float[] {0f, 0.5f, 1f}, Shader.TileMode.CLAMP));
+            canvas.drawRect(0, 0, SIZE, SIZE, shade);
+
+            drawBrackets(canvas, Color.WHITE, 0.62f, true);
+            return out;
+        }
+
+        static Bitmap placeholder() {
+            Bitmap out = Bitmap.createBitmap(SIZE, SIZE, Bitmap.Config.ARGB_8888);
+            Canvas canvas = new Canvas(out);
+            Paint bg = new Paint();
+            bg.setShader(new LinearGradient(0, 0, SIZE, SIZE, 0xFF2B2B2B, 0xFF0E0E0E, Shader.TileMode.CLAMP));
+            canvas.drawRect(0, 0, SIZE, SIZE, bg);
+            drawBrackets(canvas, GOLD, 0.5f, false);
+            return out;
+        }
+
+        private static void drawBrackets(Canvas canvas, int color, float heightRatio, boolean shadow) {
+            Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
+            paint.setStyle(Paint.Style.STROKE);
+            paint.setStrokeWidth(SIZE * 0.04f);
+            paint.setStrokeCap(Paint.Cap.ROUND);
+            paint.setStrokeJoin(Paint.Join.ROUND);
+            paint.setColor(color);
+            if (shadow) paint.setShadowLayer(SIZE * 0.03f, 0, SIZE * 0.008f, 0x99000000);
+            float h = SIZE * heightRatio;
+            float top = (SIZE - h) / 2f;
+            float bottom = top + h;
+            float arm = SIZE * 0.1f;
+            float inset = shadow ? SIZE * 0.07f : SIZE * 0.2f;
+            Path left = new Path();
+            left.moveTo(inset + arm, top);
+            left.lineTo(inset, top);
+            left.lineTo(inset, bottom);
+            left.lineTo(inset + arm, bottom);
+            Path right = new Path();
+            right.moveTo(SIZE - inset - arm, top);
+            right.lineTo(SIZE - inset, top);
+            right.lineTo(SIZE - inset, bottom);
+            right.lineTo(SIZE - inset - arm, bottom);
+            canvas.drawPath(left, paint);
+            canvas.drawPath(right, paint);
+        }
     }
 }
