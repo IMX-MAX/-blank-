@@ -47,7 +47,7 @@ VITE_NEON_AUTH_URL=<NEON_AUTH_BASE_URL from .env>
 VITE_API_URL=<invocation_url from `neon functions get api`>
 ```
 
-Add every origin you serve the app from as a trusted Auth domain (localhost ports are allowed by default):
+`.env.production` holds the same two public URLs so Vercel (or any host) builds work without extra settings. Add every origin you serve the app from as a trusted Auth domain, including each Vercel domain you sign in on (localhost ports are allowed by default):
 
 ```bash
 neon neon-auth domain add https://your-app.example.com
