@@ -727,6 +727,7 @@ button { cursor: pointer; }
 .ly {
   --on: rgba(255, 255, 255, 0.34);
   --off: rgba(255, 255, 255, 0.34);
+  color: var(--on);
   font-size: clamp(26px, 3.4vw, 44px);
   font-weight: 700;
   line-height: 1.22;
@@ -735,7 +736,7 @@ button { cursor: pointer; }
   transform-origin: left center;
   transform: scale(0.94);
   white-space: pre-wrap;
-  transition: transform 0.45s cubic-bezier(0.2, 0.8, 0.2, 1), opacity 0.45s ease, filter 0.45s ease;
+  transition: transform 0.45s cubic-bezier(0.2, 0.8, 0.2, 1), opacity 0.45s ease, filter 0.45s ease, color 0.35s ease;
   filter: blur(calc(var(--d, 0) * 0.35px));
 }
 .ly[role="button"] { cursor: pointer; }
@@ -744,6 +745,7 @@ button { cursor: pointer; }
 .ly.active { --on: #fff; --off: rgba(255, 255, 255, 0.38); transform: scale(1); filter: none; }
 .ly.active:hover { --on: #fff; --off: rgba(255, 255, 255, 0.38); }
 .ly.plain { --on: rgba(255, 255, 255, 0.86); --off: rgba(255, 255, 255, 0.86); transform: none; filter: none; font-size: clamp(20px, 2.2vw, 28px); font-weight: 600; padding: 5px 0; }
+.ly.right { text-align: right; transform-origin: right center; }
 .ly-gap { height: 26px; }
 .lw {
   --p: 0;

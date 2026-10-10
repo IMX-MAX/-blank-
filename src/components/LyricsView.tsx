@@ -33,8 +33,13 @@ function useLyrics(track: Track | null, album: string | undefined) {
 
 const MODE_LABEL: Record<Lyrics['mode'], string> = {
   word: 'Word-synced',
-  line: 'Line-synced, word timing estimated',
+  line: 'Line-synced',
   plain: 'Unsynced',
+};
+
+const SOURCE_LABEL: Record<Lyrics['source'], string> = {
+  amll: 'AMLL TTML Database',
+  lrclib: 'LRCLIB',
 };
 
 export function LyricsView() {
@@ -146,7 +151,7 @@ export function LyricsView() {
         ) : null}
         {state.status === 'error' ? (
           <div className="lyrics-state">
-            <p>Could not reach LRCLIB.</p>
+            <p>Could not reach the lyrics services.</p>
             <button className="text-btn" onClick={retry}>
               <RotateCw size={14} /> Try again
             </button>
@@ -176,7 +181,7 @@ export function LyricsView() {
                 <div
                   key={index}
                   data-line={index}
-                  className={`ly ${status}`}
+                  className={`ly ${status}${line.align ? ` ${line.align}` : ''}`}
                   style={{ ['--d' as string]: Math.min(Math.abs(index - active), 6) } as CSSProperties}
                   onClick={synced ? () => seek(line.start) : undefined}
                   role={synced ? 'button' : undefined}
@@ -193,7 +198,7 @@ export function LyricsView() {
             })}
           </div>
         ) : null}
-        {lyrics ? <p className="lyrics-credit">Lyrics from LRCLIB</p> : null}
+        {lyrics ? <p className="lyrics-credit">Lyrics from {SOURCE_LABEL[lyrics.source]}</p> : null}
       </div>
     </section>
   );

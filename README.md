@@ -2,7 +2,7 @@
 
 A desktop music library for the records you already own. Upload a collection, keep it in the cloud, and play it back. The layout follows the quiet dark player in the reference shots: a library of covers, an album page, and a pill-shaped waveform bar along the bottom.
 
-Synced lyrics come from [LRCLIB](https://lrclib.net). Word-synced records highlight word by word; line-synced records are highlighted with estimated word timing; unsynced lyrics are shown as plain text.
+Lyrics are looked up in the [AMLL TTML database](https://github.com/amll-dev/amll-ttml-db) first, which carries real per-word timing, then in [LRCLIB](https://lrclib.net). Word timing is only ever shown when a source provides it: those songs highlight word by word, songs with line timing highlight the whole line, and unsynced lyrics are shown as plain text.
 
 ## How it is put together
 
