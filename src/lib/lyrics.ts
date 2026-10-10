@@ -241,11 +241,19 @@ export function lyricsFromRecord(record: LrclibRecord): LyricsResult {
   return best ? { status: 'found', id: record.id, lyrics: best } : { status: 'none' };
 }
 
+class LookupError extends Error {}
+
 async function getJson<T>(url: string, signal?: AbortSignal): Promise<T | null> {
-  const response = await fetch(url, { signal, headers: { accept: 'application/json' } });
-  if (response.status === 404) return null;
-  if (!response.ok) throw new Error(`Lyrics lookup failed (${response.status})`);
-  return (await response.json()) as T;
+  for (let attempt = 0; ; attempt += 1) {
+    const response = await fetch(url, { signal, headers: { accept: 'application/json' } });
+    if (response.status === 404) return null;
+    if (response.ok) return (await response.json()) as T;
+    if (response.status >= 500 && attempt === 0) {
+      await new Promise((resolve) => setTimeout(resolve, 700));
+      continue;
+    }
+    throw new LookupError(`Lyrics lookup failed (${response.status})`);
+  }
 }
 
 function rank(record: LrclibRecord, duration: number): number {
@@ -261,29 +269,103 @@ function rank(record: LrclibRecord, duration: number): number {
   return score;
 }
 
+const VIDEO_TAG = /\s*[([【][^)\]】]*\b(official|m\/?v|video|lyrics?|audio|visualizer|performance|teaser|hd|4k)\b[^)\]】]*[)\]】]/gi;
+const VIDEO_TAIL = /\s*[-–|:]?\s*(official\s+)?(music\s+)?(m\/?v|video|lyric video|lyrics|audio|visualizer)\s*$/i;
+const QUOTED = /['‘’"“”«]([^'‘’"“”»]{2,}?)['‘’"“”»]/;
+
+function tidyArtist(value: string): string {
+  return value
+    .replace(/\s*[([][^)\]]*[)\]]/g, (part) => (/[^\x00-\x7f]/.test(part) ? '' : part))
+    .replace(/\s*-\s*topic$/i, '')
+    .replace(/vevo$/i, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+/** Titles and artists to try, best guess first. Handles video-style names like `ARTIST 'Song' Official MV`. */
+export function lookupCandidates(rawTitle: string, rawArtist: string): Array<{ title: string; artist: string }> {
+  const out: Array<{ title: string; artist: string }> = [];
+  const add = (title: string, artist: string) => {
+    const t = title.replace(/\s+/g, ' ').trim();
+    const a = artist.replace(/\s+/g, ' ').trim();
+    if (t && !out.some((item) => item.title.toLowerCase() === t.toLowerCase() && item.artist.toLowerCase() === a.toLowerCase())) {
+      out.push({ title: t, artist: a });
+    }
+  };
+  const title = clean(rawTitle).replace(VIDEO_TAG, '').replace(VIDEO_TAIL, '').trim();
+  const artist = tidyArtist(clean(rawArtist));
+
+  const quoted = QUOTED.exec(title);
+  if (quoted) {
+    const before = tidyArtist(title.slice(0, quoted.index));
+    add(quoted[1]!, before || artist);
+    add(quoted[1]!, '');
+  }
+  const dash = /^(.{1,80}?)\s+[-–]\s+(.+)$/.exec(title);
+  if (dash) {
+    add(dash[2]!, tidyArtist(dash[1]!));
+    add(dash[2]!, artist);
+  }
+  add(title, artist);
+  add(title, '');
+  return out;
+}
+
 export async function findLyrics(query: LyricsQuery, signal?: AbortSignal): Promise<LyricsResult> {
   const key = cacheKey(query);
   const cached = readCache(key);
   if (cached) return cached;
 
-  const title = clean(query.title);
-  const artist = clean(query.artist);
-  const params = new URLSearchParams({ track_name: title, artist_name: artist });
-  if (query.album) params.set('album_name', query.album);
-  if (query.duration > 0) params.set('duration', String(Math.round(query.duration)));
+  const usable = (item: LrclibRecord | null): item is LrclibRecord =>
+    !!item && !!(item.instrumental || item.syncedLyrics || item.lyricsfile || item.plainLyrics);
+  let failed = false;
+  let record: LrclibRecord | null = null;
 
-  let record = await getJson<LrclibRecord>(`${BASE}/get?${params}`, signal);
-  const usable = (item: LrclibRecord | null) => !!item && (item.instrumental || item.syncedLyrics || item.lyricsfile || item.plainLyrics);
+  const attempt = async (work: () => Promise<LrclibRecord | null>) => {
+    try {
+      record = await work();
+    } catch (err) {
+      if (signal?.aborted) throw err;
+      failed = true;
+    }
+  };
 
-  if (!usable(record)) {
-    const search = new URLSearchParams({ track_name: title });
-    if (artist) search.set('artist_name', artist);
-    const results = (await getJson<LrclibRecord[]>(`${BASE}/search?${search}`, signal)) ?? [];
-    const candidates = results.filter(usable).sort((a, b) => rank(b, query.duration) - rank(a, query.duration));
-    const top = candidates[0];
-    record = top && rank(top, query.duration) > -40 ? top : null;
+  const candidates = lookupCandidates(query.title, query.artist).slice(0, 4);
+  for (const [index, candidate] of candidates.entries()) {
+    const params = new URLSearchParams({ track_name: candidate.title });
+    if (candidate.artist) params.set('artist_name', candidate.artist);
+
+    if (candidate.artist) {
+      const exact = new URLSearchParams(params);
+      if (query.album && index === candidates.length - 1) exact.set('album_name', query.album);
+      if (query.duration > 0) exact.set('duration', String(Math.round(query.duration)));
+      await attempt(async () => {
+        const found = await getJson<LrclibRecord>(`${BASE}/get?${exact}`, signal);
+        return usable(found) ? found : null;
+      });
+      if (record) break;
+    }
+
+    await attempt(async () => {
+      const results = (await getJson<LrclibRecord[]>(`${BASE}/search?${params}`, signal)) ?? [];
+      const top = results.filter(usable).sort((a, b) => rank(b, query.duration) - rank(a, query.duration))[0];
+      return top && rank(top, query.duration) > -40 ? top : null;
+    });
+    if (record) break;
   }
 
+  if (!record) {
+    const free = candidates[0]?.title;
+    if (free) {
+      await attempt(async () => {
+        const results = (await getJson<LrclibRecord[]>(`${BASE}/search?${new URLSearchParams({ q: free })}`, signal)) ?? [];
+        const top = results.filter(usable).sort((a, b) => rank(b, query.duration) - rank(a, query.duration))[0];
+        return top && rank(top, query.duration) > -40 ? top : null;
+      });
+    }
+  }
+
+  if (!record && failed) throw new LookupError('LRCLIB is not responding');
   const result: LyricsResult = record ? lyricsFromRecord(record) : { status: 'none' };
   writeCache(key, result);
   return result;

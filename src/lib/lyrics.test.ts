@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { activeLineIndex, lyricsFromRecord, parseLrc, parseLyricsfile } from './lyrics';
+import { activeLineIndex, lookupCandidates, lyricsFromRecord, parseLrc, parseLyricsfile } from './lyrics';
 
 test('word-synced lyricsfile keeps the record timings', () => {
   const yaml = `version: '1.0'
@@ -48,4 +48,14 @@ test('record selection and active line lookup', () => {
   const lyrics = parseLrc('[00:01.00] a\n[00:03.00] b\n')!;
   assert.equal(activeLineIndex(lyrics.lines, 0.5), -1);
   assert.equal(activeLineIndex(lyrics.lines, 3.2), 1);
+});
+
+test('video-style titles are reduced to a song and artist', () => {
+  const [first] = lookupCandidates("ILLIT (아일릿) 'NOT CUTE ANYMORE’ Official MV", 'HYBE LABELS');
+  assert.deepEqual(first, { title: 'NOT CUTE ANYMORE', artist: 'ILLIT' });
+  assert.deepEqual(lookupCandidates('Queen - Bohemian Rhapsody (Official Video)', 'QueenVEVO')[0], {
+    title: 'Bohemian Rhapsody',
+    artist: 'Queen',
+  });
+  assert.deepEqual(lookupCandidates('Hello', 'Adele')[0], { title: 'Hello', artist: 'Adele' });
 });
