@@ -1061,7 +1061,7 @@ button.offline-note { cursor: pointer; color: var(--text, #fff); }
 /* ---------- Settings page ---------- */
 .settings-page { width: min(720px, calc(100% - 48px)); margin: 0 auto; padding-bottom: calc(var(--player-space, 130px) + 20px); }
 .settings-title { text-align: left; align-self: flex-start; margin: 6px 0 22px; font-size: 30px; font-weight: 700; letter-spacing: -0.04em; }
-.settings-group { margin-bottom: 26px; }
+.settings-group { width: 100%; margin-bottom: 26px; }
 .settings-group h2 { margin: 0 0 8px 6px; font-size: 13px; font-weight: 600; letter-spacing: 0.02em; text-transform: uppercase; color: var(--muted); }
 .settings-row {
   display: flex;
@@ -1084,6 +1084,8 @@ button.offline-note { cursor: pointer; color: var(--text, #fff); }
 .switch span { width: 26px; height: 26px; border-radius: 13px; background: #fff; box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3); transition: transform 0.22s var(--ease-out); }
 .switch.on { background: var(--gold); }
 .switch.on span { transform: translateX(20px); }
+.settings-actions { display: flex; gap: 8px; flex: none; }
+.pill-btn:disabled { opacity: 0.4; }
 .pill-btn { flex: none; border: 0; height: 38px; padding: 0 16px; border-radius: 999px; background: var(--btn-bg); color: var(--btn-fg); font-weight: 600; font-size: 14px; }
 @media (max-width: 600px) {
   .settings-page { width: calc(100% - 32px); }
