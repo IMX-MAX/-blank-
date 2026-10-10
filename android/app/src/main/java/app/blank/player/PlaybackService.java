@@ -21,6 +21,8 @@ import android.media.MediaMetadata;
 import android.media.session.MediaSession;
 import android.media.session.PlaybackState;
 import android.os.Build;
+import android.os.Handler;
+import android.os.Looper;
 import android.os.IBinder;
 import android.os.PowerManager;
 import android.os.SystemClock;
@@ -54,6 +56,7 @@ public class PlaybackService extends Service {
     private static final String ACTION_PREVIOUS = "app.blank.player.PREVIOUS";
     private static final String ACTION_STOP = "app.blank.player.STOP";
 
+    private static final Handler MAIN = new Handler(Looper.getMainLooper());
     private static PlaybackService instance;
     private static State pending;
     private static Listener listener;
@@ -70,7 +73,11 @@ public class PlaybackService extends Service {
     }
 
     public static void update(Context context, State state) {
-        if (instance != null) {
+        if (Looper.myLooper() != Looper.getMainLooper()) {
+            MAIN.post(() -> update(context, state));
+            return;
+        }
+        if (instance != null && instance.session != null) {
             instance.apply(state);
             return;
         }
@@ -86,8 +93,10 @@ public class PlaybackService extends Service {
     }
 
     public static void stop(Context context) {
-        pending = null;
-        if (instance != null) instance.shutdown();
+        MAIN.post(() -> {
+            pending = null;
+            if (instance != null) instance.shutdown();
+        });
     }
 
     private static void emit(String action, long positionMs) {
@@ -136,12 +145,25 @@ public class PlaybackService extends Service {
         if (state != null) {
             apply(state);
         } else if (!foreground) {
+            // startForegroundService() obliges us to post a notification before stopping again.
+            try {
+                startForeground(NOTIFICATION_ID, placeholder());
+            } catch (RuntimeException ignored) {
+                // Not allowed to run in the foreground right now; stopping is all that is left.
+            }
             shutdown();
         }
         return START_NOT_STICKY;
     }
 
+    private Notification placeholder() {
+        Notification.Builder builder = Build.VERSION.SDK_INT >= 26 ? new Notification.Builder(this, CHANNEL) : new Notification.Builder(this);
+        return builder.setSmallIcon(R.drawable.ic_stat_music).setContentTitle("[blank]").build();
+    }
+
     private void apply(State state) {
+        if (session == null) return;
+        MAIN.removeCallbacks(demote);
         if (state.artwork != null) artwork = BracketArt.frame(state.artwork);
         else if (!state.keepArtwork) artwork = null;
         if (artwork == null && fallbackArt == null) fallbackArt = BracketArt.placeholder();
@@ -168,21 +190,34 @@ public class PlaybackService extends Service {
         holdWakeLock(state.playing);
         Notification notification = buildNotification(state, shown);
         if (!foreground) {
-            if (Build.VERSION.SDK_INT >= 29) {
-                startForeground(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK);
-            } else {
-                startForeground(NOTIFICATION_ID, notification);
+            try {
+                if (Build.VERSION.SDK_INT >= 29) {
+                    startForeground(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK);
+                } else {
+                    startForeground(NOTIFICATION_ID, notification);
+                }
+                foreground = true;
+            } catch (RuntimeException blocked) {
+                // Android refuses to promote a service while the app is in the background; the session still works.
+                notifications.notify(NOTIFICATION_ID, notification);
             }
-            foreground = true;
         } else {
             notifications.notify(NOTIFICATION_ID, notification);
         }
         if (!state.playing) {
-            // Paused: let the card be swiped away, but keep the session so the lock screen can resume.
+            // Paused: after a moment let the card be swiped away. The delay keeps a song change from dropping foreground state.
+            MAIN.postDelayed(demote, 5000);
+        }
+    }
+
+    private final Runnable demote = new Runnable() {
+        @Override
+        public void run() {
+            if (!foreground) return;
             stopForeground(false);
             foreground = false;
         }
-    }
+    };
 
     private void holdWakeLock(boolean hold) {
         if (hold) {
@@ -241,6 +276,7 @@ public class PlaybackService extends Service {
     }
 
     private void shutdown() {
+        MAIN.removeCallbacks(demote);
         holdWakeLock(false);
         foreground = false;
         stopForeground(true);
