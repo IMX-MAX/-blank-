@@ -43,6 +43,12 @@ type LibraryContextValue = {
 
 const LibraryContext = createContext<LibraryContextValue | null>(null);
 
+function pictureKey(bytes: Uint8Array): string {
+  const sample = (from: number) => Array.from(bytes.subarray(from, from + 48)).join(',');
+  const middle = Math.max(0, Math.floor(bytes.byteLength / 2) - 24);
+  return `${bytes.byteLength}:${sample(0)}:${sample(middle)}:${sample(Math.max(0, bytes.byteLength - 48))}`;
+}
+
 function albumKey(name: string, artist: string, folderId: string | null) {
   return `${folderId ?? ''}|${name.trim().toLowerCase()}|${artist.trim().toLowerCase()}`;
 }
@@ -254,6 +260,7 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
       const fallbackArtist = user.name?.trim() || 'Unknown';
       const localAlbums = [...albums];
       const created: Track[] = [];
+      const albumPictures = new Map<string, string>();
       try {
         for (let index = 0; index < accepted.length; index += 1) {
           const file = accepted[index]!;
@@ -283,6 +290,7 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
           if (!album) continue;
 
           if (!album.coverFileId && meta.picture && meta.picture.bytes.byteLength < 8_000_000) {
+            albumPictures.set(album.id, pictureKey(meta.picture.bytes));
             const updated = await api.setCover(album.id, coverFileFromPicture(meta.picture, album.id));
             album = updated;
             localAlbums.splice(
@@ -306,8 +314,16 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
             trackNumber: meta.trackNumber || null,
             year: meta.year || null,
           });
-          setTracks((current) => [track, ...current]);
-          created.push(track);
+          let stored = track;
+          const ownPicture = meta.picture && meta.picture.bytes.byteLength < 8_000_000 ? meta.picture : null;
+          if (ownPicture && albumPictures.get(album.id) !== pictureKey(ownPicture.bytes)) {
+            // The song's own artwork is a nice-to-have; a failed upload must not lose the song.
+            stored = await api
+              .setTrackCover(track.id, coverFileFromPicture(ownPicture, track.id))
+              .catch(() => track);
+          }
+          setTracks((current) => [stored, ...current]);
+          created.push(stored);
         }
       } finally {
         importing.current = false;

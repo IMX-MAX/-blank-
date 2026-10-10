@@ -2,6 +2,7 @@ import { AuthProvider, useAuth } from './state/AuthProvider';
 import { LibraryProvider } from './state/LibraryProvider';
 import { OfflineProvider } from './state/OfflineProvider';
 import { PlayerProvider } from './state/PlayerProvider';
+import { SettingsProvider } from './state/SettingsProvider';
 import { AuthScreen } from './components/AuthScreen';
 import { Shell } from './components/Shell';
 
@@ -28,8 +29,10 @@ function Gate() {
 
 export function App() {
   return (
-    <AuthProvider>
-      <Gate />
-    </AuthProvider>
+    <SettingsProvider>
+      <AuthProvider>
+        <Gate />
+      </AuthProvider>
+    </SettingsProvider>
   );
 }

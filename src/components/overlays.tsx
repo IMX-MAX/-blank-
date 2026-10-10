@@ -1,6 +1,5 @@
 import { useState, type ReactNode } from 'react';
-import { AudioLines, Folder, Plus, Video, X } from 'lucide-react';
-import { formatClock } from '../lib/format';
+import { AudioLines, Folder, Plus, X } from 'lucide-react';
 
 export type Point = { x: number; y: number };
 
@@ -87,15 +86,11 @@ export function AnchoredMenu({
 export function AddMenu({
   onClose,
   onAudio,
-  onConvert,
-  onRecord,
   onFolder,
   onProject,
 }: {
   onClose: () => void;
   onAudio: () => void;
-  onConvert: () => void;
-  onRecord: () => void;
   onFolder: () => void;
   onProject: () => void;
 }) {
@@ -106,15 +101,6 @@ export function AddMenu({
           <button className="add-row" onClick={onAudio}>
             <AudioLines size={20} strokeWidth={1.75} /> Audio
           </button>
-          <button className="add-row" onClick={onConvert}>
-            <Video size={20} strokeWidth={1.75} /> Convert
-          </button>
-          <button className="add-row" onClick={onRecord}>
-            <span className="menu-icon" aria-hidden>
-              <span className="menu-rec" />
-            </span>
-            Record
-          </button>
           <button className="add-row" onClick={onFolder}>
             <Folder size={20} strokeWidth={1.75} /> New Folder
           </button>
@@ -123,33 +109,6 @@ export function AddMenu({
           </button>
         </div>
         <button className="close-pill" onClick={onClose}>
-          <X size={16} /> Close
-        </button>
-      </div>
-    </Scrim>
-  );
-}
-
-export function RecordCard({
-  elapsed,
-  onStop,
-  onCancel,
-}: {
-  elapsed: number;
-  onStop: () => void;
-  onCancel: () => void;
-}) {
-  return (
-    <Scrim locked onClose={onCancel}>
-      <div className="add-stack">
-        <div className="record-card" role="dialog" aria-label="Recording">
-          <span className="record-dot" />
-          <div className="record-time">{formatClock(elapsed)}</div>
-          <button className="record-stop" onClick={onStop}>
-            Stop
-          </button>
-        </div>
-        <button className="close-pill" onClick={onCancel}>
           <X size={16} /> Close
         </button>
       </div>

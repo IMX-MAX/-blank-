@@ -67,6 +67,14 @@ export const api = {
     });
     return response.json();
   },
+  async setTrackCover(trackId: string, file: Blob): Promise<Track> {
+    const response = await request(`/tracks/${trackId}/cover`, {
+      method: 'PUT',
+      headers: { 'content-type': file.type || 'image/jpeg' },
+      body: file,
+    });
+    return response.json();
+  },
   async uploadAudio(file: Blob): Promise<{ fileId: string; contentType: string }> {
     const contentType = file.type || 'application/octet-stream';
     const init = await json<{ fileId: string; contentType: string; uploadUrl: string | null }>('/files/audio', 'POST', {

@@ -1,5 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { audioObjectUrl } from '../api';
+import { coverFor } from '../lib/covers';
+import { useSettings } from './SettingsProvider';
 import { artworkFor, nativeControls, type ControlAction } from '../lib/media-controls';
 import type { Track } from '../types';
 import { useLibrary } from './LibraryProvider';
@@ -35,6 +37,7 @@ type PlayerContextValue = {
   setQueueOpen: (open: boolean) => void;
   setLyricsOpen: (open: boolean) => void;
   setExpandedOpen: (open: boolean) => void;
+  clearQueue: () => void;
   playNext: (track: Track) => void;
   jumpTo: (index: number) => void;
 };
@@ -66,6 +69,7 @@ function shuffleAfter(tracks: Track[], startIndex: number): Track[] {
 
 export function PlayerProvider({ children }: { children: ReactNode }) {
   const { tracks, albums } = useLibrary();
+  const { songCovers } = useSettings();
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const queueRef = useRef<Track[]>([]);
   /** The queue in its unshuffled order, so turning shuffle off can put it back. */
@@ -236,7 +240,9 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   };
 
   const nowPlaying = queue[index] ?? null;
-  const nowPlayingCover = albums.find((item) => item.id === nowPlaying?.albumId)?.coverFileId ?? nowPlaying?.coverFileId ?? null;
+  const nowPlayingCover = nowPlaying
+    ? coverFor(nowPlaying, albums.find((item) => item.id === nowPlaying.albumId), songCovers)
+    : null;
   const shownArtwork = useRef<string | null>(null);
 
   useEffect(() => {
@@ -342,6 +348,29 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     else setVolume(0);
   }, [muted, setVolume, volume]);
 
+  const clearQueue = useCallback(() => {
+    const audio = audioRef.current;
+    if (audio) {
+      audio.pause();
+      audio.removeAttribute('src');
+      audio.load();
+    }
+    queueRef.current = [];
+    orderedRef.current = [];
+    indexRef.current = 0;
+    setQueue([]);
+    setIndex(0);
+    setPlaying(false);
+    setLoading(false);
+    setCurrentTime(0);
+    setDuration(0);
+    setQueueOpen(false);
+    setLyricsOpen(false);
+    setExpandedOpen(false);
+    setGeneration((value) => value + 1);
+    if ('mediaSession' in navigator) navigator.mediaSession.metadata = null;
+  }, []);
+
   const toggleShuffle = useCallback(() => {
     const turningOn = !shuffleRef.current;
     shuffleRef.current = turningOn;
@@ -429,6 +458,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       setQueueOpen,
       setLyricsOpen,
       setExpandedOpen,
+      clearQueue,
       playNext,
       jumpTo,
     }),
@@ -458,6 +488,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       toggleMute,
       toggleShuffle,
       cycleRepeat,
+      clearQueue,
       playNext,
       jumpTo,
     ],

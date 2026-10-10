@@ -4,6 +4,13 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <meta name="theme-color" content="#151515" />
+    <script>
+      (function () {
+        var t = localStorage.getItem('blank.theme');
+        var light = t === 'light' || (t === 'system' && matchMedia('(prefers-color-scheme: light)').matches);
+        document.documentElement.dataset.theme = light ? 'light' : 'dark';
+      })();
+    </script>
     <title>[blank]</title>
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
   </head>

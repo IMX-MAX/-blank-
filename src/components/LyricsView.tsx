@@ -5,6 +5,8 @@ import { getOfflineLyrics, setOfflineLyrics } from '../lib/offline';
 import { useLibrary } from '../state/LibraryProvider';
 import { usePlayer } from '../state/PlayerProvider';
 import type { Track } from '../types';
+import { coverFor } from '../lib/covers';
+import { useSettings } from '../state/SettingsProvider';
 import { Cover } from './Cover';
 
 type State = { status: 'loading' } | { status: 'error' } | LyricsResult;
@@ -50,6 +52,7 @@ export function LyricsView() {
   const player = usePlayer();
   const { albums } = useLibrary();
   const track = player.track;
+  const { songCovers } = useSettings();
   const album = albums.find((item) => item.id === track?.albumId);
   const { state, retry } = useLyrics(track, album?.name);
   const lyrics = state.status === 'found' ? state.lyrics : null;
@@ -123,7 +126,7 @@ export function LyricsView() {
 
   return (
     <section className="lyrics" data-overlay aria-label="Lyrics">
-      <Cover fileId={album?.coverFileId ?? track.coverFileId} hue={album?.hue ?? track.hue} className="lyrics-bg" radius={0} />
+      <Cover fileId={coverFor(track, album, songCovers)} hue={album?.hue ?? track.hue} className="lyrics-bg" radius={0} />
       <div className="lyrics-shade" />
       <header className="lyrics-head">
         <button className="icon-btn" aria-label="Close lyrics" onClick={() => player.setLyricsOpen(false)}>

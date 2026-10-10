@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react';
+import { useSettings } from '../state/SettingsProvider';
 
 export function Waveform({
   peaks,
@@ -11,6 +12,7 @@ export function Waveform({
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const dragging = useRef(false);
+  const { resolvedTheme } = useSettings();
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -26,6 +28,9 @@ export function Waveform({
       if (!ctx) return;
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       ctx.clearRect(0, 0, width, height);
+      const style = getComputedStyle(canvas);
+      const on = style.getPropertyValue('--wave-on').trim() || 'rgba(240, 240, 240, 0.96)';
+      const off = style.getPropertyValue('--wave-off').trim() || 'rgba(196, 196, 196, 0.8)';
       const pitch = 3;
       const barWidth = 2;
       const count = Math.max(8, Math.floor((width + (pitch - barWidth)) / pitch));
@@ -38,7 +43,7 @@ export function Waveform({
         const barHeight = Math.max(3, (0.28 + peak * 0.72) * (height - 4));
         const x = i * pitch;
         const y = (height - barHeight) / 2;
-        ctx.fillStyle = x + barWidth <= playhead ? 'rgba(240, 240, 240, 0.96)' : 'rgba(196, 196, 196, 0.8)';
+        ctx.fillStyle = x + barWidth <= playhead ? on : off;
         ctx.beginPath();
         ctx.roundRect(x, y, barWidth, barHeight, 1);
         ctx.fill();
@@ -52,7 +57,7 @@ export function Waveform({
     const observer = new ResizeObserver(draw);
     observer.observe(canvas);
     return () => observer.disconnect();
-  }, [peaks, progress]);
+  }, [peaks, progress, resolvedTheme]);
 
   function seekAt(clientX: number) {
     const rect = canvasRef.current?.getBoundingClientRect();
