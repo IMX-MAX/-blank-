@@ -14,7 +14,7 @@ browser (Vite + React)
                      └─ Object Storage bucket "uploads" (audio + cover art, private)
 ```
 
-Every row and file is scoped to the signed-in user's id. Files are streamed through the Function, so the bucket stays private and needs no CORS setup.
+Every row and file is scoped to the signed-in user's id. The bucket stays private. Audio is uploaded and played through short-lived presigned URLs, because the Function rejects request bodies above roughly 10 MB. Cover art (max 8 MB) goes through the Function.
 
 ## Set up the Neon database
 
@@ -47,7 +47,7 @@ VITE_NEON_AUTH_URL=<NEON_AUTH_BASE_URL from .env>
 VITE_API_URL=<invocation_url from `neon functions get api`>
 ```
 
-Add every origin you serve the app from as a trusted Auth domain (localhost ports are allowed by default):
+`.env.production` holds the same two public URLs so Vercel (or any host) builds work without extra settings. Add every origin you serve the app from as a trusted Auth domain, including each Vercel domain you sign in on (localhost ports are allowed by default):
 
 ```bash
 neon neon-auth domain add https://your-app.example.com

@@ -4,7 +4,8 @@ import type { Db, FileKind, ObjectStore, Queryable, Row, VerifyToken } from './t
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const MAX_AUDIO_BYTES = 500 * 1024 * 1024;
-const MAX_COVER_BYTES = 15 * 1024 * 1024;
+const MAX_COVER_BYTES = 8 * 1024 * 1024;
+const URL_TTL_SECONDS = 12 * 60 * 60;
 const AUDIO_TYPES = /^(audio\/|application\/ogg$|video\/ogg$|application\/octet-stream$)/;
 const IMAGE_TYPES = /^image\/(jpeg|png|webp|gif)$/;
 
@@ -276,14 +277,37 @@ export function createApp({ db, store, verify, origins }: AppDeps) {
     return c.json(albumOut(row));
   });
 
-  app.put('/files/audio', async (c) => {
+  app.post('/files/audio', async (c) => {
     const owner = c.get('userId');
+    const body = await c.req.json().catch(() => ({}));
+    const type = text(body.contentType, 'Content type', 120, false).split(';')[0]!.trim().toLowerCase() || 'application/octet-stream';
+    if (!AUDIO_TYPES.test(type)) throw new HttpError(415, 'That is not an audio file');
+    const fileId = crypto.randomUUID();
+    const uploadUrl = store.presign
+      ? await store.presign('PUT', objectKey(owner, 'audio', fileId), { contentType: type, expiresIn: 3600 })
+      : null;
+    return c.json({ fileId, contentType: type, uploadUrl }, 201);
+  });
+
+  app.put('/files/audio/:id', async (c) => {
+    const owner = c.get('userId');
+    const fileId = requireId(c.req.param('id'), 'file');
     const type = (c.req.header('content-type') ?? 'application/octet-stream').split(';')[0]!.trim().toLowerCase();
     if (!AUDIO_TYPES.test(type)) throw new HttpError(415, 'That is not an audio file');
     const bytes = await bodyBytes(c.req.raw, MAX_AUDIO_BYTES);
-    const fileId = crypto.randomUUID();
     await store.put(objectKey(owner, 'audio', fileId), bytes, type);
-    return c.json({ fileId, contentType: type }, 201);
+    return c.json({ fileId, contentType: type });
+  });
+
+  app.get('/files/:kind/:id/url', async (c) => {
+    const owner = c.get('userId');
+    const kind = c.req.param('kind');
+    if (kind !== 'audio' && kind !== 'cover') throw new HttpError(404, 'Not found');
+    const id = requireId(c.req.param('id'), 'file');
+    if (!store.presign) return c.json({ url: null });
+    const key = objectKey(owner, kind, id);
+    if (!(await store.exists(key))) throw new HttpError(404, 'Not found');
+    return c.json({ url: await store.presign('GET', key, { expiresIn: URL_TTL_SECONDS }), expiresIn: URL_TTL_SECONDS });
   });
 
   app.get('/files/:kind/:id', async (c) => {
@@ -311,6 +335,8 @@ export function createApp({ db, store, verify, origins }: AppDeps) {
     const artist = text(body.artist, 'Artist', 256, false);
     const waveform = typeof body.waveform === 'string' ? body.waveform.slice(0, 20000) : null;
     const audioType = typeof body.audioType === 'string' ? body.audioType.slice(0, 120) : 'audio/mpeg';
+
+    if (!(await store.exists(objectKey(owner, 'audio', audioFileId)))) throw new HttpError(400, 'Upload the audio first');
 
     const row = await db.tx(async (q) => {
       if (albumId) {

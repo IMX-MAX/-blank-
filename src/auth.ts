@@ -22,27 +22,34 @@ function toUser(raw: { id: string; name?: string | null; email?: string | null }
 }
 
 function neonBackend(): Backend {
-  const client = createAuthClient(AUTH_URL);
+  const make = (url: string) => createAuthClient(url);
+  let instance: ReturnType<typeof make> | null = null;
+  const get = () => {
+    if (!AUTH_URL) {
+      throw new Error('VITE_NEON_AUTH_URL was not set when this app was built, so sign-in has nowhere to go.');
+    }
+    return (instance ??= make(AUTH_URL));
+  };
   return {
     async session() {
-      const { data } = await client.getSession();
+      const { data } = await get().getSession();
       return data?.user ? toUser(data.user) : null;
     },
     async signIn(email, password) {
-      const { data, error } = await client.signIn.email({ email, password });
+      const { data, error } = await get().signIn.email({ email, password });
       if (error || !data?.user) fail(error, 'Could not sign in');
       return toUser(data.user);
     },
     async signUp(name, email, password) {
-      const { data, error } = await client.signUp.email({ email, password, name });
+      const { data, error } = await get().signUp.email({ email, password, name });
       if (error || !data?.user) fail(error, 'Could not create the account');
       return toUser(data.user);
     },
     async signOut() {
-      await client.signOut();
+      await get().signOut();
     },
     async token() {
-      const { data } = await client.token();
+      const { data } = await get().token();
       return data?.token ?? null;
     },
   };

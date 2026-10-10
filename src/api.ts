@@ -63,12 +63,26 @@ export const api = {
     return response.json();
   },
   async uploadAudio(file: Blob): Promise<{ fileId: string; contentType: string }> {
-    const response = await request('/files/audio', {
-      method: 'PUT',
-      headers: { 'content-type': file.type || 'application/octet-stream' },
-      body: file,
+    const contentType = file.type || 'application/octet-stream';
+    const init = await json<{ fileId: string; contentType: string; uploadUrl: string | null }>('/files/audio', 'POST', {
+      contentType,
     });
-    return response.json();
+    if (init.uploadUrl) {
+      let response: Response;
+      try {
+        response = await fetch(init.uploadUrl, { method: 'PUT', headers: { 'content-type': init.contentType }, body: file });
+      } catch {
+        throw new ApiError(0, 'Could not upload the file');
+      }
+      if (!response.ok) throw new ApiError(response.status, `Upload failed (${response.status})`);
+    } else {
+      await request(`/files/audio/${init.fileId}`, {
+        method: 'PUT',
+        headers: { 'content-type': init.contentType },
+        body: file,
+      });
+    }
+    return { fileId: init.fileId, contentType: init.contentType };
   },
   createTrack: (input: {
     title: string;
@@ -90,12 +104,12 @@ export const api = {
   async file(kind: 'audio' | 'cover', id: string): Promise<Blob> {
     return (await request(`/files/${kind}/${id}`)).blob();
   },
+  async fileUrl(kind: 'audio' | 'cover', id: string): Promise<{ url: string | null; expiresIn?: number }> {
+    return json(`/files/${kind}/${id}/url`, 'GET');
+  },
 };
 
 const coverUrls = new Map<string, string>();
-const audioUrls = new Map<string, string>();
-const MAX_AUDIO = 3;
-
 export async function coverObjectUrl(fileId: string): Promise<string> {
   const cached = coverUrls.get(fileId);
   if (cached) return cached;
@@ -111,21 +125,32 @@ export function forgetCover(fileId: string) {
   coverUrls.delete(fileId);
 }
 
+const audioUrls = new Map<string, { url: string; blob: boolean; expires: number }>();
+const MAX_AUDIO = 3;
+
+function dropAudio(fileId: string) {
+  const entry = audioUrls.get(fileId);
+  audioUrls.delete(fileId);
+  if (entry?.blob) URL.revokeObjectURL(entry.url);
+}
+
 export async function audioObjectUrl(fileId: string): Promise<string> {
   const cached = audioUrls.get(fileId);
-  if (cached) {
+  if (cached && cached.expires > Date.now()) {
     audioUrls.delete(fileId);
     audioUrls.set(fileId, cached);
-    return cached;
+    return cached.url;
   }
-  const url = URL.createObjectURL(await api.file('audio', fileId));
-  audioUrls.set(fileId, url);
+  if (cached) dropAudio(fileId);
+  const direct = await api.fileUrl('audio', fileId);
+  const entry = direct.url
+    ? { url: direct.url, blob: false, expires: Date.now() + ((direct.expiresIn ?? 3600) * 1000) / 2 }
+    : { url: URL.createObjectURL(await api.file('audio', fileId)), blob: true, expires: Infinity };
+  audioUrls.set(fileId, entry);
   while (audioUrls.size > MAX_AUDIO) {
     const oldest = audioUrls.keys().next().value;
     if (!oldest || oldest === fileId) break;
-    const oldUrl = audioUrls.get(oldest);
-    audioUrls.delete(oldest);
-    if (oldUrl) URL.revokeObjectURL(oldUrl);
+    dropAudio(oldest);
   }
-  return url;
+  return entry.url;
 }
