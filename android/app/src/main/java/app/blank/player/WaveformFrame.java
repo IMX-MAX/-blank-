@@ -1,8 +1,8 @@
 package app.blank.player;
 
 /**
- * Draws the playback waveform bar for a round Glyph Matrix: one bar per column, centred on the middle row,
- * bright for what has played and dim for what is left, with the column at the playhead blinking while playing.
+ * Draws a scrolling slice of the playback waveform for a round Glyph Matrix: bars centred on the middle row,
+ * bright for what has played and dim for what is left, with the playhead in the middle column blinking while playing.
  * Pure Java so it can be exercised off-device.
  */
 final class WaveformFrame {
@@ -22,18 +22,29 @@ final class WaveformFrame {
         return dx * dx + dy * dy <= radius * radius;
     }
 
+    /**
+     * A window of the waveform that slides under a fixed playhead in the middle column: what has played
+     * is to the left, what is coming is to the right. One column is one waveform bar, and the bars on
+     * either side of the playhead are blended so the window glides between bars instead of jumping.
+     */
     static int[] render(float[] peaks, double progress, int length, boolean playing, boolean blinkOn) {
         int[] frame = new int[length * length];
         if (length <= 0) return frame;
-        double clamped = Math.min(1d, Math.max(0d, progress));
-        int playhead = Math.min(length - 1, (int) Math.floor(clamped * length));
+        float[] bars = peaks == null || peaks.length == 0 ? new float[] {0.5f} : peaks;
+        double position = Math.min(1d, Math.max(0d, progress)) * bars.length;
         int centre = (length - 1) / 2;
         for (int column = 0; column < length; column++) {
-            float peak = columnPeak(peaks, column, length);
+            double at = position + (column - centre);
+            boolean playhead = column == centre;
+            float peak = sample(bars, at);
+            if (peak < 0f) {
+                if (!playhead) continue;
+                peak = 0f;
+            }
             int half = Math.round((0.15f + 0.85f * peak) * centre);
             int level;
-            if (column < playhead) level = PLAYED;
-            else if (column == playhead) level = playing && !blinkOn ? PLAYHEAD_DIM : PLAYED;
+            if (column < centre) level = PLAYED;
+            else if (playhead) level = playing && !blinkOn ? PLAYHEAD_DIM : PLAYED;
             else level = UPCOMING;
             for (int row = centre - half; row <= centre + half; row++) {
                 if (row < 0 || row >= length || !lit(column, row, length)) continue;
@@ -43,12 +54,18 @@ final class WaveformFrame {
         return frame;
     }
 
-    static float columnPeak(float[] peaks, int column, int columns) {
-        if (peaks == null || peaks.length == 0) return 0.5f;
-        int from = (int) Math.floor((double) column * peaks.length / columns);
-        int to = Math.max(from + 1, (int) Math.floor((double) (column + 1) * peaks.length / columns));
-        float peak = 0f;
-        for (int i = from; i < to && i < peaks.length; i++) peak = Math.max(peak, peaks[i]);
-        return Math.min(1f, Math.max(0f, peak));
+    /** The bar height at a point on the song, measured in bars. Negative outside the song. */
+    static float sample(float[] bars, double at) {
+        if (at < 0 || at >= bars.length) return -1f;
+        double shifted = at - 0.5;
+        int low = (int) Math.floor(shifted);
+        double blend = shifted - low;
+        float a = bars[Math.max(0, Math.min(bars.length - 1, low))];
+        float b = bars[Math.max(0, Math.min(bars.length - 1, low + 1))];
+        return clamp((float) (a + (b - a) * blend));
+    }
+
+    private static float clamp(float value) {
+        return Math.min(1f, Math.max(0f, value));
     }
 }

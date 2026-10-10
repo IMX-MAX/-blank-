@@ -108,6 +108,6 @@ Build it with `npm run android:apk`. The storage code is in `src/lib/local-store
 
 ### Glyph Matrix waveform
 
-On a Nothing Phone (4a) Pro (13x13 matrix) or Phone (3) (25x25), **Settings > Playback** shows a switch that draws the playback waveform bar on the back of the phone: one bar per column, bright for what has played, dim for what is left, with the playhead column blinking while playing. The drawing lives in the playback service (`GlyphWaveform.java`, `WaveformFrame.java`), so it keeps going with the screen off, and it uses `setAppMatrixFrame`, so a Glyph Toy you switch to takes over the display. Needs a system version from 20250801.
+On a Nothing Phone (4a) Pro (13x13 matrix) or Phone (3) (25x25), **Settings > Playback** shows a switch that draws a scrolling slice of the playback waveform on the back of the phone: the waveform slides past a fixed playhead in the middle column, bright for what has played (left) and dim for what is coming (right), with the playhead column blinking while playing. The drawing lives in the playback service (`GlyphWaveform.java`, `WaveformFrame.java`), so it keeps going with the screen off, and it uses `setAppMatrixFrame`, so a Glyph Toy you switch to takes over the display. Needs a system version from 20250801.
 
 Nothing's licence does not allow redistributing the Glyph Matrix SDK, so it is not in the repo: `fetchGlyphSdk` in `android/app/build.gradle` downloads it from their developer kit the first time you build.

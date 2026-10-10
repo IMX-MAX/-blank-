@@ -19,7 +19,7 @@ import java.util.Arrays;
  * while the web view is throttled with the screen off.
  */
 final class GlyphWaveform {
-    private static final long TICK_MS = 400;
+    private static final long TICK_MS = 250;
     private static final Handler MAIN = new Handler(Looper.getMainLooper());
 
     private static boolean enabled;
@@ -36,7 +36,6 @@ final class GlyphWaveform {
     private static long stamp;
     private static int[] lastFrame;
     private static boolean shown;
-    private static int phase;
 
     private GlyphWaveform() {}
 
@@ -161,8 +160,8 @@ final class GlyphWaveform {
         if (length <= 0) return;
         long position = positionMs + (playing ? SystemClock.elapsedRealtime() - stamp : 0);
         double progress = durationMs > 0 ? (double) position / durationMs : 0;
-        phase = (phase + 1) & 1;
-        int[] frame = WaveformFrame.render(peaks, progress, length, playing, phase == 0);
+        boolean blinkOn = (SystemClock.elapsedRealtime() / 500) % 2 == 0;
+        int[] frame = WaveformFrame.render(peaks, progress, length, playing, blinkOn);
         if (lastFrame == null || !Arrays.equals(frame, lastFrame)) {
             try {
                 manager.setAppMatrixFrame(frame);
