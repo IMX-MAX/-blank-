@@ -385,7 +385,7 @@ button { cursor: pointer; }
   gap: 28px;
   padding: 0 34px 0 6px;
 }
-.player-id { display: flex; align-items: center; gap: 12px; min-width: 0; flex: 0 1 230px; }
+.player-id { cursor: pointer; display: flex; align-items: center; gap: 12px; min-width: 0; flex: 0 1 230px; }
 .player-art { width: 54px; height: 54px; flex: none; }
 .player-names { min-width: 0; }
 .player-title, .player-sub {
@@ -949,6 +949,79 @@ button.offline-note { cursor: pointer; color: var(--text, #fff); }
 .track, .card, .search-track { -webkit-touch-callout: none; }
 @media (hover: none) {
   .track, .card, .search-track { user-select: none; -webkit-user-select: none; }
+}
+
+
+/* ---------- Now playing (expanded player) ---------- */
+.now {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: #151515;
+  animation: now-in 0.34s var(--ease-out) both;
+}
+@keyframes now-in { from { opacity: 0; transform: scale(0.985); } }
+@keyframes now-out { to { opacity: 0; transform: scale(0.985); } }
+.presence[data-state="closed"] .now { animation: now-out 0.2s ease both; }
+.now-bg {
+  position: absolute !important;
+  inset: -12%;
+  width: 124% !important;
+  height: 124% !important;
+  filter: blur(80px) saturate(1.5) brightness(0.5);
+  pointer-events: none;
+}
+.now-bg img { object-fit: cover; width: 100%; height: 100%; }
+.now-shade { position: absolute; inset: 0; background: linear-gradient(180deg, rgba(14, 14, 14, 0.35), rgba(14, 14, 14, 0.65)); pointer-events: none; }
+.now-head {
+  position: relative;
+  z-index: 1;
+  padding: calc(18px + env(safe-area-inset-top)) 22px 0;
+}
+.now-body {
+  position: relative;
+  z-index: 1;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: clamp(32px, 6vw, 88px);
+  padding: 8px clamp(24px, 6vw, 80px) calc(28px + env(safe-area-inset-bottom));
+}
+.now-art-wrap { flex: 0 1 auto; display: flex; align-items: center; justify-content: center; min-width: 0; }
+.now-art { width: min(46vw, 62vh, 560px); height: min(46vw, 62vh, 560px); box-shadow: 0 30px 80px rgba(0, 0, 0, 0.5); }
+.now-panel { flex: 0 1 460px; min-width: 0; display: flex; flex-direction: column; gap: 26px; }
+.now-title { font-size: clamp(24px, 3vw, 34px); font-weight: 700; letter-spacing: -0.03em; line-height: 1.15; }
+.now-artist { margin-top: 6px; color: rgba(255, 255, 255, 0.66); font-size: clamp(16px, 1.8vw, 20px); font-weight: 550; }
+.now-seek .waveform { height: 48px; width: 100%; display: block; }
+.now-times { display: flex; justify-content: space-between; margin-top: 8px; color: rgba(255, 255, 255, 0.6); font-size: 13px; font-variant-numeric: tabular-nums; }
+.now-controls { display: flex; align-items: center; justify-content: space-between; }
+.now-controls .ctrl, .now-extras .ctrl { width: 48px; height: 48px; }
+.now-play {
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  border: 0;
+  background: #fff;
+  color: #111;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  transition: transform 0.15s ease;
+}
+.now-play:active { transform: scale(0.94); }
+.now-extras { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.now-volume { display: flex; align-items: center; gap: 4px; flex: 1; justify-content: center; }
+.now-volume .volume-slider { display: block; width: 100%; max-width: 180px; opacity: 1; margin-left: 6px; }
+@media (max-width: 760px) {
+  .now-body { flex-direction: column; justify-content: flex-start; gap: 26px; padding-top: 4px; overflow-y: auto; }
+  .now-art { width: min(100%, 52vh, 420px); height: auto; aspect-ratio: 1; }
+  .now-art-wrap { width: 100%; }
+  .now-panel { flex: none; width: 100%; max-width: 460px; }
 }
 
 /* ---------- Phone ---------- */

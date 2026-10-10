@@ -18,6 +18,7 @@ import { useLibrary } from '../state/LibraryProvider';
 import { usePlayer } from '../state/PlayerProvider';
 import { Cover } from './Cover';
 import { LyricsView } from './LyricsView';
+import { NowPlaying } from './NowPlaying';
 import { Presence } from './Presence';
 import { Waveform } from './Waveform';
 
@@ -27,7 +28,6 @@ export function PlayerBar() {
   const track = player.track;
   if (!track) return null;
   const trackAlbum = albums.find((album) => album.id === track.albumId);
-  const albumName = trackAlbum?.name;
   const coverFileId = trackAlbum?.coverFileId ?? track.coverFileId;
 
   const progress = player.duration > 0 ? player.currentTime / player.duration : 0;
@@ -37,6 +37,9 @@ export function PlayerBar() {
     <>
       <Presence show={player.lyricsOpen}>
         <LyricsView />
+      </Presence>
+      <Presence show={player.expandedOpen}>
+        <NowPlaying />
       </Presence>
       <Presence show={player.queueOpen}>
         <div className="queue-panel" data-overlay>
@@ -59,11 +62,27 @@ export function PlayerBar() {
         </div>
       </Presence>
       <footer className="player">
-        <div className="player-id">
+        <div
+          className="player-id"
+          role="button"
+          tabIndex={0}
+          aria-label="Open player"
+          onClick={() => {
+            player.setLyricsOpen(false);
+            player.setQueueOpen(false);
+            player.setExpandedOpen(true);
+          }}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter' || event.key === ' ') {
+              event.preventDefault();
+              event.currentTarget.click();
+            }
+          }}
+        >
           <Cover fileId={coverFileId} hue={trackAlbum?.hue ?? track.hue} radius="50%" className="player-art" />
           <div className="player-names">
             <div className="player-title">{track.title}</div>
-            <div className="player-sub">{albumName || track.artist}</div>
+            <div className="player-sub">{track.artist}</div>
           </div>
         </div>
         <div className="player-mid">
@@ -110,6 +129,7 @@ export function PlayerBar() {
             aria-pressed={player.lyricsOpen}
             onClick={() => {
               player.setQueueOpen(false);
+              player.setExpandedOpen(false);
               player.setLyricsOpen(!player.lyricsOpen);
             }}
           >
@@ -120,6 +140,7 @@ export function PlayerBar() {
             aria-label="Queue"
             onClick={() => {
               player.setLyricsOpen(false);
+              player.setExpandedOpen(false);
               player.setQueueOpen(!player.queueOpen);
             }}
           >
