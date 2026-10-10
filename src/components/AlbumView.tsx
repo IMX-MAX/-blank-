@@ -1,6 +1,7 @@
-import { AudioLines, MoreHorizontal, Pause, Play, Plus, Shuffle } from 'lucide-react';
+import { useRef } from 'react';
+import { AudioLines, ImagePlus, MoreHorizontal, Pause, Play, Plus, Shuffle } from 'lucide-react';
 import type { Album, Track } from '../types';
-import { formatTotal, formatTrackTime, matchesQuery, plural } from '../lib/format';
+import { formatTotal, matchesQuery, plural, relativeTime } from '../lib/format';
 import { usePlayer } from '../state/PlayerProvider';
 import { Cover } from './Cover';
 
@@ -12,6 +13,7 @@ export function AlbumView({
   onTrack,
   onTrackMenu,
   onAdd,
+  onCover,
 }: {
   album: Album;
   tracks: Track[];
@@ -20,15 +22,40 @@ export function AlbumView({
   onTrack: (track: Track) => void;
   onTrackMenu: (track: Track, anchor: HTMLElement) => void;
   onAdd: () => void;
+  onCover: (file: File) => void;
 }) {
   const player = usePlayer();
-  const visible = tracks.filter((track) => matchesQuery(query, track.title, track.artist));
+  const coverInput = useRef<HTMLInputElement>(null);
+  const visible = tracks
+    .map((track, index) => ({ track, index }))
+    .filter(({ track }) => matchesQuery(query, track.title, track.artist));
   const totalMs = tracks.reduce((sum, track) => sum + track.durationMs, 0);
   const playingAlbum = tracks.some((track) => track.$id === player.track?.$id) && player.playing;
 
   return (
     <main className="album">
-      <Cover fileId={album.coverFileId} hue={album.hue} radius={32} className="album-cover" />
+      <button
+        className="album-cover-btn"
+        aria-label="Change cover art"
+        title="Change cover art"
+        onClick={() => coverInput.current?.click()}
+      >
+        <Cover fileId={album.coverFileId} hue={album.hue} radius={28} className="album-cover" />
+        <span className="cover-hint">
+          <ImagePlus size={20} /> Change cover
+        </span>
+      </button>
+      <input
+        ref={coverInput}
+        className="hidden-input"
+        type="file"
+        accept="image/jpeg,image/png,image/webp,image/gif"
+        onChange={(event) => {
+          const file = event.target.files?.[0];
+          event.target.value = '';
+          if (file) onCover(file);
+        }}
+      />
       <section className="album-main">
         <div className="album-heading">
           <div>
@@ -58,7 +85,7 @@ export function AlbumView({
           <Plus size={16} /> Add tracks
         </button>
         <div className="track-list">
-          {visible.map((track, index) => {
+          {visible.map(({ track, index }) => {
             const active = player.track?.$id === track.$id;
             return (
               <div className={active ? 'track active' : 'track'} key={track.$id}>
@@ -68,9 +95,8 @@ export function AlbumView({
                   </span>
                   <span className="track-copy">
                     <span className="track-title">{track.title}</span>
-                    <span className="track-sub">{track.artist}</span>
+                    <span className="track-sub">{relativeTime(track.$createdAt)}</span>
                   </span>
-                  <span className="track-dur">{formatTrackTime(track.durationMs)}</span>
                 </button>
                 <button
                   className="ghost-more track-more"

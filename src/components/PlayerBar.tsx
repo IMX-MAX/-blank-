@@ -1,6 +1,6 @@
 import {
+  AlignJustify,
   AudioLines,
-  ListMusic,
   Pause,
   Play,
   Repeat,
@@ -23,7 +23,9 @@ export function PlayerBar() {
   const { albums } = useLibrary();
   const track = player.track;
   if (!track) return null;
-  const albumName = albums.find((album) => album.$id === track.albumId)?.name;
+  const trackAlbum = albums.find((album) => album.$id === track.albumId);
+  const albumName = trackAlbum?.name;
+  const coverFileId = trackAlbum?.coverFileId ?? track.coverFileId;
 
   const progress = player.duration > 0 ? player.currentTime / player.duration : 0;
   const peaks = readPeaks(track.waveform, track.$id);
@@ -52,7 +54,7 @@ export function PlayerBar() {
       ) : null}
       <footer className="player">
         <div className="player-id">
-          <Cover fileId={track.coverFileId} hue={track.hue} radius="50%" className="player-art" />
+          <Cover fileId={coverFileId} hue={trackAlbum?.hue ?? track.hue} radius="50%" className="player-art" />
           <div className="player-names">
             <div className="player-title">{track.title}</div>
             <div className="player-sub">{albumName || track.artist}</div>
@@ -101,7 +103,7 @@ export function PlayerBar() {
             aria-label="Queue"
             onClick={() => player.setQueueOpen(!player.queueOpen)}
           >
-            <ListMusic size={18} />
+            <AlignJustify size={18} />
           </button>
           <div className="volume">
             <button className="ctrl" aria-label="Volume" onClick={player.toggleMute}>

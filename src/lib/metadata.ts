@@ -55,7 +55,7 @@ function durationFromElement(file: File): Promise<number> {
 export async function readMetadata(file: File, fallbackArtist: string): Promise<TrackMetadata> {
   let title = fileTitle(file);
   let artist = fallbackArtist;
-  let album = 'Untitled';
+  let album = 'untitled project';
   let albumArtist = fallbackArtist;
   let trackNumber: number | null = null;
   let year: number | null = null;

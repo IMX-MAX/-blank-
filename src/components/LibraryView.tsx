@@ -73,7 +73,7 @@ export function LibraryView({
             <div className="card" key={album.$id}>
               <div className="card-art-wrap">
                 <button className="card-open" onClick={() => onOpenAlbum(album.$id)} aria-label={album.name}>
-                  <Cover fileId={album.coverFileId} hue={album.hue} radius={28} className="card-cover" />
+                  <Cover fileId={album.coverFileId} hue={album.hue} radius={32} className="card-cover" />
                 </button>
                 <button
                   className="card-play"

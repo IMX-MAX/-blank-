@@ -1,5 +1,6 @@
 import { useState, type ReactNode } from 'react';
-import { AudioLines, Folder, Plus, X } from 'lucide-react';
+import { AudioLines, Folder, Plus, Video, X } from 'lucide-react';
+import { formatClock } from '../lib/format';
 
 export type MenuItem = {
   id: string;
@@ -12,13 +13,21 @@ export function Scrim({
   onClose,
   children,
   clear = false,
+  locked = false,
 }: {
   onClose: () => void;
   children: ReactNode;
   clear?: boolean;
+  locked?: boolean;
 }) {
   return (
-    <div className={clear ? 'scrim clear' : 'scrim'} data-overlay onMouseDown={onClose}>
+    <div
+      className={clear ? 'scrim clear' : 'scrim'}
+      data-overlay
+      onMouseDown={() => {
+        if (!locked) onClose();
+      }}
+    >
       <div onMouseDown={(event) => event.stopPropagation()}>{children}</div>
     </div>
   );
@@ -59,27 +68,72 @@ export function AnchoredMenu({
   );
 }
 
-export function AddMenu({ onClose, onAudio, onFolder, onPlaylist }: {
+export function AddMenu({
+  onClose,
+  onAudio,
+  onConvert,
+  onRecord,
+  onFolder,
+  onProject,
+}: {
   onClose: () => void;
   onAudio: () => void;
+  onConvert: () => void;
+  onRecord: () => void;
   onFolder: () => void;
-  onPlaylist: () => void;
+  onProject: () => void;
 }) {
   return (
     <Scrim onClose={onClose}>
       <div className="add-stack">
         <div className="add-card" role="menu">
           <button className="add-row" onClick={onAudio}>
-            <AudioLines size={20} /> Audio
+            <AudioLines size={20} strokeWidth={1.75} /> Audio
+          </button>
+          <button className="add-row" onClick={onConvert}>
+            <Video size={20} strokeWidth={1.75} /> Convert
+          </button>
+          <button className="add-row" onClick={onRecord}>
+            <span className="menu-icon" aria-hidden>
+              <span className="menu-rec" />
+            </span>
+            Record
           </button>
           <button className="add-row" onClick={onFolder}>
-            <Folder size={20} /> New Folder
+            <Folder size={20} strokeWidth={1.75} /> New Folder
           </button>
-          <button className="add-row" onClick={onPlaylist}>
-            <Plus size={20} /> New Playlist
+          <button className="add-row" onClick={onProject}>
+            <Plus size={20} strokeWidth={1.75} /> New Project
           </button>
         </div>
         <button className="close-pill" onClick={onClose}>
+          <X size={16} /> Close
+        </button>
+      </div>
+    </Scrim>
+  );
+}
+
+export function RecordCard({
+  elapsed,
+  onStop,
+  onCancel,
+}: {
+  elapsed: number;
+  onStop: () => void;
+  onCancel: () => void;
+}) {
+  return (
+    <Scrim locked onClose={onCancel}>
+      <div className="add-stack">
+        <div className="record-card" role="dialog" aria-label="Recording">
+          <span className="record-dot" />
+          <div className="record-time">{formatClock(elapsed)}</div>
+          <button className="record-stop" onClick={onStop}>
+            Stop
+          </button>
+        </div>
+        <button className="close-pill" onClick={onCancel}>
           <X size={16} /> Close
         </button>
       </div>
@@ -165,16 +219,20 @@ export function PickerDialog({
   empty,
   confirm,
   multiple = false,
+  createLabel,
   onClose,
   onConfirm,
+  onCreate,
 }: {
   title: string;
   choices: { id: string; label: string; detail?: string }[];
   empty: string;
   confirm: string;
   multiple?: boolean;
+  createLabel?: string;
   onClose: () => void;
   onConfirm: (ids: string[]) => void;
+  onCreate?: () => void;
 }) {
   const [query, setQuery] = useState('');
   const [picked, setPicked] = useState<string[]>([]);
@@ -215,6 +273,11 @@ export function PickerDialog({
           <button className="white-btn" disabled={picked.length === 0} onClick={() => onConfirm(picked)}>
             {confirm}
             {picked.length ? ` ${picked.length}` : ''}
+          </button>
+        ) : null}
+        {onCreate && createLabel ? (
+          <button className="text-btn create-inline" onClick={onCreate}>
+            {createLabel}
           </button>
         ) : null}
       </div>

@@ -25,8 +25,10 @@ type LibraryContextValue = {
   refresh: () => Promise<void>;
   importFiles: (files: File[], target?: ImportTarget) => Promise<Track[]>;
   createFolder: (name: string) => Promise<Folder>;
+  createProject: (name: string, folderId?: string | null) => Promise<Album>;
   createPlaylist: (name: string, folderId?: string | null) => Promise<Album>;
   renameAlbum: (id: string, name: string) => Promise<void>;
+  setAlbumCover: (id: string, file: File) => Promise<void>;
   renameFolder: (id: string, name: string) => Promise<void>;
   moveAlbum: (id: string, folderId: string | null) => Promise<void>;
   deleteAlbum: (id: string) => Promise<void>;
@@ -208,6 +210,14 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
     [userId],
   );
 
+  const createProject = useCallback(
+    async (name: string, folderId?: string | null) => {
+      const artist = user?.name?.trim() || 'You';
+      return createAlbumRow({ name: name.trim(), artist, kind: 'album', folderId });
+    },
+    [createAlbumRow, user?.name],
+  );
+
   const createPlaylist = useCallback(
     async (name: string, folderId?: string | null) => {
       const artist = user?.name?.trim() || 'You';
@@ -226,6 +236,38 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
     });
     setAlbums((current) => current.map((album) => (album.$id === id ? { ...album, name: trimmed } : album)));
   }, []);
+
+  const setAlbumCover = useCallback(
+    async (id: string, file: File) => {
+      if (!file.type.startsWith('image/')) throw new Error('Choose an image: jpg, png, webp, or gif');
+      if (file.size > 15 * 1024 * 1024) throw new Error('That image is over 15 MB');
+      const album = albums.find((item) => item.$id === id);
+      if (!album) return;
+      const uploaded = await storage.createFile({
+        bucketId: BUCKETS.covers,
+        fileId: ID.unique(),
+        file,
+        permissions: ownerPermissions(userId),
+      });
+      try {
+        await tables.updateRow({
+          databaseId: DATABASE_ID,
+          tableId: TABLES.albums,
+          rowId: id,
+          data: { coverFileId: uploaded.$id },
+        });
+      } catch (err) {
+        await storage.deleteFile({ bucketId: BUCKETS.covers, fileId: uploaded.$id }).catch(() => undefined);
+        throw err;
+      }
+      setAlbums((current) => current.map((item) => (item.$id === id ? { ...item, coverFileId: uploaded.$id } : item)));
+      if (album.coverFileId) {
+        forgetCover(album.coverFileId);
+        await storage.deleteFile({ bucketId: BUCKETS.covers, fileId: album.coverFileId }).catch(() => undefined);
+      }
+    },
+    [albums, userId],
+  );
 
   const renameFolder = useCallback(async (id: string, name: string) => {
     const trimmed = name.trim();
@@ -453,8 +495,10 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
       refresh,
       importFiles,
       createFolder,
+      createProject,
       createPlaylist,
       renameAlbum,
+      setAlbumCover,
       renameFolder,
       moveAlbum,
       deleteAlbum,
@@ -475,8 +519,10 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
       refresh,
       importFiles,
       createFolder,
+      createProject,
       createPlaylist,
       renameAlbum,
+      setAlbumCover,
       renameFolder,
       moveAlbum,
       deleteAlbum,

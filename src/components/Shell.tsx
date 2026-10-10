@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { Bell, ChevronLeft, Link, MoreHorizontal, Plus, Search, Settings } from 'lucide-react';
+import { videoToAudio } from '../lib/convert';
 import { errorMessage, plural, relativeTime } from '../lib/format';
+import { startRecorder, type RecorderHandle } from '../lib/record';
 import { useAuth } from '../state/AuthProvider';
 import { useLibrary } from '../state/LibraryProvider';
 import { usePlayer } from '../state/PlayerProvider';
@@ -8,13 +10,15 @@ import type { Album, Folder, Track } from '../types';
 import { AlbumView } from './AlbumView';
 import { LibraryView } from './LibraryView';
 import { PlayerBar } from './PlayerBar';
-import { AddMenu, AnchoredMenu, ConfirmDialog, NameDialog, PickerDialog, type MenuItem } from './overlays';
+import { AddMenu, AnchoredMenu, ConfirmDialog, NameDialog, PickerDialog, RecordCard, type MenuItem } from './overlays';
 
 type Route = { name: 'library' } | { name: 'folder'; folderId: string } | { name: 'album'; albumId: string };
 
 type Dialog =
   | { kind: 'folder' }
+  | { kind: 'project' }
   | { kind: 'playlist' }
+  | { kind: 'playlist-for-track'; track: Track }
   | { kind: 'rename-album'; album: Album }
   | { kind: 'rename-folder'; folder: Folder }
   | { kind: 'delete-album'; album: Album }
@@ -29,6 +33,8 @@ export function Shell() {
   const library = useLibrary();
   const player = usePlayer();
   const fileRef = useRef<HTMLInputElement>(null);
+  const videoRef = useRef<HTMLInputElement>(null);
+  const recorderRef = useRef<RecorderHandle | null>(null);
   const [stack, setStack] = useState<Route[]>([{ name: 'library' }]);
   const [addOpen, setAddOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
@@ -38,7 +44,11 @@ export function Shell() {
   const [dialog, setDialog] = useState<Dialog | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const [dragOver, setDragOver] = useState(false);
+  const [recording, setRecording] = useState(false);
+  const [elapsed, setElapsed] = useState(0);
+  const [converting, setConverting] = useState<string | null>(null);
   const dragDepth = useRef(0);
+  const recordStarted = useRef(0);
   const toastId = useRef(0);
   const route = stack[stack.length - 1] ?? { name: 'library' as const };
 
@@ -64,6 +74,12 @@ export function Shell() {
   }
 
   useEffect(() => {
+    if (!recording) return;
+    const id = window.setInterval(() => setElapsed((Date.now() - recordStarted.current) / 1000), 200);
+    return () => window.clearInterval(id);
+  }, [recording]);
+
+  useEffect(() => {
     if (!library.ready) return;
     if (route.name === 'album' && !library.albums.some((item) => item.$id === route.albumId)) {
       setStack((current) => current.slice(0, -1));
@@ -78,7 +94,8 @@ export function Shell() {
       const target = event.target as HTMLElement | null;
       const typing = Boolean(target?.closest('input, textarea'));
       if (event.key === 'Escape') {
-        if (dialog) setDialog(null);
+        if (recording) cancelRecording();
+        else if (dialog) setDialog(null);
         else if (addOpen) setAddOpen(false);
         else if (menu) setMenu(null);
         else if (searchOpen) {
@@ -105,7 +122,7 @@ export function Shell() {
     }
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [addOpen, dialog, menu, panel, player, searchOpen]);
+  }, [addOpen, dialog, menu, panel, player, recording, searchOpen]);
 
   function push(next: Route) {
     setSearchOpen(false);
@@ -137,6 +154,56 @@ export function Shell() {
   function openFiles() {
     setAddOpen(false);
     fileRef.current?.click();
+  }
+
+  function openVideo() {
+    setAddOpen(false);
+    videoRef.current?.click();
+  }
+
+  async function convertFiles(files: File[]) {
+    for (const file of files) {
+      setConverting(file.name);
+      try {
+        const audio = await videoToAudio(file);
+        await importFiles([audio]);
+      } catch (err) {
+        notify(errorMessage(err));
+      } finally {
+        setConverting(null);
+      }
+    }
+  }
+
+  async function beginRecording() {
+    setAddOpen(false);
+    try {
+      recorderRef.current = await startRecorder();
+      recordStarted.current = Date.now();
+      setElapsed(0);
+      setRecording(true);
+    } catch (err) {
+      notify(errorMessage(err));
+    }
+  }
+
+  function cancelRecording() {
+    recorderRef.current?.cancel();
+    recorderRef.current = null;
+    setRecording(false);
+  }
+
+  async function finishRecording() {
+    const recorder = recorderRef.current;
+    recorderRef.current = null;
+    setRecording(false);
+    if (!recorder) return;
+    const file = recorder.stop();
+    if (file.size < 1000) {
+      notify('That recording was empty');
+      return;
+    }
+    await importFiles([file]);
   }
 
   function playCollection(item: Album) {
@@ -344,6 +411,7 @@ export function Shell() {
             if (album.kind === 'playlist') setDialog({ kind: 'pick-tracks', playlist: album });
             else openFiles();
           }}
+          onCover={(file) => void run(() => library.setAlbumCover(album.$id, file), 'Cover updated')}
         />
       ) : (
         <LibraryView
@@ -382,6 +450,12 @@ export function Shell() {
         </button>
       ) : null}
 
+      {converting ? (
+        <div className="upload-pill">
+          Converting
+          <span>{converting}</span>
+        </div>
+      ) : null}
       {library.upload ? (
         <div className="upload-pill">
           Adding {library.upload.current} of {library.upload.total}
@@ -403,19 +477,39 @@ export function Shell() {
           if (files.length) void run(() => importFiles(files));
         }}
       />
+      <input
+        ref={videoRef}
+        className="hidden-input"
+        type="file"
+        accept="video/*,.mp4,.mov,.mkv,.webm,.m4v"
+        onChange={(event) => {
+          const files = [...(event.target.files ?? [])];
+          event.target.value = '';
+          if (files.length) void convertFiles(files);
+        }}
+      />
 
       {addOpen ? (
         <AddMenu
           onClose={() => setAddOpen(false)}
           onAudio={openFiles}
+          onConvert={openVideo}
+          onRecord={() => void beginRecording()}
           onFolder={() => {
             setAddOpen(false);
             setDialog({ kind: 'folder' });
           }}
-          onPlaylist={() => {
+          onProject={() => {
             setAddOpen(false);
-            setDialog({ kind: 'playlist' });
+            setDialog({ kind: 'project' });
           }}
+        />
+      ) : null}
+      {recording ? (
+        <RecordCard
+          elapsed={elapsed}
+          onStop={() => void run(() => finishRecording())}
+          onCancel={cancelRecording}
         />
       ) : null}
 
@@ -442,6 +536,15 @@ export function Shell() {
           <p className="account-name">{user?.name || 'Listener'}</p>
           <p className="account-email">{user?.email}</p>
           <p className="account-note">Library synced to nafen internet</p>
+          <button
+            className="text-btn create-inline"
+            onClick={() => {
+              setPanel(null);
+              setDialog({ kind: 'playlist' });
+            }}
+          >
+            New playlist
+          </button>
           <button className="white-btn" onClick={() => void run(() => signOut())}>
             Sign out
           </button>
@@ -459,6 +562,22 @@ export function Shell() {
             void run(async () => {
               const created = await library.createFolder(name);
               push({ name: 'folder', folderId: created.$id });
+            });
+          }}
+        />
+      ) : null}
+      {dialog?.kind === 'project' ? (
+        <NameDialog
+          title="New project"
+          placeholder="untitled project"
+          confirm="Create"
+          initial="untitled project"
+          onCancel={() => setDialog(null)}
+          onConfirm={(name) => {
+            setDialog(null);
+            void run(async () => {
+              const created = await library.createProject(name, route.name === 'folder' ? route.folderId : null);
+              push({ name: 'album', albumId: created.$id });
             });
           }}
         />
@@ -571,16 +690,34 @@ export function Shell() {
         <PickerDialog
           title="Add to playlist"
           confirm="Add"
-          empty="Create a playlist from Add first"
+          empty="No playlists yet"
+          createLabel="New playlist"
           choices={library.albums
             .filter((item) => item.kind === 'playlist')
             .map((item) => ({ id: item.$id, label: item.name, detail: item.artist }))}
           onClose={() => setDialog(null)}
+          onCreate={() => setDialog({ kind: 'playlist-for-track', track: dialog.track })}
           onConfirm={(ids) => {
             const trackId = dialog.track.$id;
             const playlistId = ids[0];
             setDialog(null);
             if (playlistId) void run(() => library.addTracksToPlaylist(playlistId, [trackId]), 'Added to playlist');
+          }}
+        />
+      ) : null}
+      {dialog?.kind === 'playlist-for-track' ? (
+        <NameDialog
+          title="New playlist"
+          placeholder="Playlist name"
+          confirm="Create"
+          onCancel={() => setDialog(null)}
+          onConfirm={(name) => {
+            const trackId = dialog.track.$id;
+            setDialog(null);
+            void run(async () => {
+              const playlist = await library.createPlaylist(name, null);
+              await library.addTracksToPlaylist(playlist.$id, [trackId]);
+            }, 'Added to playlist');
           }}
         />
       ) : null}

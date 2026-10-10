@@ -36,8 +36,8 @@ button { cursor: pointer; }
 .boot h1, .auth h1, .wordmark {
   margin: 0;
   font-size: 22px;
-  font-weight: 500;
-  letter-spacing: -0.03em;
+  font-weight: 600;
+  letter-spacing: -0.04em;
 }
 .auth-card {
   width: min(380px, calc(100% - 48px));
@@ -109,7 +109,12 @@ button { cursor: pointer; }
 
 .stage {
   min-height: calc(100vh - 84px);
-  padding: 6vh 48px 150px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  justify-content: safe center;
+  padding: 12px 48px 150px;
 }
 .stage-title { display: none; }
 .grid {
@@ -134,7 +139,7 @@ button { cursor: pointer; }
   overflow: hidden;
   position: relative;
 }
-.card-cover { width: 100%; height: 100%; }
+.card-cover { width: 100%; height: 100%; border-radius: 32px; }
 .art img {
   position: absolute;
   inset: 0;
@@ -144,7 +149,7 @@ button { cursor: pointer; }
   display: block;
 }
 .folder-art {
-  border-radius: 28px;
+  border-radius: 32px;
   background: #1b1b1b;
   color: #d7d7d7;
   display: grid;
@@ -152,19 +157,19 @@ button { cursor: pointer; }
 }
 .card-play {
   position: absolute;
-  right: 12px;
-  bottom: -16px;
-  width: 48px;
-  height: 48px;
+  right: 8px;
+  bottom: -14px;
+  width: 46px;
+  height: 46px;
   border-radius: 50%;
   border: 5px solid var(--bg);
-  background: #2c2c2c;
+  background: #2a2a2a;
   color: white;
   display: grid;
   place-items: center;
   z-index: 2;
 }
-.card-play svg { margin-left: 2px; }
+.card-play svg.lucide-play { margin-left: 2px; }
 .card-copy { margin-top: 18px; }
 .card-title {
   display: block;
@@ -190,6 +195,7 @@ button { cursor: pointer; }
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  min-width: 0;
 }
 .ghost-more {
   border: 0;
@@ -237,14 +243,42 @@ button { cursor: pointer; }
   margin: 8px auto 0;
   padding-bottom: 160px;
 }
-.album-cover { width: min(420px, 38vw); aspect-ratio: 1; flex: none; }
+.album-cover-btn {
+  position: relative;
+  width: min(420px, 38vw);
+  aspect-ratio: 1;
+  flex: none;
+  padding: 0;
+  border: 0;
+  border-radius: 28px;
+  background: none;
+  display: block;
+  overflow: hidden;
+}
+.album-cover { width: 100%; height: 100%; }
+.cover-hint {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background: rgba(0, 0, 0, 0.42);
+  color: white;
+  font-size: 15px;
+  font-weight: 600;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+.album-cover-btn:hover .cover-hint,
+.album-cover-btn:focus-visible .cover-hint { opacity: 1; }
 .album-main { flex: 1; min-width: 0; padding-top: 12px; }
-.album-heading { display: flex; justify-content: space-between; gap: 24px; align-items: flex-start; }
+.album-heading { display: flex; justify-content: space-between; gap: 24px; align-items: center; }
 .album-title {
   margin: 0;
-  font-size: 34px;
+  font-size: 32px;
   font-weight: 600;
-  letter-spacing: -0.035em;
+  letter-spacing: -0.04em;
 }
 .album-meta { margin: 6px 0 0; color: var(--muted); font-size: 14px; }
 .play-cluster { display: flex; align-items: center; gap: 12px; flex: none; }
@@ -254,16 +288,17 @@ button { cursor: pointer; }
   display: grid;
   place-items: center;
 }
-.shuffle-btn { width: 46px; height: 46px; background: var(--surface); color: white; }
+.shuffle-btn { width: 40px; height: 40px; background: transparent; color: #ececec; }
+.shuffle-btn:hover { background: rgba(255, 255, 255, 0.06); }
 .shuffle-btn.on, .ctrl.is-on { color: var(--gold); }
-.big-play { width: 58px; height: 58px; background: white; color: black; }
-.big-play svg { margin-left: 2px; }
+.big-play { width: 54px; height: 54px; background: white; color: black; }
+.big-play svg.lucide-play { margin-left: 2px; }
 .add-tracks {
   margin-top: 22px;
   width: 100%;
   height: 46px;
   border: 0;
-  border-radius: 14px;
+  border-radius: 16px;
   background: var(--surface);
   display: flex;
   align-items: center;
@@ -281,12 +316,13 @@ button { cursor: pointer; }
   border-radius: 10px;
 }
 .track:hover, .track.active { background: rgba(255, 255, 255, 0.045); }
+.track:hover .track-title { text-decoration: underline; text-underline-offset: 3px; }
 .track-hit {
   display: grid;
-  grid-template-columns: 28px 1fr auto;
+  grid-template-columns: 28px 1fr;
   gap: 12px;
   align-items: center;
-  padding: 8px 4px 8px 8px;
+  padding: 10px 4px 10px 8px;
   border: 0;
   background: transparent;
   text-align: left;
@@ -380,9 +416,17 @@ button { cursor: pointer; }
 .play-toggle svg { margin-left: 1px; }
 .volume { display: flex; align-items: center; }
 .volume-slider {
-  width: 72px;
+  width: 0;
+  opacity: 0;
   accent-color: white;
   cursor: pointer;
+  transition: width 0.15s ease, opacity 0.15s ease;
+}
+.volume:hover .volume-slider,
+.volume:focus-within .volume-slider {
+  width: 84px;
+  opacity: 1;
+  margin-left: 2px;
 }
 
 .queue-panel {
@@ -447,6 +491,14 @@ button { cursor: pointer; }
   font-size: 16px;
   text-align: left;
 }
+.add-row svg, .menu-icon { flex: none; }
+.menu-icon { width: 20px; height: 20px; display: grid; place-items: center; }
+.menu-rec {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #ff2d2d;
+}
 .add-row:hover, .menu-item:hover { background: rgba(255, 255, 255, 0.06); }
 .menu-item.danger { color: #ff8d8d; }
 .close-pill {
@@ -458,6 +510,35 @@ button { cursor: pointer; }
   padding: 12px 28px;
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.28);
 }
+.record-card {
+  width: 260px;
+  background: #2c2c2c;
+  border-radius: 22px;
+  padding: 28px 22px 18px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.35);
+}
+.record-dot {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #ff2d2d;
+  box-shadow: 0 0 0 6px rgba(255, 45, 45, 0.16);
+}
+.record-time { font-size: 28px; font-weight: 600; font-variant-numeric: tabular-nums; letter-spacing: -0.03em; }
+.record-stop {
+  border: 0;
+  background: white;
+  color: black;
+  border-radius: 999px;
+  height: 40px;
+  padding: 0 22px;
+  font-weight: 600;
+}
+.create-inline { align-self: flex-start; padding-left: 4px; }
 
 .dialog {
   width: min(420px, calc(100vw - 40px));
@@ -573,7 +654,7 @@ button { cursor: pointer; }
 
 @media (max-width: 980px) {
   .album { flex-direction: column; width: min(640px, calc(100% - 48px)); }
-  .album-cover { width: min(420px, 100%); }
+  .album-cover-btn { width: min(420px, 100%); }
   .player { grid-template-columns: 1fr; height: auto; padding: 12px; gap: 8px; }
   .volume-slider { display: none; }
 }
