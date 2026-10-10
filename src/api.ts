@@ -13,15 +13,18 @@ export class ApiError extends Error {
 }
 
 async function request(path: string, init: RequestInit = {}): Promise<Response> {
-  const token = await auth().token();
-  const headers = new Headers(init.headers);
-  if (token) headers.set('authorization', `Bearer ${token}`);
-  let response: Response;
-  try {
-    response = await fetch(`${API_URL}${path}`, { ...init, headers });
-  } catch {
-    throw new ApiError(0, 'Could not reach the server');
-  }
+  const send = async (force: boolean) => {
+    const token = await auth().token(force);
+    const headers = new Headers(init.headers);
+    if (token) headers.set('authorization', `Bearer ${token}`);
+    try {
+      return await fetch(`${API_URL}${path}`, { ...init, headers });
+    } catch {
+      throw new ApiError(0, 'Could not reach the server');
+    }
+  };
+  let response = await send(false);
+  if (response.status === 401) response = await send(true);
   if (response.status === 401) window.dispatchEvent(new Event(SESSION_EXPIRED));
   if (!response.ok) {
     const body = (await response.json().catch(() => null)) as { error?: string } | null;
