@@ -26,22 +26,27 @@ export function Waveform({
       if (!ctx) return;
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       ctx.clearRect(0, 0, width, height);
-      const gap = 1.5;
-      const count = Math.max(peaks.length, 1);
-      const barWidth = Math.max(1, (width - (count - 1) * gap) / count);
+      const pitch = 3;
+      const barWidth = 2;
+      const count = Math.max(8, Math.floor((width + (pitch - barWidth)) / pitch));
+      const playhead = Math.min(width - 2, Math.max(0, progress * width));
       for (let i = 0; i < count; i += 1) {
-        const peak = peaks[i] ?? 0.2;
-        const barHeight = Math.max(2, peak * (height - 6));
-        const x = i * (barWidth + gap);
+        const from = Math.floor((i / count) * peaks.length);
+        const to = Math.max(from + 1, Math.floor(((i + 1) / count) * peaks.length));
+        let peak = 0;
+        for (let j = from; j < to; j += 1) peak = Math.max(peak, peaks[j] ?? 0);
+        const barHeight = Math.max(3, (0.28 + peak * 0.72) * (height - 4));
+        const x = i * pitch;
         const y = (height - barHeight) / 2;
-        ctx.fillStyle = 'rgba(214, 214, 214, 0.88)';
+        ctx.fillStyle = x + barWidth <= playhead ? 'rgba(240, 240, 240, 0.96)' : 'rgba(196, 196, 196, 0.8)';
         ctx.beginPath();
-        ctx.roundRect(x, y, Math.max(1, barWidth - 0.4), barHeight, 1);
+        ctx.roundRect(x, y, barWidth, barHeight, 1);
         ctx.fill();
       }
-      const playhead = Math.min(width - 1, Math.max(0, progress * width));
-      ctx.fillStyle = '#e6c84a';
-      ctx.fillRect(playhead, 2, 2, height - 4);
+      ctx.fillStyle = '#f2d54e';
+      ctx.beginPath();
+      ctx.roundRect(playhead, 0, 2, height, 1);
+      ctx.fill();
     };
     draw();
     const observer = new ResizeObserver(draw);

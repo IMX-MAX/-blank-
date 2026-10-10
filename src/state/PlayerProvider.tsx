@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { audioObjectUrl } from '../appwrite';
+import { audioObjectUrl } from '../api';
 import type { Track } from '../types';
 import { useLibrary } from './LibraryProvider';
 
@@ -18,6 +18,8 @@ type PlayerContextValue = {
   shuffle: boolean;
   repeat: RepeatMode;
   queueOpen: boolean;
+  lyricsOpen: boolean;
+  getTime: () => number;
   playTracks: (tracks: Track[], startIndex?: number) => void;
   toggleTrack: (track: Track, list: Track[]) => void;
   toggle: () => void;
@@ -29,6 +31,7 @@ type PlayerContextValue = {
   toggleShuffle: () => void;
   cycleRepeat: () => void;
   setQueueOpen: (open: boolean) => void;
+  setLyricsOpen: (open: boolean) => void;
   playNext: (track: Track) => void;
   jumpTo: (index: number) => void;
 };
@@ -61,13 +64,16 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [volume, setVolumeState] = useState(() => {
-    const stored = Number(localStorage.getItem('blank.volume'));
+    const raw = localStorage.getItem('blank.volume');
+    const stored = raw === null ? NaN : Number(raw);
     return Number.isFinite(stored) ? Math.min(1, Math.max(0, stored)) : 0.9;
   });
   const [muted, setMuted] = useState(false);
   const [shuffle, setShuffle] = useState(false);
   const [repeat, setRepeat] = useState<RepeatMode>('off');
   const [queueOpen, setQueueOpen] = useState(false);
+  const [lyricsOpen, setLyricsOpen] = useState(false);
+  const getTime = useCallback(() => audioRef.current?.currentTime ?? 0, []);
   const [generation, setGeneration] = useState(0);
   const shuffleRef = useRef(shuffle);
   shuffleRef.current = shuffle;
@@ -166,8 +172,8 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   }, [generation, index]);
 
   useEffect(() => {
-    setQueue((current) => current.map((track) => tracks.find((item) => item.$id === track.$id) ?? track));
-    queueRef.current = queueRef.current.map((track) => tracks.find((item) => item.$id === track.$id) ?? track);
+    setQueue((current) => current.map((track) => tracks.find((item) => item.id === track.id) ?? track));
+    queueRef.current = queueRef.current.map((track) => tracks.find((item) => item.id === track.id) ?? track);
   }, [tracks]);
 
   const previous = useCallback(() => {
@@ -211,14 +217,14 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   const toggleTrack = useCallback(
     (track: Track, list: Track[]) => {
       const current = queueRef.current[indexRef.current];
-      if (current?.$id === track.$id) {
+      if (current?.id === track.id) {
         const audio = audioRef.current;
         if (!audio) return;
         if (audio.paused) void audio.play();
         else audio.pause();
         return;
       }
-      const start = Math.max(0, list.findIndex((item) => item.$id === track.$id));
+      const start = Math.max(0, list.findIndex((item) => item.id === track.id));
       playTracks(list, start);
     },
     [playTracks],
@@ -293,6 +299,8 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       shuffle,
       repeat,
       queueOpen,
+      lyricsOpen,
+      getTime,
       playTracks,
       toggleTrack,
       toggle,
@@ -304,6 +312,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       toggleShuffle,
       cycleRepeat,
       setQueueOpen,
+      setLyricsOpen,
       playNext,
       jumpTo,
     }),
@@ -320,6 +329,8 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       shuffle,
       repeat,
       queueOpen,
+      lyricsOpen,
+      getTime,
       playTracks,
       toggleTrack,
       toggle,

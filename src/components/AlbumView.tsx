@@ -30,7 +30,7 @@ export function AlbumView({
     .map((track, index) => ({ track, index }))
     .filter(({ track }) => matchesQuery(query, track.title, track.artist));
   const totalMs = tracks.reduce((sum, track) => sum + track.durationMs, 0);
-  const playingAlbum = tracks.some((track) => track.$id === player.track?.$id) && player.playing;
+  const playingAlbum = tracks.some((track) => track.id === player.track?.id) && player.playing;
 
   return (
     <main className="album">
@@ -86,16 +86,16 @@ export function AlbumView({
         </button>
         <div className="track-list">
           {visible.map(({ track, index }) => {
-            const active = player.track?.$id === track.$id;
+            const active = player.track?.id === track.id;
             return (
-              <div className={active ? 'track active' : 'track'} key={track.$id}>
+              <div className={active ? 'track active' : 'track'} key={track.id}>
                 <button className="track-hit" onClick={() => onTrack(track)}>
                   <span className="track-num">
                     {active ? <AudioLines size={15} /> : index + 1}
                   </span>
                   <span className="track-copy">
                     <span className="track-title">{track.title}</span>
-                    <span className="track-sub">{relativeTime(track.$createdAt)}</span>
+                    <span className="track-sub">{relativeTime(track.createdAt)}</span>
                   </span>
                 </button>
                 <button

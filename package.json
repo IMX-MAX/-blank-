@@ -6,22 +6,39 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "dev:api": "tsx api/src/dev.ts",
+    "test:api": "tsx --test api/src/app.test.ts",
+    "db:schema": "tsx -e \"import(\\\"./api/src/schema.ts\\\").then(m=>console.log(m.SCHEMA_SQL))\"",
+    "test": "tsx --test api/src/app.test.ts src/lib/lyrics.test.ts"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.1149.0",
     "@ffmpeg/core": "^0.12.10",
     "@ffmpeg/ffmpeg": "^0.12.15",
     "@ffmpeg/util": "^0.12.2",
-    "appwrite": "^28.1.0",
+    "@neon/config": "^1.8.6",
+    "@neon/env": "^1.5.3",
+    "@neon/functions": "^0.11.0",
+    "@neondatabase/auth": "^0.5.0-beta",
+    "hono": "^4.13.13",
+    "jose": "^6.2.12",
     "lucide-react": "^1.54.0",
     "music-metadata": "^12.1.0",
+    "pg": "^8.23.1",
     "react": "^19.3.0",
-    "react-dom": "^19.3.0"
+    "react-dom": "^19.3.0",
+    "yaml": "^2.9.1"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "^0.5.8",
+    "@hono/node-server": "^2.1.4",
+    "@types/node": "^26.6.5",
+    "@types/pg": "^8.23.1",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
     "@vitejs/plugin-react": "^6.1.2",
+    "tsx": "^4.23.15",
     "typescript": "^7.0.2",
     "vite": "^8.3.4"
   }

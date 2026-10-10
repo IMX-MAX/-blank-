@@ -15,7 +15,7 @@ function Gate() {
   }
   if (!user) return <AuthScreen />;
   return (
-    <LibraryProvider key={user.$id}>
+    <LibraryProvider key={user.id}>
       <PlayerProvider>
         <Shell />
       </PlayerProvider>

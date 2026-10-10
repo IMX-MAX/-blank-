@@ -1,13 +1,14 @@
 import {
   AlignJustify,
   AudioLines,
+  FastForward,
+  MicVocal,
   Pause,
   Play,
   Repeat,
   Repeat1,
+  Rewind,
   Shuffle,
-  SkipBack,
-  SkipForward,
   Volume2,
   VolumeX,
 } from 'lucide-react';
@@ -16,6 +17,8 @@ import { readPeaks } from '../lib/peaks';
 import { useLibrary } from '../state/LibraryProvider';
 import { usePlayer } from '../state/PlayerProvider';
 import { Cover } from './Cover';
+import { LyricsView } from './LyricsView';
+import { Presence } from './Presence';
 import { Waveform } from './Waveform';
 
 export function PlayerBar() {
@@ -23,22 +26,25 @@ export function PlayerBar() {
   const { albums } = useLibrary();
   const track = player.track;
   if (!track) return null;
-  const trackAlbum = albums.find((album) => album.$id === track.albumId);
+  const trackAlbum = albums.find((album) => album.id === track.albumId);
   const albumName = trackAlbum?.name;
   const coverFileId = trackAlbum?.coverFileId ?? track.coverFileId;
 
   const progress = player.duration > 0 ? player.currentTime / player.duration : 0;
-  const peaks = readPeaks(track.waveform, track.$id);
+  const peaks = readPeaks(track.waveform, track.id);
 
   return (
     <>
-      {player.queueOpen ? (
+      <Presence show={player.lyricsOpen}>
+        <LyricsView />
+      </Presence>
+      <Presence show={player.queueOpen}>
         <div className="queue-panel" data-overlay>
           <div className="queue-head">Queue</div>
           <div className="queue-list">
             {player.queue.map((item, itemIndex) => (
               <button
-                key={`${item.$id}-${itemIndex}`}
+                key={`${item.id}-${itemIndex}`}
                 className={itemIndex === player.index ? 'queue-row active' : 'queue-row'}
                 onClick={() => player.jumpTo(itemIndex)}
               >
@@ -51,7 +57,7 @@ export function PlayerBar() {
             ))}
           </div>
         </div>
-      ) : null}
+      </Presence>
       <footer className="player">
         <div className="player-id">
           <Cover fileId={coverFileId} hue={trackAlbum?.hue ?? track.hue} radius="50%" className="player-art" />
@@ -72,42 +78,56 @@ export function PlayerBar() {
         </div>
         <div className="player-controls">
           <button className="ctrl" aria-label="Previous" onClick={player.previous}>
-            <SkipBack size={20} fill="currentColor" strokeWidth={0} />
+            <Rewind size={24} fill="currentColor" strokeWidth={0} />
           </button>
           <button className="ctrl play-toggle" aria-label={player.playing ? 'Pause' : 'Play'} onClick={player.toggle}>
             {player.playing ? (
-              <Pause size={20} fill="currentColor" strokeWidth={0} />
+              <Pause size={24} fill="currentColor" strokeWidth={0} />
             ) : (
-              <Play size={20} fill="currentColor" strokeWidth={0} />
+              <Play size={24} fill="currentColor" strokeWidth={0} />
             )}
           </button>
           <button className="ctrl" aria-label="Next" onClick={player.next}>
-            <SkipForward size={20} fill="currentColor" strokeWidth={0} />
+            <FastForward size={24} fill="currentColor" strokeWidth={0} />
           </button>
           <button
             className={player.shuffle ? 'ctrl is-on' : 'ctrl'}
             aria-label="Shuffle"
             onClick={player.toggleShuffle}
           >
-            <Shuffle size={18} />
+            <Shuffle size={19} />
           </button>
           <button
             className={player.repeat !== 'off' ? 'ctrl is-on' : 'ctrl'}
             aria-label="Repeat"
             onClick={player.cycleRepeat}
           >
-            {player.repeat === 'one' ? <Repeat1 size={18} /> : <Repeat size={18} />}
+            {player.repeat === 'one' ? <Repeat1 size={19} /> : <Repeat size={19} />}
+          </button>
+          <button
+            className={player.lyricsOpen ? 'ctrl is-on' : 'ctrl'}
+            aria-label="Lyrics"
+            aria-pressed={player.lyricsOpen}
+            onClick={() => {
+              player.setQueueOpen(false);
+              player.setLyricsOpen(!player.lyricsOpen);
+            }}
+          >
+            <MicVocal size={19} />
           </button>
           <button
             className={player.queueOpen ? 'ctrl is-on' : 'ctrl'}
             aria-label="Queue"
-            onClick={() => player.setQueueOpen(!player.queueOpen)}
+            onClick={() => {
+              player.setLyricsOpen(false);
+              player.setQueueOpen(!player.queueOpen);
+            }}
           >
-            <AlignJustify size={18} />
+            <AlignJustify size={19} />
           </button>
           <div className="volume">
             <button className="ctrl" aria-label="Volume" onClick={player.toggleMute}>
-              {player.muted || player.volume === 0 ? <VolumeX size={18} /> : <Volume2 size={18} />}
+              {player.muted || player.volume === 0 ? <VolumeX size={19} /> : <Volume2 size={19} />}
             </button>
             <input
               className="volume-slider"
