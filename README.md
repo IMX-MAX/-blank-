@@ -14,7 +14,7 @@ browser (Vite + React)
                      └─ Object Storage bucket "uploads" (audio + cover art, private)
 ```
 
-Every row and file is scoped to the signed-in user's id. Files are streamed through the Function, so the bucket stays private and needs no CORS setup.
+Every row and file is scoped to the signed-in user's id. The bucket stays private. Audio is uploaded and played through short-lived presigned URLs, because the Function rejects request bodies above roughly 10 MB. Cover art (max 8 MB) goes through the Function.
 
 ## Set up the Neon database
 

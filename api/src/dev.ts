@@ -27,6 +27,12 @@ function fsStore(dir: string): ObjectStore {
         return null;
       }
     },
+    async exists(key) {
+      return stat(path(key)).then(
+        () => true,
+        () => false,
+      );
+    },
     async remove(keys) {
       await Promise.all(keys.map((key) => Promise.all([rm(path(key), { force: true }), rm(`${path(key)}.type`, { force: true })])));
     },

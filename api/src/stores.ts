@@ -1,4 +1,5 @@
-import { DeleteObjectsCommand, GetObjectCommand, PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
+import { DeleteObjectsCommand, GetObjectCommand, HeadObjectCommand, PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
+import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import type { ObjectStore } from './types';
 
 export function s3Store(bucket: string, client = new S3Client({ forcePathStyle: true })): ObjectStore {
@@ -20,6 +21,23 @@ export function s3Store(bucket: string, client = new S3Client({ forcePathStyle: 
         if (name === 'NoSuchKey' || name === 'NotFound') return null;
         throw err;
       }
+    },
+    async exists(key) {
+      try {
+        await client.send(new HeadObjectCommand({ Bucket: bucket, Key: key }));
+        return true;
+      } catch (err) {
+        const name = (err as { name?: string }).name;
+        if (name === 'NotFound' || name === 'NoSuchKey') return false;
+        throw err;
+      }
+    },
+    presign(method, key, { contentType, expiresIn }) {
+      const command =
+        method === 'PUT'
+          ? new PutObjectCommand({ Bucket: bucket, Key: key, ContentType: contentType })
+          : new GetObjectCommand({ Bucket: bucket, Key: key });
+      return getSignedUrl(client, command, { expiresIn });
     },
     async remove(keys) {
       for (let i = 0; i < keys.length; i += 1000) {
@@ -50,6 +68,9 @@ export function memoryStore(): ObjectStore & { keys(): string[] } {
     },
     async remove(keys) {
       for (const key of keys) files.delete(key);
+    },
+    async exists(key) {
+      return files.has(key);
     },
     keys: () => [...files.keys()],
   };

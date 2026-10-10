@@ -62,9 +62,12 @@ test('upload, track, playlist and delete flow', async () => {
   const t = await tokenFor('user-a');
   const album = (await (await call(t, 'POST', '/albums', { name: 'Rec', artist: 'Me', kind: 'album' })).json()) as { id: string };
   const audio = new Uint8Array([1, 2, 3, 4]);
-  const up = await call(t, 'PUT', '/files/audio', undefined, { bytes: audio, type: 'audio/mpeg' });
-  assert.equal(up.status, 201);
-  const { fileId } = (await up.json()) as { fileId: string };
+  const init = await call(t, 'POST', '/files/audio', { contentType: 'audio/mpeg' });
+  assert.equal(init.status, 201);
+  const { fileId, uploadUrl } = (await init.json()) as { fileId: string; uploadUrl: string | null };
+  assert.equal(uploadUrl, null);
+  assert.equal((await call(t, 'POST', '/tracks', { title: 'x', albumId: album.id, audioFileId: fileId })).status, 400);
+  assert.equal((await call(t, 'PUT', `/files/audio/${fileId}`, undefined, { bytes: audio, type: 'audio/mpeg' })).status, 200);
   const track = await call(t, 'POST', '/tracks', { title: 'One', artist: 'Me', albumId: album.id, audioFileId: fileId, durationMs: 1000 });
   assert.equal(track.status, 201);
   const trackRow = (await track.json()) as { id: string };
@@ -95,5 +98,5 @@ test('rejects bad input', async () => {
   const t = await tokenFor('user-a');
   assert.equal((await call(t, 'POST', '/albums', { name: '', kind: 'album' })).status, 400);
   assert.equal((await call(t, 'PUT', '/albums/not-a-uuid/cover', undefined, { bytes: new Uint8Array([1]), type: 'image/png' })).status, 400);
-  assert.equal((await call(t, 'PUT', '/files/audio', undefined, { bytes: new Uint8Array([1]), type: 'text/html' })).status, 415);
+  assert.equal((await call(t, 'POST', '/files/audio', { contentType: 'text/html' })).status, 415);
 });

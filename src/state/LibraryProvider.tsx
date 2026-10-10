@@ -155,7 +155,7 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
   const setAlbumCover = useCallback(
     async (id: string, file: File) => {
       if (!file.type.startsWith('image/')) throw new Error('Choose an image: jpg, png, webp, or gif');
-      if (file.size > 15 * 1024 * 1024) throw new Error('That image is over 15 MB');
+      if (file.size > 8 * 1024 * 1024) throw new Error('That image is over 8 MB');
       const previous = albums.find((item) => item.id === id)?.coverFileId;
       const next = await api.setCover(id, file);
       setAlbums((current) => current.map((item) => (item.id === id ? next : item)));
@@ -252,7 +252,7 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
           }
           if (!album) continue;
 
-          if (!album.coverFileId && meta.picture && meta.picture.bytes.byteLength < 12_000_000) {
+          if (!album.coverFileId && meta.picture && meta.picture.bytes.byteLength < 8_000_000) {
             const updated = await api.setCover(album.id, coverFileFromPicture(meta.picture, album.id));
             album = updated;
             localAlbums.splice(
