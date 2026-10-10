@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
-import { auth, type AuthUser } from '../auth';
+import { auth, forgetSession, SESSION_EXPIRED, type AuthUser } from '../auth';
 
 type AuthContextValue = {
   user: AuthUser | null;
@@ -31,6 +31,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => {
       cancelled = true;
     };
+  }, []);
+
+  useEffect(() => {
+    const expired = () => {
+      forgetSession();
+      setUser(null);
+    };
+    window.addEventListener(SESSION_EXPIRED, expired);
+    return () => window.removeEventListener(SESSION_EXPIRED, expired);
   }, []);
 
   const signIn = useCallback(async (email: string, password: string) => {

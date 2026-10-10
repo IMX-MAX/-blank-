@@ -40,6 +40,13 @@ function remember(user: AuthUser | null) {
   }
 }
 
+/** Called when the server rejects the saved sign-in, so the app stops pretending to be signed in. */
+export function forgetSession() {
+  remember(null);
+}
+
+export const SESSION_EXPIRED = 'blank:session-expired';
+
 function neonBackend(): Backend {
   const make = (url: string) => createAuthClient(url);
   let instance: ReturnType<typeof make> | null = null;

@@ -42,13 +42,8 @@ function useLyrics(track: Track | null, album: string | undefined) {
 
 const MODE_LABEL: Record<Lyrics['mode'], string> = {
   word: 'Word-synced',
-  line: 'Line-synced',
+  line: '',
   plain: 'Unsynced',
-};
-
-const SOURCE_LABEL: Record<Lyrics['source'], string> = {
-  amll: 'AMLL TTML Database',
-  lrclib: 'LRCLIB',
 };
 
 export function LyricsView() {
@@ -138,7 +133,7 @@ export function LyricsView() {
           <div className="lyrics-title">{track.title}</div>
           <div className="lyrics-artist">{track.artist}</div>
         </div>
-        {lyrics ? <span className={`lyrics-chip ${lyrics.mode}`}>{MODE_LABEL[lyrics.mode]}</span> : null}
+        {lyrics && lyrics.mode !== 'line' ? <span className={`lyrics-chip ${lyrics.mode}`}>{MODE_LABEL[lyrics.mode]}</span> : null}
       </header>
 
       <div
@@ -207,7 +202,6 @@ export function LyricsView() {
             })}
           </div>
         ) : null}
-        {lyrics ? <p className="lyrics-credit">Lyrics from {SOURCE_LABEL[lyrics.source]}</p> : null}
       </div>
     </section>
   );

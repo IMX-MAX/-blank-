@@ -1,5 +1,5 @@
 import { API_URL } from './config';
-import { auth } from './auth';
+import { auth, SESSION_EXPIRED } from './auth';
 import { getOfflineAudio, getOfflineCover } from './lib/offline';
 import type { Album, Folder, PlaylistTrack, Track } from './types';
 
@@ -22,6 +22,7 @@ async function request(path: string, init: RequestInit = {}): Promise<Response> 
   } catch {
     throw new ApiError(0, 'Could not reach the server');
   }
+  if (response.status === 401) window.dispatchEvent(new Event(SESSION_EXPIRED));
   if (!response.ok) {
     const body = (await response.json().catch(() => null)) as { error?: string } | null;
     throw new ApiError(response.status, body?.error ?? `Request failed (${response.status})`);
