@@ -99,6 +99,23 @@ public class WaveformFrameTest {
     }
 
     @Test
+    public void loudSongsStillSwingFromAThinLineToFullHeight() {
+        float[] peaks = new float[140];
+        for (int i = 0; i < peaks.length; i++) peaks[i] = i % 2 == 0 ? 0.62f : 0.9f;
+        int[] frame = WaveformFrame.render(peaks, 70.5 / 140, N, false, true);
+        int shortest = N;
+        int tallest = 0;
+        for (int column = 3; column <= 9; column++) {
+            int count = 0;
+            for (int row = 0; row < N; row++) if (at(frame, column, row) > 0) count++;
+            shortest = Math.min(shortest, count);
+            tallest = Math.max(tallest, count);
+        }
+        assertTrue(shortest <= 3);
+        assertTrue(tallest >= 11);
+    }
+
+    @Test
     public void silenceStillDrawsACentreLine() {
         int[] frame = WaveformFrame.render(new float[] {0f, 0f, 0f}, 0.5, N, false, true);
         assertTrue(at(frame, CENTRE, CENTRE) > 0);
