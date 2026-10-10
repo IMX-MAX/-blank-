@@ -1,22 +1,11 @@
 import { parse as parseYaml } from 'yaml';
 
-export type LyricWord = { text: string; start: number; end: number };
-export type LyricLine = { text: string; start: number; end: number; words: LyricWord[] };
+import { findAmll } from './amll';
+import type { LyricLine, LyricWord, Lyrics, LyricsQuery, LyricsResult } from './lyric-types';
+import { clean, lookupCandidates } from './titles';
 
-export type Lyrics = {
-  /** word: timings come from the record; line: line timings with estimated words; plain: unsynced text */
-  mode: 'word' | 'line' | 'plain';
-  lines: LyricLine[];
-};
-
-export type LyricsResult = { status: 'found'; id: number; lyrics: Lyrics } | { status: 'instrumental' } | { status: 'none' };
-
-export type LyricsQuery = {
-  title: string;
-  artist: string;
-  album?: string;
-  duration: number;
-};
+export type { LyricLine, LyricSource, LyricWord, Lyrics, LyricsQuery, LyricsResult } from './lyric-types';
+export { lookupCandidates };
 
 type LrclibRecord = {
   id: number;
@@ -32,21 +21,12 @@ type LrclibRecord = {
 };
 
 const BASE = 'https://lrclib.net/api';
-const CACHE_PREFIX = 'blank.lyrics.v1:';
-const CACHE_INDEX = 'blank.lyrics.v1.index';
+const CACHE_PREFIX = 'blank.lyrics.v2:';
+const CACHE_INDEX = 'blank.lyrics.v2.index';
 const CACHE_LIMIT = 60;
 const MISS_TTL_MS = 24 * 60 * 60 * 1000;
 
 const memory = new Map<string, LyricsResult>();
-
-function clean(value: string): string {
-  return value
-    .replace(/\s*[([](feat|ft|with)\.?[^)\]]*[)\]]/gi, '')
-    .replace(/\s*[([][^)\]]*(remaster|version|edit|mix|live|deluxe)[^)\]]*[)\]]/gi, '')
-    .replace(/\s+-\s+(\d{4}\s+)?(remaster(ed)?|single version|radio edit).*$/i, '')
-    .replace(/\s+/g, ' ')
-    .trim();
-}
 
 function cacheKey(q: LyricsQuery): string {
   return `${clean(q.artist).toLowerCase()}|${clean(q.title).toLowerCase()}|${Math.round(q.duration)}`;
@@ -78,27 +58,6 @@ function writeCache(key: string, result: LyricsResult) {
   } catch {
     /* storage full or unavailable: the in-memory copy still works */
   }
-}
-
-function tokenize(text: string): string[] {
-  return text.match(/\S+\s*/g) ?? [];
-}
-
-/** Spread a line's time across its words in proportion to their length. */
-export function estimateWords(text: string, start: number, end: number): LyricWord[] {
-  const parts = tokenize(text);
-  if (!parts.length) return [];
-  const span = Math.max(0.1, end - start);
-  const sungFor = Math.min(span, Math.max(0.8, text.length * 0.085));
-  const weights = parts.map((part) => Math.max(1, part.trim().length) + 0.6);
-  const total = weights.reduce((sum, weight) => sum + weight, 0);
-  let cursor = start;
-  return parts.map((part, index) => {
-    const wordEnd = cursor + (sungFor * weights[index]!) / total;
-    const word = { text: part, start: cursor, end: wordEnd };
-    cursor = wordEnd;
-    return word;
-  });
 }
 
 function closeLines(lines: Array<{ text: string; start: number; end?: number; words?: LyricWord[] }>): LyricLine[] {
@@ -149,11 +108,7 @@ export function parseLrc(source: string): Lyrics | null {
   }
   if (!raw.length) return null;
   raw.sort((a, b) => a.start - b.start);
-  const lines = closeLines(raw).map((line) => ({
-    ...line,
-    words: line.words.length ? line.words : estimateWords(line.text, line.start, line.end),
-  }));
-  return { mode: raw.some((line) => line.words?.length) ? 'word' : 'line', lines };
+  return { mode: raw.some((line) => line.words?.length) ? 'word' : 'line', source: 'lrclib', lines: closeLines(raw) };
 }
 
 function parseEnhancedWords(body: string): LyricWord[] | null {
@@ -212,11 +167,7 @@ export function parseLyricsfile(source: string): Lyrics | null {
   }
   if (parsed.length) {
     parsed.sort((a, b) => a.start - b.start);
-    const lines = closeLines(parsed).map((line) => ({
-      ...line,
-      words: line.words.length ? line.words : estimateWords(line.text, line.start, line.end),
-    }));
-    return { mode: anyWords ? 'word' : 'line', lines };
+    return { mode: anyWords ? 'word' : 'line', source: 'lrclib', lines: closeLines(parsed) };
   }
   if (typeof doc?.plain === 'string' && doc.plain.trim()) return parsePlain(doc.plain);
   return null;
@@ -229,7 +180,7 @@ export function parsePlain(source: string): Lyrics | null {
     .map((text) => ({ text, start: 0, end: 0, words: [] as LyricWord[] }));
   while (lines.length && !lines[0]!.text) lines.shift();
   while (lines.length && !lines[lines.length - 1]!.text) lines.pop();
-  return lines.length ? { mode: 'plain', lines } : null;
+  return lines.length ? { mode: 'plain', source: 'lrclib', lines } : null;
 }
 
 export function lyricsFromRecord(record: LrclibRecord): LyricsResult {
@@ -269,53 +220,7 @@ function rank(record: LrclibRecord, duration: number): number {
   return score;
 }
 
-const VIDEO_TAG = /\s*[([【][^)\]】]*\b(official|m\/?v|video|lyrics?|audio|visualizer|performance|teaser|hd|4k)\b[^)\]】]*[)\]】]/gi;
-const VIDEO_TAIL = /\s*[-–|:]?\s*(official\s+)?(music\s+)?(m\/?v|video|lyric video|lyrics|audio|visualizer)\s*$/i;
-const QUOTED = /['‘’"“”«]([^'‘’"“”»]{2,}?)['‘’"“”»]/;
-
-function tidyArtist(value: string): string {
-  return value
-    .replace(/\s*[([][^)\]]*[)\]]/g, (part) => (/[^\x00-\x7f]/.test(part) ? '' : part))
-    .replace(/\s*-\s*topic$/i, '')
-    .replace(/vevo$/i, '')
-    .replace(/\s+/g, ' ')
-    .trim();
-}
-
-/** Titles and artists to try, best guess first. Handles video-style names like `ARTIST 'Song' Official MV`. */
-export function lookupCandidates(rawTitle: string, rawArtist: string): Array<{ title: string; artist: string }> {
-  const out: Array<{ title: string; artist: string }> = [];
-  const add = (title: string, artist: string) => {
-    const t = title.replace(/\s+/g, ' ').trim();
-    const a = artist.replace(/\s+/g, ' ').trim();
-    if (t && !out.some((item) => item.title.toLowerCase() === t.toLowerCase() && item.artist.toLowerCase() === a.toLowerCase())) {
-      out.push({ title: t, artist: a });
-    }
-  };
-  const title = clean(rawTitle).replace(VIDEO_TAG, '').replace(VIDEO_TAIL, '').trim();
-  const artist = tidyArtist(clean(rawArtist));
-
-  const quoted = QUOTED.exec(title);
-  if (quoted) {
-    const before = tidyArtist(title.slice(0, quoted.index));
-    add(quoted[1]!, before || artist);
-    add(quoted[1]!, '');
-  }
-  const dash = /^(.{1,80}?)\s+[-–]\s+(.+)$/.exec(title);
-  if (dash) {
-    add(dash[2]!, tidyArtist(dash[1]!));
-    add(dash[2]!, artist);
-  }
-  add(title, artist);
-  add(title, '');
-  return out;
-}
-
-export async function findLyrics(query: LyricsQuery, signal?: AbortSignal): Promise<LyricsResult> {
-  const key = cacheKey(query);
-  const cached = readCache(key);
-  if (cached) return cached;
-
+async function findLrclib(query: LyricsQuery, signal?: AbortSignal): Promise<LyricsResult> {
   const usable = (item: LrclibRecord | null): item is LrclibRecord =>
     !!item && !!(item.instrumental || item.syncedLyrics || item.lyricsfile || item.plainLyrics);
   let failed = false;
@@ -366,8 +271,50 @@ export async function findLyrics(query: LyricsQuery, signal?: AbortSignal): Prom
   }
 
   if (!record && failed) throw new LookupError('LRCLIB is not responding');
-  const result: LyricsResult = record ? lyricsFromRecord(record) : { status: 'none' };
-  writeCache(key, result);
+  return record ? lyricsFromRecord(record) : { status: 'none' };
+}
+
+const MODE_RANK: Record<Lyrics['mode'], number> = { word: 3, line: 2, plain: 1 };
+
+/**
+ * AMLL first, since its TTML files carry real word timings. LRCLIB covers everything else, and only
+ * ever gives word timing when its own record has it. Songs without it are highlighted line by line.
+ */
+export async function findLyrics(query: LyricsQuery, signal?: AbortSignal): Promise<LyricsResult> {
+  const key = cacheKey(query);
+  const cached = readCache(key);
+  if (cached) return cached;
+
+  let amll: Awaited<ReturnType<typeof findAmll>> = null;
+  let amllFailed = false;
+  try {
+    amll = await findAmll(query, signal);
+  } catch (err) {
+    if (signal?.aborted) throw err;
+    amllFailed = true;
+  }
+
+  let result: LyricsResult;
+  if (amll?.lyrics.mode === 'word') {
+    result = { status: 'found', id: amll.id, lyrics: amll.lyrics };
+  } else {
+    let lrclib: LyricsResult | null = null;
+    try {
+      lrclib = await findLrclib(query, signal);
+    } catch (err) {
+      if (signal?.aborted) throw err;
+      if (!amll) throw err;
+    }
+    const amllResult: LyricsResult | null = amll ? { status: 'found', id: amll.id, lyrics: amll.lyrics } : null;
+    if (lrclib?.status === 'found' && amllResult?.status === 'found') {
+      result = MODE_RANK[amllResult.lyrics.mode] > MODE_RANK[lrclib.lyrics.mode] ? amllResult : lrclib;
+    } else {
+      result = amllResult ?? lrclib ?? { status: 'none' };
+    }
+  }
+
+  // A transient AMLL failure should not pin a song to line timing for the cache lifetime.
+  if (!(amllFailed && !(result.status === 'found' && result.lyrics.mode === 'word'))) writeCache(key, result);
   return result;
 }
 
