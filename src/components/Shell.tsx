@@ -211,7 +211,7 @@ export function Shell() {
             </button>
           )}
           {route.name === 'folder' ? <h1 className="wordmark folder-title">{headerTitle}</h1> : null}
-          {library.syncing && library.ready ? <span className="sync-dot" title="Syncing" /> : null}
+          {library.syncing && library.ready && route.name === 'library' ? <span className="sync-dot" title="Syncing" /> : null}
         </div>
         <div className="topbar-right">
           {route.name === 'album' && album ? (

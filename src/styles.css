@@ -180,8 +180,8 @@ button { cursor: pointer; }
 .card-sub {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 8px;
+  justify-content: flex-start;
+  gap: 4px;
   margin-top: 2px;
   color: var(--muted);
   font-size: 13px;
@@ -546,15 +546,14 @@ button { cursor: pointer; }
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
 }
 .upload-pill { bottom: 96px; display: flex; gap: 10px; max-width: min(520px, calc(100% - 32px)); }
-.has-player .upload-pill { bottom: 168px; }
+.has-player .upload-pill { bottom: 188px; }
+.toast { top: 18px; }
 .upload-pill span {
   color: var(--muted);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.toast { bottom: 28px; }
-.has-player .toast { bottom: 104px; }
 
 .drop-overlay {
   position: fixed;
