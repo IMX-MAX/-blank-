@@ -101,3 +101,13 @@ Right-click (long-press on Android) a song or album and choose **Make available 
 This branch builds a version of the Android app with no cloud: you create a profile (just a name), songs you add are copied into the app, and the whole library (songs, covers, albums, folders, playlists, lyrics cache) lives in the phone's storage. There is no sign-in, no server and no download option, since every song is already on the device. Lyrics are still looked up online when a song is first opened and then cached. The app id is `app.blank.local`, so it installs next to the cloud version.
 
 Build it with `npm run android:apk`. The storage code is in `src/lib/local-store.ts`.
+
+### Lyrics offline
+
+**Settings > Lyrics** has a switch to keep the lyrics of every song you open (stored in IndexedDB `blank-lyrics`, see `src/lib/lyrics-store.ts`), and a **Save all** button that looks up lyrics for the whole library while you are online. Saved lyrics open with no connection and are looked up again if a song is retagged.
+
+### Glyph Matrix waveform
+
+On a Nothing Phone (4a) Pro (13x13 matrix) or Phone (3) (25x25), **Settings > Playback** shows a switch that draws the playback waveform bar on the back of the phone: one bar per column, bright for what has played, dim for what is left, with the playhead column blinking while playing. The drawing lives in the playback service (`GlyphWaveform.java`, `WaveformFrame.java`), so it keeps going with the screen off, and it uses `setAppMatrixFrame`, so a Glyph Toy you switch to takes over the display. Needs a system version from 20250801.
+
+Nothing's licence does not allow redistributing the Glyph Matrix SDK, so it is not in the repo: `fetchGlyphSdk` in `android/app/build.gradle` downloads it from their developer kit the first time you build.
