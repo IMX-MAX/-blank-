@@ -4,7 +4,7 @@ android {
     namespace = "app.blank.player"
     compileSdk = rootProject.ext.compileSdkVersion
     defaultConfig {
-        applicationId "app.blank.player"
+        applicationId "app.blank.local"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 1

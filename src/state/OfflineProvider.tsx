@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { downloadAudio, downloadCover } from '../api';
+import { LOCAL_ONLY } from '../config';
 import { findLyrics } from '../lib/lyrics';
 import type { LyricsResult } from '../lib/lyric-types';
 import {
@@ -30,8 +31,9 @@ type OfflineContextValue = {
 const OfflineContext = createContext<OfflineContextValue | null>(null);
 
 export function useOnline(): boolean {
-  const [online, setOnline] = useState(() => navigator.onLine);
+  const [online, setOnline] = useState(() => LOCAL_ONLY || navigator.onLine);
   useEffect(() => {
+    if (LOCAL_ONLY) return;
     const update = () => setOnline(navigator.onLine);
     window.addEventListener('online', update);
     window.addEventListener('offline', update);

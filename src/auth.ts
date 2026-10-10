@@ -1,7 +1,7 @@
 import { createAuthClient } from '@neondatabase/auth';
 import { Capacitor, CapacitorHttp, type HttpResponse } from '@capacitor/core';
 import { Preferences } from '@capacitor/preferences';
-import { AUTH_URL, LOCAL_AUTH } from './config';
+import { AUTH_URL, LOCAL_AUTH, LOCAL_ONLY } from './config';
 
 export type AuthUser = {
   id: string;
@@ -261,9 +261,40 @@ function localBackend(): Backend {
   };
 }
 
+/** A name on this phone. There is no account and nothing to sign in to. */
+function profileBackend(): Backend {
+  const key = 'blank.profile';
+  const read = (): AuthUser | null => {
+    try {
+      const raw = JSON.parse(localStorage.getItem(key) ?? 'null') as { name?: string } | null;
+      return raw?.name ? { id: 'local', name: raw.name, email: '' } : null;
+    } catch {
+      return null;
+    }
+  };
+  const write = (name: string) => {
+    const trimmed = name.trim();
+    if (!trimmed) throw new Error('Enter a name');
+    localStorage.setItem(key, JSON.stringify({ name: trimmed }));
+    return { id: 'local', name: trimmed, email: '' };
+  };
+  return {
+    session: async () => read(),
+    remembered: async () => read(),
+    signIn: async () => {
+      const user = read();
+      if (!user) throw new Error('Create a profile first');
+      return user;
+    },
+    signUp: async (name) => write(name),
+    signOut: async () => undefined,
+    token: async () => null,
+  };
+}
+
 let backend: Backend | null = null;
 
 export function auth(): Backend {
-  backend ??= LOCAL_AUTH ? localBackend() : Capacitor.isNativePlatform() ? nativeBackend() : neonBackend();
+  backend ??= LOCAL_ONLY ? profileBackend() : LOCAL_AUTH ? localBackend() : Capacitor.isNativePlatform() ? nativeBackend() : neonBackend();
   return backend;
 }

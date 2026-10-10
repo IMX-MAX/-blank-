@@ -1,8 +1,8 @@
 import type { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
-  appId: 'app.blank.player',
-  appName: '[blank]',
+  appId: 'app.blank.local',
+  appName: '[blank] local',
   webDir: 'dist',
   backgroundColor: '#151515',
   android: {

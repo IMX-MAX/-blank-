@@ -88,3 +88,9 @@ The Android app's origin is `https://localhost`, which must be a trusted Neon Au
 ## Offline
 
 Right-click (long-press on Android) a song or album and choose **Make available offline**. The audio, cover art and lyrics are stored on the device in IndexedDB, and a snapshot of the library is kept so the app opens and plays downloaded songs with no connection. Songs that are not downloaded are greyed out while offline. **Settings** shows how much space downloads use and can remove them all.
+
+## Local-only Android build (`cursor/android-local-788f`)
+
+This branch builds a version of the Android app with no cloud: you create a profile (just a name), songs you add are copied into the app, and the whole library (songs, covers, albums, folders, playlists, lyrics cache) lives in the phone's storage. There is no sign-in, no server and no download option, since every song is already on the device. Lyrics are still looked up online when a song is first opened and then cached. The app id is `app.blank.local`, so it installs next to the cloud version.
+
+Build it with `npm run android:apk`. The storage code is in `src/lib/local-store.ts`.

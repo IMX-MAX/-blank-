@@ -7,6 +7,7 @@ import { isNativeApp } from '../lib/shell-cache';
 import { startRecorder, type RecorderHandle } from '../lib/record';
 import { useAuth } from '../state/AuthProvider';
 import { useLibrary } from '../state/LibraryProvider';
+import { LOCAL_ONLY } from '../config';
 import { useOffline, useOnline } from '../state/OfflineProvider';
 import { usePlayer } from '../state/PlayerProvider';
 import type { Album, Folder, Track } from '../types';
@@ -44,7 +45,7 @@ type Dialog =
   | { kind: 'pick-tracks'; playlist: Album };
 
 export function Shell() {
-  const { user, signOut, leaveOffline } = useAuth();
+  const { user, signOut, signUp, leaveOffline } = useAuth();
   const library = useLibrary();
   const player = usePlayer();
   const offline = useOffline();
@@ -265,7 +266,7 @@ export function Shell() {
   }
 
   function offlineItem(tracks: Track[], noun: string): MenuItem[] {
-    if (!tracks.length) return [];
+    if (!tracks.length || LOCAL_ONLY) return [];
     const pending = tracks.filter((track) => !offline.isSaved(track.id));
     if (!pending.length) {
       return [
@@ -486,7 +487,7 @@ export function Shell() {
 
       {!library.ready ? (
         <main className="stage">
-          <p className="empty-note">Syncing your library</p>
+          <p className="empty-note">Opening your library</p>
         </main>
       ) : route.name === 'album' && album ? (
         <AlbumView
@@ -623,23 +624,31 @@ export function Shell() {
       ) : null}
       {panel === 'settings' ? (
         <aside className="popover settings" data-overlay>
-          <h2>Account</h2>
+          <h2>{LOCAL_ONLY ? 'Profile' : 'Account'}</h2>
           <p className="account-name">{user?.name || 'Listener'}</p>
-          <p className="account-email">{user?.email}</p>
-          <p className="account-note">Library synced to the cloud</p>
-          <p className="account-note">
-            {offline.count
-              ? `${plural(offline.count, 'song')} saved on this device · ${formatBytes(offline.bytes)}`
-              : 'Right-click a song or album to make it available offline'}
-          </p>
-          {offline.count ? (
-            <button
-              className="text-btn create-inline"
-              onClick={() => void run(() => offline.removeAll(), 'Removed all downloads')}
-            >
-              Remove all downloads
-            </button>
-          ) : null}
+          {LOCAL_ONLY ? (
+            <p className="account-note">
+              {plural(library.tracks.length, 'song')} stored on this phone
+            </p>
+          ) : (
+            <>
+              <p className="account-email">{user?.email}</p>
+              <p className="account-note">Library synced to the cloud</p>
+              <p className="account-note">
+                {offline.count
+                  ? `${plural(offline.count, 'song')} saved on this device · ${formatBytes(offline.bytes)}`
+                  : 'Right-click a song or album to make it available offline'}
+              </p>
+              {offline.count ? (
+                <button
+                  className="text-btn create-inline"
+                  onClick={() => void run(() => offline.removeAll(), 'Removed all downloads')}
+                >
+                  Remove all downloads
+                </button>
+              ) : null}
+            </>
+          )}
           <button
             className="text-btn create-inline"
             onClick={() => {
@@ -649,9 +658,21 @@ export function Shell() {
           >
             New playlist
           </button>
-          <button className="white-btn" onClick={() => void run(() => signOut())}>
-            Sign out
-          </button>
+          {LOCAL_ONLY ? (
+            <button
+              className="white-btn"
+              onClick={() => {
+                const next = window.prompt('Your name', user?.name ?? '')?.trim();
+                if (next) void run(() => signUp(next, '', ''), 'Name updated');
+              }}
+            >
+              Change name
+            </button>
+          ) : (
+            <button className="white-btn" onClick={() => void run(() => signOut())}>
+              Sign out
+            </button>
+          )}
         </aside>
       ) : null}
       </Presence>
@@ -737,7 +758,7 @@ export function Shell() {
           body={
             dialog.album.kind === 'playlist'
               ? 'The playlist goes away. The songs stay in your library.'
-              : 'This removes the album and its audio from the cloud.'
+              : 'This removes the album and its songs from this phone.'
           }
           confirm="Delete"
           onCancel={() => setDialog(null)}
@@ -764,7 +785,7 @@ export function Shell() {
       {dialog?.kind === 'delete-track' ? (
         <ConfirmDialog
           title="Delete track?"
-          body={`“${dialog.track.title}” will be removed from the cloud.`}
+          body={`“${dialog.track.title}” will be removed from this phone.`}
           confirm="Delete"
           onCancel={() => setDialog(null)}
           onConfirm={() => {
@@ -832,7 +853,7 @@ export function Shell() {
           title="Add tracks"
           confirm="Add"
           multiple
-          empty="Upload audio to your library first"
+          empty="Add songs to your library first"
           choices={library.tracks
             .filter((track) => !library.tracksFor(dialog.playlist).some((item) => item.id === track.id))
             .map((track) => ({ id: track.id, label: track.title, detail: track.artist }))}
@@ -846,7 +867,7 @@ export function Shell() {
       ) : null}
       </Presence>
 
-      {dragOver ? <div className="drop-overlay">Drop audio to add it to your library</div> : null}
+      {dragOver ? <div className="drop-overlay">Drop songs to add them to your library</div> : null}
       <Presence show={toast !== null}>{toast ? <div className="toast">{toast}</div> : null}</Presence>
     </div>
   );

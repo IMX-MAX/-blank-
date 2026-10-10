@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { api, forgetCover, type Library } from '../api';
+import { LOCAL_ONLY } from '../config';
 import { hueFromName } from '../lib/format';
 import { loadLibrarySnapshot, saveLibrarySnapshot } from '../lib/offline';
 import { coverFileFromPicture, isAudioFile, readMetadata } from '../lib/metadata';
@@ -73,7 +74,7 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
       const next = await api.library();
       apply(next);
       setLive(true);
-      if (userId) void saveLibrarySnapshot(userId, next).catch(() => undefined);
+      if (userId && !LOCAL_ONLY) void saveLibrarySnapshot(userId, next).catch(() => undefined);
     } catch (err) {
       setLive(false);
       throw err;
@@ -86,7 +87,7 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     let cancelled = false;
     void (async () => {
-      const saved = userId ? await loadLibrarySnapshot(userId).catch(() => null) : null;
+      const saved = userId && !LOCAL_ONLY ? await loadLibrarySnapshot(userId).catch(() => null) : null;
       if (saved && !cancelled) {
         apply(saved);
         setReady(true);
@@ -99,11 +100,12 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
   }, [apply, refresh, userId]);
 
   useEffect(() => {
-    if (!userId || !ready || !live) return;
+    if (!userId || !ready || !live || LOCAL_ONLY) return;
     void saveLibrarySnapshot(userId, { folders, albums, tracks, playlistTracks }).catch(() => undefined);
   }, [userId, ready, live, folders, albums, tracks, playlistTracks]);
 
   useEffect(() => {
+    if (LOCAL_ONLY) return;
     const poll = () => {
       if (importing.current || document.hidden) return;
       void refresh().catch(() => undefined);

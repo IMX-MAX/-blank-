@@ -1,9 +1,11 @@
 import { CircleArrowDown } from 'lucide-react';
+import { LOCAL_ONLY } from '../config';
 import { useOffline } from '../state/OfflineProvider';
 
 /** Shows whether a song is downloaded, or how far along its download is. */
 export function OfflineBadge({ trackId }: { trackId: string }) {
   const offline = useOffline();
+  if (LOCAL_ONLY) return null;
   const fraction = offline.progress[trackId];
   if (fraction !== undefined) {
     const circumference = 2 * Math.PI * 7;

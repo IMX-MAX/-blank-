@@ -1,4 +1,5 @@
 import { useState, type FormEvent } from 'react';
+import { LOCAL_ONLY } from '../config';
 import { errorMessage } from '../lib/format';
 import { useAuth } from '../state/AuthProvider';
 
@@ -23,6 +24,39 @@ export function AuthScreen() {
     } finally {
       setBusy(false);
     }
+  }
+
+  if (LOCAL_ONLY) {
+    return (
+      <div className="auth">
+        <form
+          className="auth-card"
+          onSubmit={(event) => {
+            event.preventDefault();
+            setError('');
+            setBusy(true);
+            signUp(name, '', '')
+              .catch((err) => setError(errorMessage(err)))
+              .finally(() => setBusy(false));
+          }}
+        >
+          <h1>[blank]</h1>
+          <p>Your music, kept on this phone.</p>
+          <input
+            autoComplete="name"
+            placeholder="Your name"
+            value={name}
+            maxLength={60}
+            onChange={(event) => setName(event.target.value)}
+            required
+          />
+          {error ? <p className="form-error">{error}</p> : null}
+          <button className="white-btn" type="submit" disabled={busy || !name.trim()}>
+            {busy ? 'Please wait' : 'Create profile'}
+          </button>
+        </form>
+      </div>
+    );
   }
 
   return (

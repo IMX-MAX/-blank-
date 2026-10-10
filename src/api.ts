@@ -1,4 +1,5 @@
-import { API_URL } from './config';
+import { API_URL, LOCAL_ONLY } from './config';
+import * as local from './lib/local-store';
 import { auth, SESSION_EXPIRED } from './auth';
 import { getOfflineAudio, getOfflineCover } from './lib/offline';
 import type { Album, Folder, PlaylistTrack, Track } from './types';
@@ -49,7 +50,7 @@ export type Library = {
   playlistTracks: PlaylistTrack[];
 };
 
-export const api = {
+const cloudApi = {
   library: () => json<Library>('/library', 'GET'),
   createFolder: (name: string) => json<Folder>('/folders', 'POST', { name }),
   renameFolder: (id: string, name: string) => json<Folder>(`/folders/${id}`, 'PATCH', { name }),
@@ -113,6 +114,38 @@ export const api = {
     return json(`/files/${kind}/${id}/url`, 'GET');
   },
 };
+
+const localApi: typeof cloudApi = {
+  library: local.localLibrary,
+  createFolder: local.localCreateFolder,
+  renameFolder: local.localRenameFolder,
+  deleteFolder: async (id) => {
+    await local.localDeleteFolder(id);
+    return { ok: true };
+  },
+  createAlbum: local.localCreateAlbum,
+  updateAlbum: local.localUpdateAlbum,
+  deleteAlbum: async (id) => {
+    await local.localDeleteAlbum(id);
+    return { ok: true };
+  },
+  setCover: local.localSetCover,
+  uploadAudio: local.localStoreAudio,
+  createTrack: local.localCreateTrack,
+  deleteTrack: async (id) => {
+    await local.localDeleteTrack(id);
+    return { ok: true };
+  },
+  addToPlaylist: local.localAddToPlaylist,
+  removeFromPlaylist: async (playlistId, trackId) => {
+    await local.localRemoveFromPlaylist(playlistId, trackId);
+    return { ok: true };
+  },
+  file: local.localFile,
+  fileUrl: async () => ({ url: null }),
+};
+
+export const api: typeof cloudApi = LOCAL_ONLY ? localApi : cloudApi;
 
 const coverUrls = new Map<string, string>();
 export async function coverObjectUrl(fileId: string): Promise<string> {
