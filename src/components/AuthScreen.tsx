@@ -3,7 +3,7 @@ import { errorMessage } from '../lib/format';
 import { useAuth } from '../state/AuthProvider';
 
 export function AuthScreen() {
-  const { signIn, signUp } = useAuth();
+  const { signIn, signUp, offlineUser, continueOffline } = useAuth();
   const [mode, setMode] = useState<'in' | 'up'>('in');
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
@@ -70,6 +70,11 @@ export function AuthScreen() {
         >
           {mode === 'up' ? 'I already have an account' : 'Create an account'}
         </button>
+        {offlineUser ? (
+          <button type="button" className="text-btn" onClick={continueOffline}>
+            Play downloaded songs
+          </button>
+        ) : null}
       </form>
     </div>
   );

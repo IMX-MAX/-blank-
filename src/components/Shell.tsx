@@ -44,7 +44,7 @@ type Dialog =
   | { kind: 'pick-tracks'; playlist: Album };
 
 export function Shell() {
-  const { user, signOut } = useAuth();
+  const { user, signOut, leaveOffline } = useAuth();
   const library = useLibrary();
   const player = usePlayer();
   const offline = useOffline();
@@ -380,7 +380,11 @@ export function Shell() {
           )}
           {route.name === 'folder' ? <h1 className="wordmark folder-title">{headerTitle}</h1> : null}
           {library.syncing && library.ready && route.name === 'library' && online ? <span className="sync-dot" title="Syncing" /> : null}
-          {!online || !library.live ? (
+          {user?.stale ? (
+            <button className="offline-note" title="Sign in to sync your library" onClick={leaveOffline}>
+              <WifiOff size={14} /> Sign in to sync
+            </button>
+          ) : !online || !library.live ? (
             <span className="offline-note" title="Songs saved on this device still play">
               <WifiOff size={14} /> Offline
             </span>

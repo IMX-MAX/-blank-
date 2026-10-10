@@ -99,6 +99,11 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
   }, [apply, refresh, userId]);
 
   useEffect(() => {
+    if (!userId || !ready || !live) return;
+    void saveLibrarySnapshot(userId, { folders, albums, tracks, playlistTracks }).catch(() => undefined);
+  }, [userId, ready, live, folders, albums, tracks, playlistTracks]);
+
+  useEffect(() => {
     const poll = () => {
       if (importing.current || document.hidden) return;
       void refresh().catch(() => undefined);
