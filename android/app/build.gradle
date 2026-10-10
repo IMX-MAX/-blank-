@@ -30,7 +30,23 @@ repositories {
     }
 }
 
+def glyphSdk = file('libs/glyph-matrix-sdk-2.0.aar')
+
+// Nothing's licence does not allow redistributing the Glyph Matrix SDK, so it is fetched from their kit at build time.
+tasks.register('fetchGlyphSdk') {
+    outputs.file(glyphSdk)
+    doLast {
+        if (!glyphSdk.exists()) {
+            glyphSdk.parentFile.mkdirs()
+            def source = new URL('https://raw.githubusercontent.com/Nothing-Developer-Programme/GlyphMatrix-Developer-Kit/main/glyph-matrix-sdk-2.0.aar')
+            source.withInputStream { input -> glyphSdk.withOutputStream { output -> output << input } }
+        }
+    }
+}
+preBuild.dependsOn 'fetchGlyphSdk'
+
 dependencies {
+    implementation files('libs/glyph-matrix-sdk-2.0.aar')
     implementation fileTree(include: ['*.jar'], dir: 'libs')
     implementation "androidx.appcompat:appcompat:$androidxAppCompatVersion"
     implementation "androidx.coordinatorlayout:coordinatorlayout:$androidxCoordinatorLayoutVersion"

@@ -46,6 +46,7 @@ public class PlaybackService extends Service {
         public boolean playing;
         public Bitmap artwork;
         public boolean keepArtwork;
+        public float[] peaks;
     }
 
     private static final String CHANNEL = "playback";
@@ -188,6 +189,7 @@ public class PlaybackService extends Service {
             .build());
 
         holdWakeLock(state.playing);
+        GlyphWaveform.onState(this, state.peaks, state.durationMs, state.positionMs, state.playing);
         Notification notification = buildNotification(state, shown);
         if (!foreground) {
             try {
@@ -277,6 +279,7 @@ public class PlaybackService extends Service {
 
     private void shutdown() {
         MAIN.removeCallbacks(demote);
+        GlyphWaveform.onStop();
         holdWakeLock(false);
         foreground = false;
         stopForeground(true);

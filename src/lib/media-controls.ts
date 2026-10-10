@@ -16,6 +16,8 @@ type NowPlaying = {
   playing: boolean;
   /** Base64 JPEG. Leave out to keep the artwork already shown. */
   artwork?: string;
+  /** Waveform bars (0 to 1) for the Glyph Matrix. Leave out unless it is switched on. */
+  peaks?: number[];
 };
 
 type NativeControls = {

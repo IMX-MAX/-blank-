@@ -10,6 +10,7 @@ import android.util.Base64;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 
+import com.getcapacitor.JSArray;
 import com.getcapacitor.JSObject;
 import com.getcapacitor.Plugin;
 import com.getcapacitor.PluginCall;
@@ -47,6 +48,12 @@ public class MediaControlsPlugin extends Plugin {
             if (bitmap != null) state.artwork = bitmap;
         }
         state.keepArtwork = artwork == null;
+        JSArray waveform = call.getArray("peaks");
+        if (waveform != null && waveform.length() > 0) {
+            float[] values = new float[waveform.length()];
+            for (int i = 0; i < values.length; i++) values[i] = (float) waveform.optDouble(i, 0);
+            state.peaks = values;
+        }
         PlaybackService.update(getContext().getApplicationContext(), state);
         call.resolve();
     }
