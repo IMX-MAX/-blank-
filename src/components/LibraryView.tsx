@@ -44,8 +44,8 @@ export function LibraryView({
       {title ? <h2 className="stage-title">{title}</h2> : null}
       {empty && query ? <p className="empty-note">No matches</p> : null}
       <div className="grid">
-        {visibleFolders.map((folder) => (
-          <div className="card" key={folder.id}>
+        {visibleFolders.map((folder, index) => (
+          <div className="card" key={folder.id} style={{ ["--i" as string]: index }}>
             <button className="card-art folder-art" onClick={() => onOpenFolder(folder.id)} aria-label={folder.name}>
               <Folder size={42} strokeWidth={1.5} />
             </button>
@@ -66,11 +66,12 @@ export function LibraryView({
             </div>
           </div>
         ))}
-        {visibleAlbums.map((album) => {
+        {visibleAlbums.map((album, albumIndex) => {
+          const index = albumIndex + visibleFolders.length;
           const playingHere =
             player.playing && tracksFor(album).some((track) => track.id === player.track?.id);
           return (
-            <div className="card" key={album.id}>
+            <div className="card" key={album.id} data-album-id={album.id} style={{ ["--i" as string]: index }}>
               <div className="card-art-wrap">
                 <button className="card-open" onClick={() => onOpenAlbum(album.id)} aria-label={album.name}>
                   <Cover fileId={album.coverFileId} hue={album.hue} radius={32} className="card-cover" />

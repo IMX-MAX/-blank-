@@ -9,7 +9,9 @@ import { usePlayer } from '../state/PlayerProvider';
 import type { Album, Folder, Track } from '../types';
 import { AlbumView } from './AlbumView';
 import { LibraryView } from './LibraryView';
+import { navigateWithTransition } from '../lib/transition';
 import { PlayerBar } from './PlayerBar';
+import { Presence } from './Presence';
 import { AddMenu, AnchoredMenu, ConfirmDialog, NameDialog, PickerDialog, RecordCard, type MenuItem } from './overlays';
 
 type Route = { name: 'library' } | { name: 'folder'; folderId: string } | { name: 'album'; albumId: string };
@@ -102,6 +104,7 @@ export function Shell() {
           setSearchOpen(false);
           setQuery('');
         } else if (panel) setPanel(null);
+        else if (player.lyricsOpen) player.setLyricsOpen(false);
         else if (player.queueOpen) player.setQueueOpen(false);
         return;
       }
@@ -127,13 +130,22 @@ export function Shell() {
   function push(next: Route) {
     setSearchOpen(false);
     setQuery('');
-    setStack((current) => [...current, next]);
+    navigateWithTransition(
+      () => setStack((current) => [...current, next]),
+      'forward',
+      next.name === 'album' ? next.albumId : null,
+    );
   }
 
   function back() {
     setSearchOpen(false);
     setQuery('');
-    setStack((current) => (current.length > 1 ? current.slice(0, -1) : current));
+    if (stack.length < 2) return;
+    navigateWithTransition(
+      () => setStack((current) => (current.length > 1 ? current.slice(0, -1) : current)),
+      'back',
+      route.name === 'album' ? route.albumId : null,
+    );
   }
 
   async function importFiles(files: File[]) {
@@ -364,7 +376,7 @@ export function Shell() {
         </div>
       </header>
 
-      {searchOpen ? (
+      <Presence show={searchOpen}>
         <div className="search-bar">
           <input
             autoFocus
@@ -373,7 +385,7 @@ export function Shell() {
             onChange={(event) => setQuery(event.target.value)}
           />
         </div>
-      ) : null}
+      </Presence>
 
       {!library.ready ? (
         <main className="stage">
@@ -489,7 +501,7 @@ export function Shell() {
         }}
       />
 
-      {addOpen ? (
+      <Presence show={addOpen}>
         <AddMenu
           onClose={() => setAddOpen(false)}
           onAudio={openFiles}
@@ -504,17 +516,20 @@ export function Shell() {
             setDialog({ kind: 'project' });
           }}
         />
-      ) : null}
-      {recording ? (
+      </Presence>
+      <Presence show={recording}>
         <RecordCard
           elapsed={elapsed}
           onStop={() => void run(() => finishRecording())}
           onCancel={cancelRecording}
         />
-      ) : null}
+      </Presence>
 
-      {menu ? <AnchoredMenu x={menu.x} y={menu.y} items={menu.items} onClose={() => setMenu(null)} /> : null}
+      <Presence show={menu !== null}>
+        {menu ? <AnchoredMenu x={menu.x} y={menu.y} items={menu.items} onClose={() => setMenu(null)} /> : null}
+      </Presence>
 
+      <Presence show={panel !== null}>
       {panel ? (
         <button className="panel-scrim" data-overlay aria-label="Close" onClick={() => setPanel(null)} />
       ) : null}
@@ -550,7 +565,9 @@ export function Shell() {
           </button>
         </aside>
       ) : null}
+      </Presence>
 
+      <Presence show={dialog !== null}>
       {dialog?.kind === 'folder' ? (
         <NameDialog
           title="New folder"
@@ -738,9 +755,10 @@ export function Shell() {
           }}
         />
       ) : null}
+      </Presence>
 
       {dragOver ? <div className="drop-overlay">Drop audio to add it to your library</div> : null}
-      {toast ? <div className="toast">{toast}</div> : null}
+      <Presence show={toast !== null}>{toast ? <div className="toast">{toast}</div> : null}</Presence>
     </div>
   );
 }

@@ -33,6 +33,7 @@ function fsStore(dir: string): ObjectStore {
   };
 }
 
+await mkdir(root, { recursive: true });
 const pg = new PGlite(join(root, 'pg'));
 await pg.exec(SCHEMA_SQL);
 
