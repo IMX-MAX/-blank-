@@ -1,9 +1,8 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
-import { ID, type Models } from 'appwrite';
-import { account } from '../appwrite';
+import { auth, type AuthUser } from '../auth';
 
 type AuthContextValue = {
-  user: Models.User | null;
+  user: AuthUser | null;
   ready: boolean;
   signIn: (email: string, password: string) => Promise<void>;
   signUp: (name: string, email: string, password: string) => Promise<void>;
@@ -13,13 +12,13 @@ type AuthContextValue = {
 const AuthContext = createContext<AuthContextValue | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<Models.User | null>(null);
+  const [user, setUser] = useState<AuthUser | null>(null);
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
-    account
-      .get()
+    auth()
+      .session()
       .then((next) => {
         if (!cancelled) setUser(next);
       })
@@ -35,18 +34,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const signIn = useCallback(async (email: string, password: string) => {
-    await account.createEmailPasswordSession({ email, password });
-    setUser(await account.get());
+    setUser(await auth().signIn(email, password));
   }, []);
 
   const signUp = useCallback(async (name: string, email: string, password: string) => {
-    await account.create({ userId: ID.unique(), email, password, name });
-    await account.createEmailPasswordSession({ email, password });
-    setUser(await account.get());
+    setUser(await auth().signUp(name, email, password));
   }, []);
 
   const signOut = useCallback(async () => {
-    await account.deleteSession({ sessionId: 'current' });
+    await auth().signOut();
     setUser(null);
   }, []);
 

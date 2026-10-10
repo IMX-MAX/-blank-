@@ -23,12 +23,12 @@ export function PlayerBar() {
   const { albums } = useLibrary();
   const track = player.track;
   if (!track) return null;
-  const trackAlbum = albums.find((album) => album.$id === track.albumId);
+  const trackAlbum = albums.find((album) => album.id === track.albumId);
   const albumName = trackAlbum?.name;
   const coverFileId = trackAlbum?.coverFileId ?? track.coverFileId;
 
   const progress = player.duration > 0 ? player.currentTime / player.duration : 0;
-  const peaks = readPeaks(track.waveform, track.$id);
+  const peaks = readPeaks(track.waveform, track.id);
 
   return (
     <>
@@ -38,7 +38,7 @@ export function PlayerBar() {
           <div className="queue-list">
             {player.queue.map((item, itemIndex) => (
               <button
-                key={`${item.$id}-${itemIndex}`}
+                key={`${item.id}-${itemIndex}`}
                 className={itemIndex === player.index ? 'queue-row active' : 'queue-row'}
                 onClick={() => player.jumpTo(itemIndex)}
               >

@@ -45,12 +45,12 @@ export function LibraryView({
       {empty && query ? <p className="empty-note">No matches</p> : null}
       <div className="grid">
         {visibleFolders.map((folder) => (
-          <div className="card" key={folder.$id}>
-            <button className="card-art folder-art" onClick={() => onOpenFolder(folder.$id)} aria-label={folder.name}>
+          <div className="card" key={folder.id}>
+            <button className="card-art folder-art" onClick={() => onOpenFolder(folder.id)} aria-label={folder.name}>
               <Folder size={42} strokeWidth={1.5} />
             </button>
             <div className="card-copy">
-              <button className="card-title" onClick={() => onOpenFolder(folder.$id)}>
+              <button className="card-title" onClick={() => onOpenFolder(folder.id)}>
                 {folder.name}
               </button>
               <div className="card-sub">
@@ -68,11 +68,11 @@ export function LibraryView({
         ))}
         {visibleAlbums.map((album) => {
           const playingHere =
-            player.playing && tracksFor(album).some((track) => track.$id === player.track?.$id);
+            player.playing && tracksFor(album).some((track) => track.id === player.track?.id);
           return (
-            <div className="card" key={album.$id}>
+            <div className="card" key={album.id}>
               <div className="card-art-wrap">
-                <button className="card-open" onClick={() => onOpenAlbum(album.$id)} aria-label={album.name}>
+                <button className="card-open" onClick={() => onOpenAlbum(album.id)} aria-label={album.name}>
                   <Cover fileId={album.coverFileId} hue={album.hue} radius={32} className="card-cover" />
                 </button>
                 <button
@@ -84,7 +84,7 @@ export function LibraryView({
                 </button>
               </div>
               <div className="card-copy">
-                <button className="card-title" onClick={() => onOpenAlbum(album.$id)}>
+                <button className="card-title" onClick={() => onOpenAlbum(album.id)}>
                   {album.name}
                 </button>
                 <div className="card-sub">
@@ -105,7 +105,7 @@ export function LibraryView({
       {visibleTracks.length ? (
         <div className="search-tracks">
           {visibleTracks.map((track) => (
-            <button key={track.$id} className="search-track" onClick={() => onPlayTrack(track)}>
+            <button key={track.id} className="search-track" onClick={() => onPlayTrack(track)}>
               <Cover fileId={track.coverFileId} hue={track.hue} radius={8} className="search-art" />
               <span>
                 <span className="track-title">{track.title}</span>

@@ -1,13 +1,12 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { ID } from 'appwrite';
-import { Channel } from 'appwrite';
-import { BUCKETS, DATABASE_ID, TABLES } from '../config';
-import { client, forgetCover, listAllRows, ownerPermissions, storage, tables } from '../appwrite';
+import { api, forgetCover } from '../api';
 import { hueFromName } from '../lib/format';
 import { coverFileFromPicture, isAudioFile, readMetadata } from '../lib/metadata';
 import { peaksForUpload } from '../lib/peaks';
 import type { Album, Folder, PlaylistTrack, Track, UploadProgress } from '../types';
 import { useAuth } from './AuthProvider';
+
+const POLL_MS = 30_000;
 
 type ImportTarget = {
   albumId?: string;
@@ -41,57 +40,6 @@ type LibraryContextValue = {
 
 const LibraryContext = createContext<LibraryContextValue | null>(null);
 
-function asAlbum(row: Record<string, unknown>): Album {
-  return {
-    $id: String(row.$id),
-    $createdAt: String(row.$createdAt),
-    name: String(row.name ?? 'Untitled'),
-    artist: String(row.artist ?? ''),
-    kind: row.kind === 'playlist' ? 'playlist' : 'album',
-    coverFileId: row.coverFileId ? String(row.coverFileId) : null,
-    hue: typeof row.hue === 'number' ? row.hue : null,
-    folderId: row.folderId ? String(row.folderId) : null,
-    ownerId: String(row.ownerId ?? ''),
-  };
-}
-
-function asTrack(row: Record<string, unknown>): Track {
-  return {
-    $id: String(row.$id),
-    $createdAt: String(row.$createdAt),
-    title: String(row.title ?? 'Untitled'),
-    artist: String(row.artist ?? ''),
-    albumId: row.albumId ? String(row.albumId) : null,
-    audioFileId: String(row.audioFileId ?? ''),
-    coverFileId: row.coverFileId ? String(row.coverFileId) : null,
-    durationMs: typeof row.durationMs === 'number' ? row.durationMs : 0,
-    trackNumber: typeof row.trackNumber === 'number' ? row.trackNumber : null,
-    year: typeof row.year === 'number' ? row.year : null,
-    hue: typeof row.hue === 'number' ? row.hue : null,
-    waveform: row.waveform ? String(row.waveform) : null,
-    ownerId: String(row.ownerId ?? ''),
-  };
-}
-
-function asFolder(row: Record<string, unknown>): Folder {
-  return {
-    $id: String(row.$id),
-    $createdAt: String(row.$createdAt),
-    name: String(row.name ?? 'Folder'),
-    ownerId: String(row.ownerId ?? ''),
-  };
-}
-
-function asLink(row: Record<string, unknown>): PlaylistTrack {
-  return {
-    $id: String(row.$id),
-    playlistId: String(row.playlistId ?? ''),
-    trackId: String(row.trackId ?? ''),
-    position: typeof row.position === 'number' ? row.position : 0,
-    ownerId: String(row.ownerId ?? ''),
-  };
-}
-
 function albumKey(name: string, artist: string, folderId: string | null) {
   return `${folderId ?? ''}|${name.trim().toLowerCase()}|${artist.trim().toLowerCase()}`;
 }
@@ -106,21 +54,15 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
   const [tracks, setTracks] = useState<Track[]>([]);
   const [playlistTracks, setPlaylistTracks] = useState<PlaylistTrack[]>([]);
   const importing = useRef(false);
-  const userId = user?.$id ?? '';
 
   const refresh = useCallback(async () => {
     setSyncing(true);
     try {
-      const [folderRows, albumRows, trackRows, linkRows] = await Promise.all([
-        listAllRows(TABLES.folders),
-        listAllRows(TABLES.albums),
-        listAllRows(TABLES.tracks),
-        listAllRows(TABLES.playlistTracks),
-      ]);
-      setFolders(folderRows.map(asFolder));
-      setAlbums(albumRows.map(asAlbum));
-      setTracks(trackRows.map(asTrack));
-      setPlaylistTracks(linkRows.map(asLink));
+      const next = await api.library();
+      setFolders(next.folders);
+      setAlbums(next.albums);
+      setTracks(next.tracks);
+      setPlaylistTracks(next.playlistTracks);
     } finally {
       setSyncing(false);
       setReady(true);
@@ -132,34 +74,32 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
   }, [refresh]);
 
   useEffect(() => {
-    return client.subscribe(
-      [
-        Channel.tablesdb(DATABASE_ID).table(TABLES.albums).row(),
-        Channel.tablesdb(DATABASE_ID).table(TABLES.tracks).row(),
-        Channel.tablesdb(DATABASE_ID).table(TABLES.folders).row(),
-        Channel.tablesdb(DATABASE_ID).table(TABLES.playlistTracks).row(),
-      ],
-      () => {
-        if (importing.current) return;
-        void refresh();
-      },
-    );
+    const poll = () => {
+      if (importing.current || document.hidden) return;
+      void refresh().catch(() => undefined);
+    };
+    const timer = window.setInterval(poll, POLL_MS);
+    document.addEventListener('visibilitychange', poll);
+    return () => {
+      window.clearInterval(timer);
+      document.removeEventListener('visibilitychange', poll);
+    };
   }, [refresh]);
 
   const tracksFor = useCallback(
     (album: Album) => {
       if (album.kind === 'playlist') {
         const links = playlistTracks
-          .filter((link) => link.playlistId === album.$id)
+          .filter((link) => link.playlistId === album.id)
           .sort((a, b) => a.position - b.position);
-        const byId = new Map(tracks.map((track) => [track.$id, track]));
+        const byId = new Map(tracks.map((track) => [track.id, track]));
         return links.flatMap((link) => {
           const track = byId.get(link.trackId);
           return track ? [track] : [];
         });
       }
       return tracks
-        .filter((track) => track.albumId === album.$id)
+        .filter((track) => track.albumId === album.id)
         .sort((a, b) => {
           const an = a.trackNumber ?? 9999;
           const bn = b.trackNumber ?? 9999;
@@ -172,43 +112,24 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
 
   const createAlbumRow = useCallback(
     async (input: { name: string; artist: string; kind: Album['kind']; folderId?: string | null; hue?: number }) => {
-      const hue = input.hue ?? hueFromName(input.name);
-      const row = await tables.createRow({
-        databaseId: DATABASE_ID,
-        tableId: TABLES.albums,
-        rowId: ID.unique(),
-        data: {
-          name: input.name,
-          artist: input.artist,
-          kind: input.kind,
-          hue,
-          ownerId: userId,
-          ...(input.folderId ? { folderId: input.folderId } : {}),
-        },
-        permissions: ownerPermissions(userId),
+      const album = await api.createAlbum({
+        name: input.name,
+        artist: input.artist,
+        kind: input.kind,
+        hue: input.hue ?? hueFromName(input.name),
+        folderId: input.folderId ?? null,
       });
-      const album = asAlbum(row as unknown as Record<string, unknown>);
-      setAlbums((current) => [album, ...current.filter((item) => item.$id !== album.$id)]);
+      setAlbums((current) => [album, ...current.filter((item) => item.id !== album.id)]);
       return album;
     },
-    [userId],
+    [],
   );
 
-  const createFolder = useCallback(
-    async (name: string) => {
-      const row = await tables.createRow({
-        databaseId: DATABASE_ID,
-        tableId: TABLES.folders,
-        rowId: ID.unique(),
-        data: { name: name.trim(), ownerId: userId },
-        permissions: ownerPermissions(userId),
-      });
-      const folder = asFolder(row as unknown as Record<string, unknown>);
-      setFolders((current) => [folder, ...current]);
-      return folder;
-    },
-    [userId],
-  );
+  const createFolder = useCallback(async (name: string) => {
+    const folder = await api.createFolder(name.trim());
+    setFolders((current) => [folder, ...current]);
+    return folder;
+  }, []);
 
   const createProject = useCallback(
     async (name: string, folderId?: string | null) => {
@@ -227,161 +148,73 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
   );
 
   const renameAlbum = useCallback(async (id: string, name: string) => {
-    const trimmed = name.trim();
-    await tables.updateRow({
-      databaseId: DATABASE_ID,
-      tableId: TABLES.albums,
-      rowId: id,
-      data: { name: trimmed },
-    });
-    setAlbums((current) => current.map((album) => (album.$id === id ? { ...album, name: trimmed } : album)));
+    const next = await api.updateAlbum(id, { name: name.trim() });
+    setAlbums((current) => current.map((album) => (album.id === id ? next : album)));
   }, []);
 
   const setAlbumCover = useCallback(
     async (id: string, file: File) => {
       if (!file.type.startsWith('image/')) throw new Error('Choose an image: jpg, png, webp, or gif');
       if (file.size > 15 * 1024 * 1024) throw new Error('That image is over 15 MB');
-      const album = albums.find((item) => item.$id === id);
-      if (!album) return;
-      const uploaded = await storage.createFile({
-        bucketId: BUCKETS.covers,
-        fileId: ID.unique(),
-        file,
-        permissions: ownerPermissions(userId),
-      });
-      try {
-        await tables.updateRow({
-          databaseId: DATABASE_ID,
-          tableId: TABLES.albums,
-          rowId: id,
-          data: { coverFileId: uploaded.$id },
-        });
-      } catch (err) {
-        await storage.deleteFile({ bucketId: BUCKETS.covers, fileId: uploaded.$id }).catch(() => undefined);
-        throw err;
-      }
-      setAlbums((current) => current.map((item) => (item.$id === id ? { ...item, coverFileId: uploaded.$id } : item)));
-      if (album.coverFileId) {
-        forgetCover(album.coverFileId);
-        await storage.deleteFile({ bucketId: BUCKETS.covers, fileId: album.coverFileId }).catch(() => undefined);
-      }
+      const previous = albums.find((item) => item.id === id)?.coverFileId;
+      const next = await api.setCover(id, file);
+      setAlbums((current) => current.map((item) => (item.id === id ? next : item)));
+      if (previous) forgetCover(previous);
     },
-    [albums, userId],
+    [albums],
   );
 
   const renameFolder = useCallback(async (id: string, name: string) => {
-    const trimmed = name.trim();
-    await tables.updateRow({
-      databaseId: DATABASE_ID,
-      tableId: TABLES.folders,
-      rowId: id,
-      data: { name: trimmed },
-    });
-    setFolders((current) => current.map((folder) => (folder.$id === id ? { ...folder, name: trimmed } : folder)));
+    const next = await api.renameFolder(id, name.trim());
+    setFolders((current) => current.map((folder) => (folder.id === id ? next : folder)));
   }, []);
 
   const moveAlbum = useCallback(async (id: string, folderId: string | null) => {
-    await tables.updateRow({
-      databaseId: DATABASE_ID,
-      tableId: TABLES.albums,
-      rowId: id,
-      data: { folderId },
-    });
-    setAlbums((current) => current.map((album) => (album.$id === id ? { ...album, folderId } : album)));
+    const next = await api.updateAlbum(id, { folderId });
+    setAlbums((current) => current.map((album) => (album.id === id ? next : album)));
   }, []);
 
-  const deleteTrack = useCallback(
-    async (id: string) => {
-      const track = tracks.find((item) => item.$id === id);
-      const links = playlistTracks.filter((link) => link.trackId === id);
-      await Promise.all(
-        links.map((link) =>
-          tables.deleteRow({ databaseId: DATABASE_ID, tableId: TABLES.playlistTracks, rowId: link.$id }),
-        ),
-      );
-      await tables.deleteRow({ databaseId: DATABASE_ID, tableId: TABLES.tracks, rowId: id });
-      if (track?.audioFileId) {
-        await storage.deleteFile({ bucketId: BUCKETS.audio, fileId: track.audioFileId }).catch(() => undefined);
-      }
-      setTracks((current) => current.filter((item) => item.$id !== id));
-      setPlaylistTracks((current) => current.filter((link) => link.trackId !== id));
-    },
-    [playlistTracks, tracks],
-  );
+  const deleteTrack = useCallback(async (id: string) => {
+    await api.deleteTrack(id);
+    setTracks((current) => current.filter((item) => item.id !== id));
+    setPlaylistTracks((current) => current.filter((link) => link.trackId !== id));
+  }, []);
 
   const deleteAlbum = useCallback(
     async (id: string) => {
-      const album = albums.find((item) => item.$id === id);
+      const album = albums.find((item) => item.id === id);
       if (!album) return;
+      await api.deleteAlbum(id);
+      if (album.coverFileId) forgetCover(album.coverFileId);
       if (album.kind === 'playlist') {
-        const links = playlistTracks.filter((link) => link.playlistId === id);
-        await Promise.all(
-          links.map((link) =>
-            tables.deleteRow({ databaseId: DATABASE_ID, tableId: TABLES.playlistTracks, rowId: link.$id }),
-          ),
-        );
         setPlaylistTracks((current) => current.filter((link) => link.playlistId !== id));
       } else {
-        const owned = tracks.filter((track) => track.albumId === id);
-        for (const track of owned) {
-          await deleteTrack(track.$id);
-        }
+        const gone = new Set(tracks.filter((track) => track.albumId === id).map((track) => track.id));
+        setTracks((current) => current.filter((track) => track.albumId !== id));
+        setPlaylistTracks((current) => current.filter((link) => !gone.has(link.trackId)));
       }
-      await tables.deleteRow({ databaseId: DATABASE_ID, tableId: TABLES.albums, rowId: id });
-      if (album.coverFileId) {
-        forgetCover(album.coverFileId);
-        await storage.deleteFile({ bucketId: BUCKETS.covers, fileId: album.coverFileId }).catch(() => undefined);
-      }
-      setAlbums((current) => current.filter((item) => item.$id !== id));
+      setAlbums((current) => current.filter((item) => item.id !== id));
     },
-    [albums, deleteTrack, playlistTracks, tracks],
+    [albums, tracks],
   );
 
-  const deleteFolder = useCallback(
-    async (id: string) => {
-      const inside = albums.filter((album) => album.folderId === id);
-      await Promise.all(inside.map((album) => moveAlbum(album.$id, null)));
-      await tables.deleteRow({ databaseId: DATABASE_ID, tableId: TABLES.folders, rowId: id });
-      setFolders((current) => current.filter((folder) => folder.$id !== id));
-    },
-    [albums, moveAlbum],
-  );
+  const deleteFolder = useCallback(async (id: string) => {
+    await api.deleteFolder(id);
+    setAlbums((current) => current.map((album) => (album.folderId === id ? { ...album, folderId: null } : album)));
+    setFolders((current) => current.filter((folder) => folder.id !== id));
+  }, []);
 
-  const addTracksToPlaylist = useCallback(
-    async (playlistId: string, trackIds: string[]) => {
-      const existing = new Set(
-        playlistTracks.filter((link) => link.playlistId === playlistId).map((link) => link.trackId),
-      );
-      let position =
-        playlistTracks.filter((link) => link.playlistId === playlistId).reduce((max, link) => Math.max(max, link.position), -1) +
-        1;
-      const created: PlaylistTrack[] = [];
-      for (const trackId of trackIds) {
-        if (existing.has(trackId)) continue;
-        const row = await tables.createRow({
-          databaseId: DATABASE_ID,
-          tableId: TABLES.playlistTracks,
-          rowId: ID.unique(),
-          data: { playlistId, trackId, position, ownerId: userId },
-          permissions: ownerPermissions(userId),
-        });
-        created.push(asLink(row as unknown as Record<string, unknown>));
-        position += 1;
-      }
-      if (created.length) setPlaylistTracks((current) => [...current, ...created]);
-    },
-    [playlistTracks, userId],
-  );
+  const addTracksToPlaylist = useCallback(async (playlistId: string, trackIds: string[]) => {
+    const { added } = await api.addToPlaylist(playlistId, trackIds);
+    if (added.length) setPlaylistTracks((current) => [...current, ...added]);
+  }, []);
 
-  const removeFromPlaylist = useCallback(
-    async (playlistId: string, trackId: string) => {
-      const link = playlistTracks.find((item) => item.playlistId === playlistId && item.trackId === trackId);
-      if (!link) return;
-      await tables.deleteRow({ databaseId: DATABASE_ID, tableId: TABLES.playlistTracks, rowId: link.$id });
-      setPlaylistTracks((current) => current.filter((item) => item.$id !== link.$id));
-    },
-    [playlistTracks],
-  );
+  const removeFromPlaylist = useCallback(async (playlistId: string, trackId: string) => {
+    await api.removeFromPlaylist(playlistId, trackId);
+    setPlaylistTracks((current) =>
+      current.filter((item) => !(item.playlistId === playlistId && item.trackId === trackId)),
+    );
+  }, []);
 
   const importFiles = useCallback(
     async (files: File[], target?: ImportTarget) => {
@@ -397,9 +230,10 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
           setUpload({ current: index + 1, total: accepted.length, name: file.name });
           const meta = await readMetadata(file, fallbackArtist);
           const peaks = await peaksForUpload(file);
+
           let album: Album | undefined;
           if (target?.albumId) {
-            album = localAlbums.find((item) => item.$id === target.albumId);
+            album = localAlbums.find((item) => item.id === target.albumId);
           } else {
             const folderId = target?.folderId ?? null;
             const key = albumKey(meta.album, meta.albumArtist, folderId);
@@ -418,59 +252,30 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
           }
           if (!album) continue;
 
-          let coverFileId = album.coverFileId;
-          if (!coverFileId && meta.picture && meta.picture.bytes.byteLength < 12_000_000) {
-            const cover = coverFileFromPicture(meta.picture, album.$id);
-            const uploaded = await storage.createFile({
-              bucketId: BUCKETS.covers,
-              fileId: ID.unique(),
-              file: cover,
-              permissions: ownerPermissions(userId),
-            });
-            coverFileId = uploaded.$id;
-            await tables.updateRow({
-              databaseId: DATABASE_ID,
-              tableId: TABLES.albums,
-              rowId: album.$id,
-              data: { coverFileId },
-            });
-            album = { ...album, coverFileId };
-            const updated = album;
+          if (!album.coverFileId && meta.picture && meta.picture.bytes.byteLength < 12_000_000) {
+            const updated = await api.setCover(album.id, coverFileFromPicture(meta.picture, album.id));
+            album = updated;
             localAlbums.splice(
-              localAlbums.findIndex((item) => item.$id === updated.$id),
+              localAlbums.findIndex((item) => item.id === updated.id),
               1,
               updated,
             );
-            setAlbums((current) => current.map((item) => (item.$id === updated.$id ? updated : item)));
+            setAlbums((current) => current.map((item) => (item.id === updated.id ? updated : item)));
           }
 
-          const audio = await storage.createFile({
-            bucketId: BUCKETS.audio,
-            fileId: ID.unique(),
-            file,
-            permissions: ownerPermissions(userId),
+          const audio = await api.uploadAudio(file);
+          const track = await api.createTrack({
+            title: meta.title,
+            artist: meta.artist,
+            albumId: album.id,
+            audioFileId: audio.fileId,
+            audioType: audio.contentType,
+            durationMs: meta.durationMs,
+            hue: album.hue ?? hueFromName(album.name),
+            waveform: JSON.stringify(peaks),
+            trackNumber: meta.trackNumber || null,
+            year: meta.year || null,
           });
-
-          const row = await tables.createRow({
-            databaseId: DATABASE_ID,
-            tableId: TABLES.tracks,
-            rowId: ID.unique(),
-            data: {
-              title: meta.title,
-              artist: meta.artist,
-              albumId: album.$id,
-              audioFileId: audio.$id,
-              durationMs: meta.durationMs,
-              hue: album.hue ?? hueFromName(album.name),
-              waveform: JSON.stringify(peaks),
-              ownerId: userId,
-              ...(coverFileId ? { coverFileId } : {}),
-              ...(meta.trackNumber ? { trackNumber: meta.trackNumber } : {}),
-              ...(meta.year ? { year: meta.year } : {}),
-            },
-            permissions: ownerPermissions(userId),
-          });
-          const track = asTrack(row as unknown as Record<string, unknown>);
           setTracks((current) => [track, ...current]);
           created.push(track);
         }
@@ -480,7 +285,7 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
       }
       return created;
     },
-    [albums, createAlbumRow, user, userId],
+    [albums, createAlbumRow, user],
   );
 
   const value = useMemo<LibraryContextValue>(

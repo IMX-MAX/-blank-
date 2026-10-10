@@ -52,8 +52,8 @@ export function Shell() {
   const toastId = useRef(0);
   const route = stack[stack.length - 1] ?? { name: 'library' as const };
 
-  const album = route.name === 'album' ? library.albums.find((item) => item.$id === route.albumId) : undefined;
-  const folder = route.name === 'folder' ? library.folders.find((item) => item.$id === route.folderId) : undefined;
+  const album = route.name === 'album' ? library.albums.find((item) => item.id === route.albumId) : undefined;
+  const folder = route.name === 'folder' ? library.folders.find((item) => item.id === route.folderId) : undefined;
 
   function notify(message: string) {
     const id = toastId.current + 1;
@@ -81,10 +81,10 @@ export function Shell() {
 
   useEffect(() => {
     if (!library.ready) return;
-    if (route.name === 'album' && !library.albums.some((item) => item.$id === route.albumId)) {
+    if (route.name === 'album' && !library.albums.some((item) => item.id === route.albumId)) {
       setStack((current) => current.slice(0, -1));
     }
-    if (route.name === 'folder' && !library.folders.some((item) => item.$id === route.folderId)) {
+    if (route.name === 'folder' && !library.folders.some((item) => item.id === route.folderId)) {
       setStack((current) => current.slice(0, -1));
     }
   }, [library.albums, library.folders, library.ready, route]);
@@ -141,11 +141,11 @@ export function Shell() {
       route.name === 'folder'
         ? { folderId: route.folderId }
         : route.name === 'album' && album?.kind === 'album'
-          ? { albumId: album.$id }
+          ? { albumId: album.id }
           : undefined;
     const created = await library.importFiles(files, target);
     if (route.name === 'album' && album?.kind === 'playlist' && created.length) {
-      await library.addTracksToPlaylist(album.$id, created.map((track) => track.$id));
+      await library.addTracksToPlaylist(album.id, created.map((track) => track.id));
     }
     if (!created.length) notify('Choose audio files — mp3, flac, wav, m4a, and similar');
     else notify(`Added ${plural(created.length, 'track')}`);
@@ -212,7 +212,7 @@ export function Shell() {
       notify(item.kind === 'playlist' ? 'This playlist is empty' : 'This album is empty');
       return;
     }
-    if (list.some((track) => track.$id === player.track?.$id)) player.toggle();
+    if (list.some((track) => track.id === player.track?.id)) player.toggle();
     else player.playTracks(list, 0);
   }
 
@@ -233,8 +233,8 @@ export function Shell() {
     return items;
   }
 
-  const recent = [...library.tracks].sort((a, b) => (a.$createdAt < b.$createdAt ? 1 : -1)).slice(0, 8);
-  const fresh = library.tracks.some((track) => Date.now() - new Date(track.$createdAt).getTime() < 6 * 60 * 60 * 1000);
+  const recent = [...library.tracks].sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1)).slice(0, 8);
+  const fresh = library.tracks.some((track) => Date.now() - new Date(track.createdAt).getTime() < 6 * 60 * 60 * 1000);
   const activeQuery = searchOpen ? query : '';
   const libraryAlbums =
     activeQuery && route.name === 'library'
@@ -396,7 +396,7 @@ export function Shell() {
               items.push({
                 id: 'remove',
                 label: 'Remove from playlist',
-                onClick: () => void run(() => library.removeFromPlaylist(album.$id, track.$id)),
+                onClick: () => void run(() => library.removeFromPlaylist(album.id, track.id)),
               });
             }
             items.push({
@@ -411,7 +411,7 @@ export function Shell() {
             if (album.kind === 'playlist') setDialog({ kind: 'pick-tracks', playlist: album });
             else openFiles();
           }}
-          onCover={(file) => void run(() => library.setAlbumCover(album.$id, file), 'Cover updated')}
+          onCover={(file) => void run(() => library.setAlbumCover(album.id, file), 'Cover updated')}
         />
       ) : (
         <LibraryView
@@ -429,7 +429,7 @@ export function Shell() {
               x: rect.left,
               y: rect.bottom + 6,
               items: [
-                { id: 'open', label: 'Open', onClick: () => push({ name: 'folder', folderId: item.$id }) },
+                { id: 'open', label: 'Open', onClick: () => push({ name: 'folder', folderId: item.id }) },
                 { id: 'rename', label: 'Rename', onClick: () => setDialog({ kind: 'rename-folder', folder: item }) },
                 {
                   id: 'delete',
@@ -523,9 +523,9 @@ export function Shell() {
           <h2>Activity</h2>
           {recent.length === 0 ? <p className="empty-note">Nothing new yet</p> : null}
           {recent.map((track) => (
-            <button key={track.$id} className="activity" onClick={() => player.playTracks([track], 0)}>
+            <button key={track.id} className="activity" onClick={() => player.playTracks([track], 0)}>
               <span>Added {track.title}</span>
-              <small>{relativeTime(track.$createdAt)}</small>
+              <small>{relativeTime(track.createdAt)}</small>
             </button>
           ))}
         </aside>
@@ -535,7 +535,7 @@ export function Shell() {
           <h2>Account</h2>
           <p className="account-name">{user?.name || 'Listener'}</p>
           <p className="account-email">{user?.email}</p>
-          <p className="account-note">Library synced to nafen internet</p>
+          <p className="account-note">Library synced to the cloud</p>
           <button
             className="text-btn create-inline"
             onClick={() => {
@@ -561,7 +561,7 @@ export function Shell() {
             setDialog(null);
             void run(async () => {
               const created = await library.createFolder(name);
-              push({ name: 'folder', folderId: created.$id });
+              push({ name: 'folder', folderId: created.id });
             });
           }}
         />
@@ -577,7 +577,7 @@ export function Shell() {
             setDialog(null);
             void run(async () => {
               const created = await library.createProject(name, route.name === 'folder' ? route.folderId : null);
-              push({ name: 'album', albumId: created.$id });
+              push({ name: 'album', albumId: created.id });
             });
           }}
         />
@@ -592,7 +592,7 @@ export function Shell() {
             setDialog(null);
             void run(async () => {
               const created = await library.createPlaylist(name, route.name === 'folder' ? route.folderId : null);
-              push({ name: 'album', albumId: created.$id });
+              push({ name: 'album', albumId: created.id });
             });
           }}
         />
@@ -605,7 +605,7 @@ export function Shell() {
           initial={dialog.album.name}
           onCancel={() => setDialog(null)}
           onConfirm={(name) => {
-            const id = dialog.album.$id;
+            const id = dialog.album.id;
             setDialog(null);
             void run(() => library.renameAlbum(id, name));
           }}
@@ -619,7 +619,7 @@ export function Shell() {
           initial={dialog.folder.name}
           onCancel={() => setDialog(null)}
           onConfirm={(name) => {
-            const id = dialog.folder.$id;
+            const id = dialog.folder.id;
             setDialog(null);
             void run(() => library.renameFolder(id, name));
           }}
@@ -636,7 +636,7 @@ export function Shell() {
           confirm="Delete"
           onCancel={() => setDialog(null)}
           onConfirm={() => {
-            const id = dialog.album.$id;
+            const id = dialog.album.id;
             setDialog(null);
             void run(() => library.deleteAlbum(id));
           }}
@@ -649,7 +649,7 @@ export function Shell() {
           confirm="Delete"
           onCancel={() => setDialog(null)}
           onConfirm={() => {
-            const id = dialog.folder.$id;
+            const id = dialog.folder.id;
             setDialog(null);
             void run(() => library.deleteFolder(id));
           }}
@@ -662,7 +662,7 @@ export function Shell() {
           confirm="Delete"
           onCancel={() => setDialog(null)}
           onConfirm={() => {
-            const id = dialog.track.$id;
+            const id = dialog.track.id;
             setDialog(null);
             void run(() => library.deleteTrack(id));
           }}
@@ -675,11 +675,11 @@ export function Shell() {
           empty="No folders yet"
           choices={[
             { id: 'root', label: 'Library' },
-            ...library.folders.map((item) => ({ id: item.$id, label: item.name })),
+            ...library.folders.map((item) => ({ id: item.id, label: item.name })),
           ]}
           onClose={() => setDialog(null)}
           onConfirm={(ids) => {
-            const albumId = dialog.album.$id;
+            const albumId = dialog.album.id;
             const folderId = ids[0] === 'root' ? null : (ids[0] ?? null);
             setDialog(null);
             void run(() => library.moveAlbum(albumId, folderId));
@@ -694,11 +694,11 @@ export function Shell() {
           createLabel="New playlist"
           choices={library.albums
             .filter((item) => item.kind === 'playlist')
-            .map((item) => ({ id: item.$id, label: item.name, detail: item.artist }))}
+            .map((item) => ({ id: item.id, label: item.name, detail: item.artist }))}
           onClose={() => setDialog(null)}
           onCreate={() => setDialog({ kind: 'playlist-for-track', track: dialog.track })}
           onConfirm={(ids) => {
-            const trackId = dialog.track.$id;
+            const trackId = dialog.track.id;
             const playlistId = ids[0];
             setDialog(null);
             if (playlistId) void run(() => library.addTracksToPlaylist(playlistId, [trackId]), 'Added to playlist');
@@ -712,11 +712,11 @@ export function Shell() {
           confirm="Create"
           onCancel={() => setDialog(null)}
           onConfirm={(name) => {
-            const trackId = dialog.track.$id;
+            const trackId = dialog.track.id;
             setDialog(null);
             void run(async () => {
               const playlist = await library.createPlaylist(name, null);
-              await library.addTracksToPlaylist(playlist.$id, [trackId]);
+              await library.addTracksToPlaylist(playlist.id, [trackId]);
             }, 'Added to playlist');
           }}
         />
@@ -728,11 +728,11 @@ export function Shell() {
           multiple
           empty="Upload audio to your library first"
           choices={library.tracks
-            .filter((track) => !library.tracksFor(dialog.playlist).some((item) => item.$id === track.$id))
-            .map((track) => ({ id: track.$id, label: track.title, detail: track.artist }))}
+            .filter((track) => !library.tracksFor(dialog.playlist).some((item) => item.id === track.id))
+            .map((track) => ({ id: track.id, label: track.title, detail: track.artist }))}
           onClose={() => setDialog(null)}
           onConfirm={(ids) => {
-            const playlistId = dialog.playlist.$id;
+            const playlistId = dialog.playlist.id;
             setDialog(null);
             void run(() => library.addTracksToPlaylist(playlistId, ids), `Added ${plural(ids.length, 'track')}`);
           }}

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { coverObjectUrl } from '../appwrite';
+import { coverObjectUrl } from '../api';
 import { artGradient } from '../lib/format';
 
 export function Cover({

@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { audioObjectUrl } from '../appwrite';
+import { audioObjectUrl } from '../api';
 import type { Track } from '../types';
 import { useLibrary } from './LibraryProvider';
 
@@ -166,8 +166,8 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   }, [generation, index]);
 
   useEffect(() => {
-    setQueue((current) => current.map((track) => tracks.find((item) => item.$id === track.$id) ?? track));
-    queueRef.current = queueRef.current.map((track) => tracks.find((item) => item.$id === track.$id) ?? track);
+    setQueue((current) => current.map((track) => tracks.find((item) => item.id === track.id) ?? track));
+    queueRef.current = queueRef.current.map((track) => tracks.find((item) => item.id === track.id) ?? track);
   }, [tracks]);
 
   const previous = useCallback(() => {
@@ -211,14 +211,14 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   const toggleTrack = useCallback(
     (track: Track, list: Track[]) => {
       const current = queueRef.current[indexRef.current];
-      if (current?.$id === track.$id) {
+      if (current?.id === track.id) {
         const audio = audioRef.current;
         if (!audio) return;
         if (audio.paused) void audio.play();
         else audio.pause();
         return;
       }
-      const start = Math.max(0, list.findIndex((item) => item.$id === track.$id));
+      const start = Math.max(0, list.findIndex((item) => item.id === track.id));
       playTracks(list, start);
     },
     [playTracks],
