@@ -20,6 +20,7 @@ type PlayerContextValue = {
   repeat: RepeatMode;
   queueOpen: boolean;
   lyricsOpen: boolean;
+  expandedOpen: boolean;
   getTime: () => number;
   playTracks: (tracks: Track[], startIndex?: number) => void;
   toggleTrack: (track: Track, list: Track[]) => void;
@@ -33,6 +34,7 @@ type PlayerContextValue = {
   cycleRepeat: () => void;
   setQueueOpen: (open: boolean) => void;
   setLyricsOpen: (open: boolean) => void;
+  setExpandedOpen: (open: boolean) => void;
   playNext: (track: Track) => void;
   jumpTo: (index: number) => void;
 };
@@ -87,6 +89,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   const [repeat, setRepeat] = useState<RepeatMode>('off');
   const [queueOpen, setQueueOpen] = useState(false);
   const [lyricsOpen, setLyricsOpen] = useState(false);
+  const [expandedOpen, setExpandedOpen] = useState(false);
   const getTime = useCallback(() => audioRef.current?.currentTime ?? 0, []);
   const [generation, setGeneration] = useState(0);
   const shuffleRef = useRef(shuffle);
@@ -411,6 +414,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       repeat,
       queueOpen,
       lyricsOpen,
+      expandedOpen,
       getTime,
       playTracks,
       toggleTrack,
@@ -424,6 +428,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       cycleRepeat,
       setQueueOpen,
       setLyricsOpen,
+      setExpandedOpen,
       playNext,
       jumpTo,
     }),
@@ -441,6 +446,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       repeat,
       queueOpen,
       lyricsOpen,
+      expandedOpen,
       getTime,
       playTracks,
       toggleTrack,
