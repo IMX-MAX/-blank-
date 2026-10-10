@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { audioObjectUrl } from '../api';
 import { coverFor } from '../lib/covers';
+import { readPeaks } from '../lib/peaks';
 import { useSettings } from './SettingsProvider';
 import { artworkFor, nativeControls, type ControlAction } from '../lib/media-controls';
 import type { Track } from '../types';
@@ -69,7 +70,7 @@ function shuffleAfter(tracks: Track[], startIndex: number): Track[] {
 
 export function PlayerProvider({ children }: { children: ReactNode }) {
   const { tracks, albums } = useLibrary();
-  const { songCovers } = useSettings();
+  const { songCovers, glyphSupported, glyphWaveform } = useSettings();
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const queueRef = useRef<Track[]>([]);
   /** The queue in its unshuffled order, so turning shuffle off can put it back. */
@@ -280,6 +281,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
         positionMs: audio.currentTime * 1000,
         playing: !audio.paused,
         artwork,
+        peaks: glyphSupported && glyphWaveform ? readPeaks(nowPlaying.waveform, nowPlaying.id) : undefined,
       });
     };
     const refresh = () => void push().catch(() => undefined);
@@ -291,7 +293,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       audio.removeEventListener('seeked', refresh);
       audio.removeEventListener('durationchange', refresh);
     };
-  }, [albums, nowPlaying, nowPlayingCover, playing]);
+  }, [albums, nowPlaying, nowPlayingCover, playing, glyphSupported, glyphWaveform]);
 
   const playTracks = useCallback(
     (list: Track[], startIndex = 0) => {

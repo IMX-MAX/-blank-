@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { ChevronDown, Music2, RotateCw } from 'lucide-react';
 import { activeLineIndex, findLyrics, type LyricLine, type Lyrics, type LyricsResult } from '../lib/lyrics';
+import { getSavedLyrics, saveLyrics } from '../lib/lyrics-store';
 import { getOfflineLyrics, setOfflineLyrics } from '../lib/offline';
 import { useLibrary } from '../state/LibraryProvider';
 import { usePlayer } from '../state/PlayerProvider';
@@ -14,6 +15,9 @@ type State = { status: 'loading' } | { status: 'error' } | LyricsResult;
 function useLyrics(track: Track | null, album: string | undefined) {
   const [state, setState] = useState<State>({ status: 'loading' });
   const [attempt, setAttempt] = useState(0);
+  const { cacheLyrics } = useSettings();
+  const cacheRef = useRef(cacheLyrics);
+  cacheRef.current = cacheLyrics;
   const trackId = track?.id;
   const title = track?.title;
   const artist = track?.artist;
@@ -24,10 +28,16 @@ function useLyrics(track: Track | null, album: string | undefined) {
     const controller = new AbortController();
     setState({ status: 'loading' });
     void (async () => {
+      const identity = { id: trackId, title, artist: artist ?? '' };
+      const saved = await getSavedLyrics(identity).catch(() => null);
+      if (saved) return saved;
       const kept = await getOfflineLyrics(trackId).catch(() => null);
       if (kept) return kept;
       const found = await findLyrics({ title, artist: artist ?? '', album, duration: seconds }, controller.signal);
-      if (found.status !== 'none') void setOfflineLyrics(trackId, found).catch(() => undefined);
+      if (found.status !== 'none') {
+        void setOfflineLyrics(trackId, found).catch(() => undefined);
+        if (cacheRef.current) void saveLyrics(identity, found).catch(() => undefined);
+      }
       return found;
     })()
       .then((result) => {

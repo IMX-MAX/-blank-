@@ -1,9 +1,118 @@
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { LOCAL_ONLY } from '../config';
 import { useAuth } from '../state/AuthProvider';
 import { useLibrary } from '../state/LibraryProvider';
 import { useOffline } from '../state/OfflineProvider';
 import { useSettings, type ThemeChoice } from '../state/SettingsProvider';
 import { formatBytes, plural } from '../lib/format';
+import { clearSavedLyrics, onSavedLyricsChange, saveLyricsFor, savedLyricsTrackIds, type CacheSummary } from '../lib/lyrics-store';
+
+function summaryText(summary: CacheSummary): string {
+  if (summary.offline) return `Stopped: couldn\u2019t reach the lyrics services. Saved ${summary.saved}.`;
+  const parts = [`Saved lyrics for ${plural(summary.saved, 'song')}`];
+  if (summary.missing) parts.push(`${summary.missing} had none`);
+  if (summary.failed) parts.push(`${summary.failed} failed`);
+  return `${parts.join(' \u00b7 ')}.`;
+}
+
+function LyricsSettings() {
+  const library = useLibrary();
+  const { cacheLyrics, setCacheLyrics } = useSettings();
+  const [saved, setSaved] = useState(0);
+  const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
+  const [result, setResult] = useState<string | null>(null);
+  const abort = useRef<AbortController | null>(null);
+  const { tracks, albums } = library;
+
+  const refresh = useCallback(() => {
+    savedLyricsTrackIds(tracks)
+      .then((ids) => setSaved(ids.size))
+      .catch(() => setSaved(0));
+  }, [tracks]);
+
+  useEffect(() => {
+    refresh();
+    return onSavedLyricsChange(refresh);
+  }, [refresh]);
+
+  useEffect(() => () => abort.current?.abort(), []);
+
+  const download = async () => {
+    const controller = new AbortController();
+    abort.current = controller;
+    setResult(null);
+    setProgress({ done: 0, total: 0 });
+    try {
+      const summary = await saveLyricsFor(tracks, albums, {
+        signal: controller.signal,
+        onProgress: (done, total) => setProgress({ done, total }),
+      });
+      if (!controller.signal.aborted) setResult(summaryText(summary));
+    } finally {
+      abort.current = null;
+      setProgress(null);
+      refresh();
+    }
+  };
+
+  const clear = async () => {
+    await clearSavedLyrics().catch(() => undefined);
+    setResult(null);
+  };
+
+  return (
+    <section className="settings-group">
+      <h2>Lyrics</h2>
+      <div className="settings-row">
+        <div>
+          <div className="settings-label">Save lyrics for offline</div>
+          <div className="settings-hint">Keep the lyrics of every song you open on this phone, so they show with no connection.</div>
+        </div>
+        <button
+          className={cacheLyrics ? 'switch on' : 'switch'}
+          role="switch"
+          aria-checked={cacheLyrics}
+          aria-label="Save lyrics for offline"
+          onClick={() => setCacheLyrics(!cacheLyrics)}
+        >
+          <span />
+        </button>
+      </div>
+      <div className="settings-row">
+        <div>
+          <div className="settings-label">
+            {saved} of {plural(tracks.length, 'song')} saved
+          </div>
+          <div className="settings-hint">
+            {progress
+              ? progress.total
+                ? `Looking up lyrics\u2026 ${progress.done} of ${progress.total}`
+                : 'Looking up lyrics\u2026'
+              : (result ?? 'Look up lyrics for your whole library now, while you are online.')}
+          </div>
+        </div>
+        <div className="settings-actions">
+          {progress ? (
+            <button className="pill-btn" onClick={() => abort.current?.abort()}>
+              Stop
+            </button>
+          ) : (
+            <>
+              {saved ? (
+                <button className="pill-btn" onClick={() => void clear()}>
+                  Clear
+                </button>
+              ) : null}
+              <button className="pill-btn" disabled={!tracks.length || saved >= tracks.length} onClick={() => void download()}>
+                Save all
+              </button>
+            </>
+          )}
+        </div>
+      </div>
+    </section>
+  );
+}
 
 const THEMES: Array<{ id: ThemeChoice; label: string }> = [
   { id: 'dark', label: 'Dark' },
@@ -25,7 +134,7 @@ export function SettingsView({
   const { user } = useAuth();
   const library = useLibrary();
   const offline = useOffline();
-  const { theme, setTheme, songCovers, setSongCovers } = useSettings();
+  const { theme, setTheme, songCovers, setSongCovers, glyphSupported, glyphWaveform, setGlyphWaveform } = useSettings();
 
   return (
     <main className="stage settings-page">
@@ -73,7 +182,28 @@ export function SettingsView({
             <span />
           </button>
         </div>
+        {glyphSupported ? (
+          <div className="settings-row">
+            <div>
+              <div className="settings-label">Waveform on the Glyph Matrix</div>
+              <div className="settings-hint">
+                Shows the playback waveform bar on the back of your phone while a song plays. A Glyph Toy you switch to takes over the display.
+              </div>
+            </div>
+            <button
+              className={glyphWaveform ? 'switch on' : 'switch'}
+              role="switch"
+              aria-checked={glyphWaveform}
+              aria-label="Waveform on the Glyph Matrix"
+              onClick={() => setGlyphWaveform(!glyphWaveform)}
+            >
+              <span />
+            </button>
+          </div>
+        ) : null}
       </section>
+
+      {LOCAL_ONLY ? <LyricsSettings /> : null}
 
       <section className="settings-group">
         <h2>Library</h2>
