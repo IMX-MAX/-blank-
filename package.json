@@ -9,7 +9,8 @@
     "preview": "vite preview",
     "dev:api": "tsx api/src/dev.ts",
     "test:api": "tsx --test api/src/app.test.ts",
-    "db:schema": "tsx -e \"import(\\\"./api/src/schema.ts\\\").then(m=>console.log(m.SCHEMA_SQL))\""
+    "db:schema": "tsx -e \"import(\\\"./api/src/schema.ts\\\").then(m=>console.log(m.SCHEMA_SQL))\"",
+    "test": "tsx --test api/src/app.test.ts src/lib/lyrics.test.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1149.0",
@@ -26,7 +27,8 @@
     "music-metadata": "^12.1.0",
     "pg": "^8.23.1",
     "react": "^19.3.0",
-    "react-dom": "^19.3.0"
+    "react-dom": "^19.3.0",
+    "yaml": "^2.9.1"
   },
   "devDependencies": {
     "@electric-sql/pglite": "^0.5.8",
