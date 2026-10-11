@@ -1,0 +1,20 @@
+[package]
+name = "blank-win"
+version = "1.0.0"
+edition = "2021"
+description = "[blank] music player for Windows on ARM"
+
+[[bin]]
+name = "blank"
+path = "src/main.rs"
+
+[dependencies]
+wry = "0.57"
+tao = "0.37"
+
+[profile.release]
+opt-level = "z"
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true

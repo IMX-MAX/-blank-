@@ -1,0 +1,46 @@
+name: blank Windows ARM64 build
+
+on:
+  push:
+    branches: [main, "vibe/**"]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-pc-windows-msvc
+
+      - name: Build web app
+        run: |
+          npm ci
+          npm run build
+
+      - name: Install cargo-xwin
+        run: cargo install cargo-xwin --locked
+
+      - name: Cross-compile Windows ARM64 shell
+        working-directory: blank-win
+        run: cargo xwin build --release --target aarch64-pc-windows-msvc
+
+      - name: Package portable app
+        run: |
+          mkdir -p blank-windows-arm64
+          cp blank-win/target/aarch64-pc-windows-msvc/release/blank.exe blank-windows-arm64/
+          cp -r dist blank-windows-arm64/web
+          cd blank-windows-arm64 && zip -r ../blank-windows-arm64-portable.zip .
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: blank-windows-arm64-portable
+          path: blank-windows-arm64-portable.zip
+          retention-days: 90
