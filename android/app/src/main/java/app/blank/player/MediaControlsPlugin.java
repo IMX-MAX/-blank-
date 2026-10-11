@@ -47,6 +47,7 @@ public class MediaControlsPlugin extends Plugin {
             Bitmap bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.length);
             if (bitmap != null) state.artwork = bitmap;
         }
+        state.trackId = call.getString("trackId");
         state.keepArtwork = artwork == null;
         JSArray waveform = call.getArray("peaks");
         if (waveform != null && waveform.length() > 0) {
