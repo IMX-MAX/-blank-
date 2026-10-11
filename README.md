@@ -116,9 +116,13 @@ On a Nothing Phone (4a) Pro (13x13 matrix) or Phone (3) (25x25), **Settings > Pl
 
 The drawing lives in the playback service (`LiveVisuals.java`, `WaveformFrame.java`, `LyricsFrame.java`, `PulseFrame.java`), so it keeps going with the screen off, and it uses `setAppMatrixFrame`, so a Glyph Toy you switch to takes over the display. Needs a system version from 20250801.
 
-**Vibrate to the beat** (also in Settings > Playback) taps the vibration motor on the strong beats of the song. It works on any phone with a vibration motor and does not need the Glyph Matrix.
+**Vibrate to the beat** (also in Settings > Playback) buzzes the vibration motor on the strong beats of the song: a sustained "zzz" that starts hard and eases off, as long as the gap to the next beat allows (`BuzzPattern.java`). It works on any phone with a vibration motor and does not need the Glyph Matrix.
 
 Beats come from `src/lib/beat-detect.ts`, an onset detector that decodes the song once, finds the hits (drums, plucks) rather than a steady tempo, and caches them in IndexedDB (`blank-beats`).
+
+### Keep the screen on for lyrics
+
+**Settings > Playback > Keep the screen on for lyrics** holds the screen awake while the lyrics view is open (the window's keep-screen-on flag in the app, the Screen Wake Lock API in a browser).
 
 ### Equalizer and crossfade
 

@@ -20,6 +20,7 @@ import { useLibrary } from '../state/LibraryProvider';
 import { usePlayer } from '../state/PlayerProvider';
 import { useSettings } from '../state/SettingsProvider';
 import { Cover } from './Cover';
+import { Slider } from './Slider';
 import { Waveform } from './Waveform';
 
 /** Moves the big cover between the playback bar's cover and its resting place, like the cover is being pulled up. */
@@ -152,16 +153,7 @@ export function NowPlaying() {
               <button className="ctrl" aria-label="Volume" onClick={player.toggleMute}>
                 {player.muted || player.volume === 0 ? <VolumeX size={21} /> : <Volume2 size={21} />}
               </button>
-              <input
-                className="volume-slider"
-                type="range"
-                min={0}
-                max={1}
-                step={0.01}
-                value={player.muted ? 0 : player.volume}
-                aria-label="Volume level"
-                onChange={(event) => player.setVolume(Number(event.target.value))}
-              />
+              <Slider className="volume-slider" min={0} max={1} step={0.01} value={player.muted ? 0 : player.volume} label="Volume level" onChange={player.setVolume} />
             </div>
             <button
               className="ctrl"

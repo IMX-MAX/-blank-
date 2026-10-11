@@ -24,6 +24,8 @@ type NowPlaying = {
 type NativeControls = {
   update(options: NowPlaying): Promise<void>;
   clear(): Promise<void>;
+  /** Keeps the screen on while true. */
+  setKeepAwake(options: { enabled: boolean }): Promise<void>;
   addListener(event: 'action', listener: (action: ControlAction) => void): Promise<PluginListenerHandle>;
 };
 

@@ -3,6 +3,7 @@ import { LOCAL_ONLY } from '../config';
 import { EQ_FLAT, isFlat } from '../lib/audio-engine';
 import type { GlyphMode } from '../lib/glyph';
 import { EqualizerGraph } from './EqualizerGraph';
+import { Slider } from './Slider';
 import { useAuth } from '../state/AuthProvider';
 import { useLibrary } from '../state/LibraryProvider';
 import { useOffline } from '../state/OfflineProvider';
@@ -158,16 +159,8 @@ function SoundSettings() {
         </button>
         {crossfade > 0 ? (
           <label className="settings-slider">
-            <input
-              type="range"
-              min={1}
-              max={12}
-              step={1}
-              value={crossfade}
-              aria-label="Crossfade length"
-              onChange={(event) => setCrossfade(Number(event.target.value))}
-            />
-            <span>{crossfade} s</span>
+            <Slider min={1} max={12} step={1} value={crossfade} label="Crossfade length" onChange={setCrossfade} />
+            <span className="slider-value">{crossfade} s</span>
           </label>
         ) : null}
       </div>
@@ -208,6 +201,8 @@ export function SettingsView({
     vibrateSupported,
     vibrate,
     setVibrate,
+    keepAwake,
+    setKeepAwake,
   } = useSettings();
 
   return (
@@ -299,7 +294,7 @@ export function SettingsView({
           <div className="settings-row">
             <div>
               <div className="settings-label">Vibrate to the beat</div>
-              <div className="settings-hint">Taps the vibration motor on the hits of the song while it plays.</div>
+              <div className="settings-hint">Buzzes the phone on the hits of the song while it plays.</div>
             </div>
             <button
               className={vibrate ? 'switch on' : 'switch'}
@@ -312,6 +307,21 @@ export function SettingsView({
             </button>
           </div>
         ) : null}
+        <div className="settings-row">
+          <div>
+            <div className="settings-label">Keep the screen on for lyrics</div>
+            <div className="settings-hint">The screen stays awake while the lyrics are open.</div>
+          </div>
+          <button
+            className={keepAwake ? 'switch on' : 'switch'}
+            role="switch"
+            aria-checked={keepAwake}
+            aria-label="Keep the screen on for lyrics"
+            onClick={() => setKeepAwake(!keepAwake)}
+          >
+            <span />
+          </button>
+        </div>
       </section>
 
       <SoundSettings />

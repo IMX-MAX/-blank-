@@ -28,6 +28,9 @@ type SettingsValue = {
   /** Vibrate to the beat of the song. */
   vibrate: boolean;
   setVibrate: (on: boolean) => void;
+  /** Keep the screen on while the lyrics are open. */
+  keepAwake: boolean;
+  setKeepAwake: (on: boolean) => void;
   /** Three-band equaliser, in dB. */
   eq: EqBands;
   setEq: (eq: EqBands) => void;
@@ -44,6 +47,7 @@ const LYRICS_KEY = 'blank.cacheLyrics';
 const GLYPH_KEY = 'blank.glyphWaveform';
 const GLYPH_MODE_KEY = 'blank.glyphMode';
 const VIBRATE_KEY = 'blank.vibrate';
+const AWAKE_KEY = 'blank.keepAwake';
 const EQ_KEY = 'blank.eq';
 const CROSSFADE_KEY = 'blank.crossfade';
 
@@ -81,6 +85,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
   const [glyphMode, setGlyphModeState] = useState<GlyphMode>(readGlyphMode);
   const [vibrate, setVibrateState] = useState(() => localStorage.getItem(VIBRATE_KEY) === '1');
   const [vibrateSupported, setVibrateSupported] = useState(false);
+  const [keepAwake, setKeepAwakeState] = useState(() => localStorage.getItem(AWAKE_KEY) === '1');
   const [eq, setEqState] = useState<EqBands>(readEq);
   const [crossfade, setCrossfadeState] = useState(() => {
     const seconds = Number(localStorage.getItem(CROSSFADE_KEY));
@@ -128,6 +133,11 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
   const setVibrate = useCallback((on: boolean) => {
     localStorage.setItem(VIBRATE_KEY, on ? '1' : '0');
     setVibrateState(on);
+  }, []);
+
+  const setKeepAwake = useCallback((on: boolean) => {
+    localStorage.setItem(AWAKE_KEY, on ? '1' : '0');
+    setKeepAwakeState(on);
   }, []);
 
   const setEq = useCallback((next: EqBands) => {
@@ -190,6 +200,8 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
       vibrateSupported,
       vibrate,
       setVibrate,
+      keepAwake,
+      setKeepAwake,
       eq,
       setEq,
       crossfade,
@@ -211,6 +223,8 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
       vibrateSupported,
       vibrate,
       setVibrate,
+      keepAwake,
+      setKeepAwake,
       eq,
       setEq,
       crossfade,

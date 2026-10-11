@@ -31,7 +31,7 @@ final class LiveVisuals {
     private static final long LYRICS_TICK_MS = 70;
     private static final long PULSE_TICK_MS = 45;
     private static final float MIN_VIBRATE_STRENGTH = 0.2f;
-    private static final long MIN_VIBRATE_GAP_MS = 140;
+    private static final long MIN_VIBRATE_GAP_MS = 160;
     private static final Handler MAIN = new Handler(Looper.getMainLooper());
 
     private static boolean enabled;
@@ -306,27 +306,33 @@ final class LiveVisuals {
         if (!vibrate || !playing || beats == null || app == null) return;
         double now = seconds();
         int index = beats.indexAt(now + 0.03);
+        int next = beats.nextAfter(now + 0.03, MIN_VIBRATE_STRENGTH);
         if (index >= 0 && beats.strength(index) >= MIN_VIBRATE_STRENGTH) {
             long clock = SystemClock.elapsedRealtime();
             if (clock - lastVibrateAt >= MIN_VIBRATE_GAP_MS) {
                 lastVibrateAt = clock;
-                pulse(beats.strength(index));
+                long gap = next < 0 ? -1 : Math.round((beats.time(next) - beats.time(index)) * 1000);
+                buzz(BuzzPattern.build(beats.strength(index), gap));
             }
         }
-        int next = beats.nextAfter(now + 0.03, MIN_VIBRATE_STRENGTH);
         if (next < 0) return;
         long wait = Math.max(MIN_VIBRATE_GAP_MS / 2, Math.round((beats.time(next) - now) * 1000));
         MAIN.postDelayed(buzz, wait);
     }
 
-    private static void pulse(float strength) {
+    private static void buzz(BuzzPattern pattern) {
         Vibrator motor = vibratorOf(app);
         if (motor == null || !motor.hasVibrator()) return;
-        long length = Math.round(18 + 22 * strength);
-        int amplitude = Math.round(80 + 175 * strength);
         try {
+            if (Build.VERSION.SDK_INT < 26) {
+                motor.vibrate(pattern.total());
+                return;
+            }
             AudioAttributes attributes = new AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_MEDIA).build();
-            motor.vibrate(VibrationEffect.createOneShot(length, amplitude), attributes);
+            VibrationEffect effect = motor.hasAmplitudeControl()
+                ? VibrationEffect.createWaveform(pattern.timings, pattern.amplitudes, -1)
+                : VibrationEffect.createOneShot(pattern.total(), VibrationEffect.DEFAULT_AMPLITUDE);
+            motor.vibrate(effect, attributes);
         } catch (Throwable ignored) {
             // Vibration is a nicety.
         }

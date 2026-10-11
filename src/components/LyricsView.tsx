@@ -6,6 +6,7 @@ import { useLibrary } from '../state/LibraryProvider';
 import { usePlayer } from '../state/PlayerProvider';
 import type { Track } from '../types';
 import { coverFor } from '../lib/covers';
+import { setKeepAwake } from '../lib/keep-awake';
 import { useSettings } from '../state/SettingsProvider';
 import { Cover } from './Cover';
 
@@ -49,11 +50,17 @@ export function LyricsView() {
   const player = usePlayer();
   const { albums } = useLibrary();
   const track = player.track;
-  const { songCovers } = useSettings();
+  const { songCovers, keepAwake } = useSettings();
   const album = albums.find((item) => item.id === track?.albumId);
   const { state, retry } = useLyrics(track, album?.name);
   const lyrics = state.status === 'found' ? state.lyrics : null;
   const synced = lyrics !== null && lyrics.mode !== 'plain';
+
+  useEffect(() => {
+    if (!keepAwake) return;
+    setKeepAwake(true);
+    return () => setKeepAwake(false);
+  }, [keepAwake]);
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const [active, setActive] = useState(-1);

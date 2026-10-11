@@ -6,6 +6,7 @@ import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.os.Build;
 import android.util.Base64;
+import android.view.WindowManager;
 
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
@@ -56,6 +57,21 @@ public class MediaControlsPlugin extends Plugin {
             state.peaks = values;
         }
         PlaybackService.update(getContext().getApplicationContext(), state);
+        call.resolve();
+    }
+
+    @PluginMethod
+    public void setKeepAwake(PluginCall call) {
+        boolean on = Boolean.TRUE.equals(call.getBoolean("enabled", false));
+        if (getActivity() != null) {
+            getActivity().runOnUiThread(() -> {
+                if (on) {
+                    getActivity().getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+                } else {
+                    getActivity().getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+                }
+            });
+        }
         call.resolve();
     }
 
