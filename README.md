@@ -106,8 +106,22 @@ Build it with `npm run android:apk`. The storage code is in `src/lib/local-store
 
 **Settings > Lyrics** has a switch to keep the lyrics of every song you open (stored in IndexedDB `blank-lyrics`, see `src/lib/lyrics-store.ts`), and a **Save all** button that looks up lyrics for the whole library while you are online. Saved lyrics open with no connection and are looked up again if a song is retagged.
 
-### Glyph Matrix waveform
+### Glyph Matrix
 
-On a Nothing Phone (4a) Pro (13x13 matrix) or Phone (3) (25x25), **Settings > Playback** shows a switch that draws a scrolling slice of the playback waveform on the back of the phone: the waveform slides past a fixed playhead in the middle column, bright for what has played (left) and dim for what is coming (right), with the playhead column blinking while playing. The drawing lives in the playback service (`GlyphWaveform.java`, `WaveformFrame.java`), so it keeps going with the screen off, and it uses `setAppMatrixFrame`, so a Glyph Toy you switch to takes over the display. Needs a system version from 20250801.
+On a Nothing Phone (4a) Pro (13x13 matrix) or Phone (3) (25x25), **Settings > Playback** has a switch that draws what is playing on the back of the phone, with three looks:
+
+- **Waveform**: a scrolling slice of the waveform slides past a fixed playhead in the middle column, bright for what has played (left) and dim for what is coming (right), with the playhead column blinking while playing.
+- **Lyrics**: the line being sung is drawn in a 5x7 pixel font (`PixelFont.java`, from the public-domain X11 misc-fixed font, with the system font as a fallback for other scripts) and scrolls across as the line plays. It uses synced lyrics and falls back to the waveform when a song has none.
+- **Pulse**: the whole disc flashes on every beat and a ring ripples out from the middle. It falls back to the waveform until the song's beats are known.
+
+The drawing lives in the playback service (`LiveVisuals.java`, `WaveformFrame.java`, `LyricsFrame.java`, `PulseFrame.java`), so it keeps going with the screen off, and it uses `setAppMatrixFrame`, so a Glyph Toy you switch to takes over the display. Needs a system version from 20250801.
+
+**Vibrate to the beat** (also in Settings > Playback) taps the vibration motor on the strong beats of the song. It works on any phone with a vibration motor and does not need the Glyph Matrix.
+
+Beats come from `src/lib/beat-detect.ts`, an onset detector that decodes the song once, finds the hits (drums, plucks) rather than a steady tempo, and caches them in IndexedDB (`blank-beats`).
+
+### Equalizer and crossfade
+
+**Settings > Sound** has a three-point equalizer (bass, mid, treble, -12 to +12 dB) you drag on a graph, and a crossfade switch with a 1 to 12 second slider. Both run on the Web Audio API (`src/lib/audio-engine.ts`): each song plays through its own gain into a low shelf, a peaking filter and a high shelf. Crossfading uses two audio elements that swap roles, with an equal-power fade, so the next song starts under the end of the current one. The audio graph is only built once the equalizer is not flat or crossfade is on.
 
 Nothing's licence does not allow redistributing the Glyph Matrix SDK, so it is not in the repo: `fetchGlyphSdk` in `android/app/build.gradle` downloads it from their developer kit the first time you build.
