@@ -8,6 +8,7 @@ export type ControlAction = {
 };
 
 type NowPlaying = {
+  trackId: string;
   title: string;
   artist: string;
   album: string;

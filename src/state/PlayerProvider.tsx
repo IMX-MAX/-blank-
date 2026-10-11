@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { audioObjectUrl } from '../api';
+import { audioEngine, isFlat } from '../lib/audio-engine';
 import { coverFor } from '../lib/covers';
 import { readPeaks } from '../lib/peaks';
 import { useSettings } from './SettingsProvider';
@@ -70,8 +71,17 @@ function shuffleAfter(tracks: Track[], startIndex: number): Track[] {
 
 export function PlayerProvider({ children }: { children: ReactNode }) {
   const { tracks, albums } = useLibrary();
-  const { songCovers, glyphSupported, glyphWaveform } = useSettings();
+  const { songCovers, glyphSupported, glyphWaveform, eq, crossfade } = useSettings();
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  /** Two elements take turns as the active one so a crossfade can overlap the end of one song with the start of the next. */
+  const elementsRef = useRef<HTMLAudioElement[]>([]);
+  const fading = useRef<HTMLAudioElement | null>(null);
+  const fadeStarting = useRef(false);
+  const skipLoad = useRef(false);
+  const crossfadeRef = useRef(crossfade);
+  crossfadeRef.current = crossfade;
+  const needsEngine = crossfade > 0 || !isFlat(eq);
+  const engineRef = useRef({ needed: needsEngine, eq, level: 1 });
   const queueRef = useRef<Track[]>([]);
   /** The queue in its unshuffled order, so turning shuffle off can put it back. */
   const orderedRef = useRef<Track[]>([]);
@@ -137,33 +147,127 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   const nextRef = useRef(next);
   nextRef.current = next;
 
+  const cancelFade = useCallback(() => {
+    const ghost = fading.current;
+    fading.current = null;
+    if (ghost) {
+      ghost.pause();
+      ghost.removeAttribute('src');
+      ghost.load();
+    }
+    audioEngine.settle();
+  }, []);
+
+  const startCrossfade = useCallback(
+    (outgoing: HTMLAudioElement, nextIndex: number) => {
+      const list = queueRef.current;
+      const at = indexRef.current;
+      const upcoming = list[nextIndex];
+      const elements = elementsRef.current;
+      const incoming = elements.find((element) => element !== outgoing);
+      if (!upcoming || !incoming) return;
+      fadeStarting.current = true;
+      void (async () => {
+        try {
+          const url = await audioObjectUrl(upcoming.audioFileId);
+          if (audioRef.current !== outgoing || queueRef.current !== list || indexRef.current !== at || outgoing.paused) return;
+          incoming.src = url;
+          incoming.currentTime = 0;
+          audioEngine.silence(elements.indexOf(incoming));
+          await incoming.play();
+          const remaining = outgoing.duration - outgoing.currentTime;
+          if (audioRef.current !== outgoing || !(remaining > 0.5)) {
+            incoming.pause();
+            audioEngine.settle();
+            return;
+          }
+          fading.current = outgoing;
+          audioRef.current = incoming;
+          skipLoad.current = true;
+          setCurrentTime(0);
+          setDuration(Number.isFinite(incoming.duration) ? incoming.duration : 0);
+          audioEngine.crossfade(elements.indexOf(outgoing), elements.indexOf(incoming), remaining, () => {
+            if (fading.current === outgoing) cancelFade();
+          });
+          go(nextIndex);
+        } catch {
+          audioEngine.settle();
+        } finally {
+          fadeStarting.current = false;
+        }
+      })();
+    },
+    [cancelFade, go],
+  );
+
+  const startCrossfadeRef = useRef(startCrossfade);
+  startCrossfadeRef.current = startCrossfade;
+  const cancelFadeRef = useRef(cancelFade);
+  cancelFadeRef.current = cancelFade;
+
   useEffect(() => {
-    const audio = new Audio();
-    audio.preload = 'auto';
-    audioRef.current = audio;
-    const onTime = () => setCurrentTime(audio.currentTime || 0);
-    const onMeta = () => setDuration(Number.isFinite(audio.duration) ? audio.duration : 0);
-    const onPlay = () => setPlaying(true);
-    const onPause = () => setPlaying(false);
-    const onEnded = () => nextRef.current();
-    audio.addEventListener('timeupdate', onTime);
-    audio.addEventListener('durationchange', onMeta);
-    audio.addEventListener('play', onPlay);
-    audio.addEventListener('pause', onPause);
-    audio.addEventListener('ended', onEnded);
-    return () => {
-      audio.pause();
-      audio.src = '';
-      audio.removeEventListener('timeupdate', onTime);
-      audio.removeEventListener('durationchange', onMeta);
-      audio.removeEventListener('play', onPlay);
-      audio.removeEventListener('pause', onPause);
-      audio.removeEventListener('ended', onEnded);
-    };
+    const elements = [new Audio(), new Audio()];
+    elementsRef.current = elements;
+    audioRef.current = elements[0]!;
+    if (engineRef.current.needed) audioEngine.ensure(elements, engineRef.current.eq, engineRef.current.level);
+    const cleanups = elements.map((audio) => {
+      audio.preload = 'auto';
+      const active = () => audioRef.current === audio;
+      const onTime = () => {
+        if (!active()) return;
+        setCurrentTime(audio.currentTime || 0);
+        const seconds = crossfadeRef.current;
+        if (!seconds || fading.current || fadeStarting.current || audio.paused || !audioEngine.connected) return;
+        if (!Number.isFinite(audio.duration) || audio.duration < seconds * 2 + 2) return;
+        const remaining = audio.duration - audio.currentTime;
+        if (remaining > seconds || remaining < 0.6 || repeatRef.current === 'one') return;
+        const list = queueRef.current;
+        const at = indexRef.current;
+        const nextIndex = at + 1 < list.length ? at + 1 : repeatRef.current === 'all' ? 0 : -1;
+        if (nextIndex >= 0 && !(nextIndex === at)) startCrossfadeRef.current(audio, nextIndex);
+      };
+      const onMeta = () => {
+        if (active()) setDuration(Number.isFinite(audio.duration) ? audio.duration : 0);
+      };
+      const onPlay = () => {
+        if (!active()) return;
+        setPlaying(true);
+        audioEngine.resume();
+      };
+      const onPause = () => {
+        if (!active()) return;
+        if (fading.current) cancelFadeRef.current();
+        setPlaying(false);
+      };
+      const onEnded = () => {
+        if (active()) nextRef.current();
+      };
+      audio.addEventListener('timeupdate', onTime);
+      audio.addEventListener('durationchange', onMeta);
+      audio.addEventListener('play', onPlay);
+      audio.addEventListener('pause', onPause);
+      audio.addEventListener('ended', onEnded);
+      return () => {
+        audio.pause();
+        audio.src = '';
+        audio.removeEventListener('timeupdate', onTime);
+        audio.removeEventListener('durationchange', onMeta);
+        audio.removeEventListener('play', onPlay);
+        audio.removeEventListener('pause', onPause);
+        audio.removeEventListener('ended', onEnded);
+      };
+    });
+    return () => cleanups.forEach((cleanup) => cleanup());
   }, []);
 
   useEffect(() => {
     if (generation === 0) return;
+    if (skipLoad.current) {
+      skipLoad.current = false;
+      setLoading(false);
+      return;
+    }
+    cancelFade();
     const track = queueRef.current[indexRef.current];
     const audio = audioRef.current;
     if (!track || !audio) return;
@@ -191,7 +295,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     return () => {
       cancelled = true;
     };
-  }, [generation]);
+  }, [generation, cancelFade]);
 
   useEffect(() => {
     setQueue((current) => current.map((track) => tracks.find((item) => item.id === track.id) ?? track));
@@ -209,9 +313,20 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     else if (audio) audio.currentTime = 0;
   }, [go]);
 
+  engineRef.current = { needed: needsEngine, eq, level: muted ? 0 : volume };
   useEffect(() => {
-    if (audioRef.current) audioRef.current.volume = muted ? 0 : volume;
-  }, [muted, volume]);
+    if (needsEngine) audioEngine.ensure(elementsRef.current, eq, muted ? 0 : volume);
+  }, [needsEngine, eq, muted, volume]);
+
+  useEffect(() => {
+    audioEngine.setEq(eq);
+  }, [eq]);
+
+  useEffect(() => {
+    const level = muted ? 0 : volume;
+    if (audioEngine.connected) audioEngine.setVolume(level);
+    else for (const element of elementsRef.current) element.volume = level;
+  }, [muted, volume, needsEngine]);
 
   useEffect(() => {
     if (!('mediaSession' in navigator)) return;
@@ -274,6 +389,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       }
       const seconds = Number.isFinite(audio.duration) && audio.duration > 0 ? audio.duration : nowPlaying.durationMs / 1000;
       await controls.update({
+        trackId: nowPlaying.id,
         title: nowPlaying.title,
         artist: nowPlaying.artist,
         album: albums.find((item) => item.id === nowPlaying.albumId)?.name ?? '',
@@ -339,7 +455,6 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   const setVolume = useCallback((value: number) => {
     const nextVolume = Math.min(1, Math.max(0, value));
     if (nextVolume > 0) lastVolume.current = nextVolume;
-    if (audioRef.current) audioRef.current.volume = nextVolume;
     setVolumeState(nextVolume);
     setMuted(nextVolume === 0);
     localStorage.setItem('blank.volume', String(nextVolume));
@@ -351,6 +466,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   }, [muted, setVolume, volume]);
 
   const clearQueue = useCallback(() => {
+    cancelFade();
     const audio = audioRef.current;
     if (audio) {
       audio.pause();
@@ -371,7 +487,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     setExpandedOpen(false);
     setGeneration((value) => value + 1);
     if ('mediaSession' in navigator) navigator.mediaSession.metadata = null;
-  }, []);
+  }, [cancelFade]);
 
   const toggleShuffle = useCallback(() => {
     const turningOn = !shuffleRef.current;

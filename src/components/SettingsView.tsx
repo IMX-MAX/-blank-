@@ -1,5 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { LOCAL_ONLY } from '../config';
+import { EQ_FLAT, isFlat } from '../lib/audio-engine';
+import type { GlyphMode } from '../lib/glyph';
+import { EqualizerGraph } from './EqualizerGraph';
 import { useAuth } from '../state/AuthProvider';
 import { useLibrary } from '../state/LibraryProvider';
 import { useOffline } from '../state/OfflineProvider';
@@ -114,6 +117,64 @@ function LyricsSettings() {
   );
 }
 
+const GLYPH_MODES: Array<{ id: GlyphMode; label: string; hint: string }> = [
+  { id: 'waveform', label: 'Waveform', hint: 'A slice of the waveform scrolls past the playhead.' },
+  { id: 'lyrics', label: 'Lyrics', hint: 'The line being sung scrolls across as it plays. Falls back to the waveform when there are no synced lyrics.' },
+  { id: 'pulse', label: 'Pulse', hint: 'Flashes and pulses to the beat. Falls back to the waveform while the song is being analysed.' },
+];
+
+function SoundSettings() {
+  const { eq, setEq, crossfade, setCrossfade } = useSettings();
+  const lastFade = useRef(6);
+  if (crossfade > 0) lastFade.current = crossfade;
+  return (
+    <section className="settings-group">
+      <h2>Sound</h2>
+      <div className="settings-row settings-eq">
+        <div>
+          <div className="settings-label">Equalizer</div>
+          <div className="settings-hint">Drag the three points to shape the sound of everything you play.</div>
+        </div>
+        {!isFlat(eq) ? (
+          <button className="pill-btn" onClick={() => setEq(EQ_FLAT)}>
+            Reset
+          </button>
+        ) : null}
+        <EqualizerGraph value={eq} onChange={setEq} />
+      </div>
+      <div className="settings-row">
+        <div>
+          <div className="settings-label">Crossfade</div>
+          <div className="settings-hint">Fade the end of a song into the start of the next one.</div>
+        </div>
+        <button
+          className={crossfade > 0 ? 'switch on' : 'switch'}
+          role="switch"
+          aria-checked={crossfade > 0}
+          aria-label="Crossfade"
+          onClick={() => setCrossfade(crossfade > 0 ? 0 : lastFade.current)}
+        >
+          <span />
+        </button>
+        {crossfade > 0 ? (
+          <label className="settings-slider">
+            <input
+              type="range"
+              min={1}
+              max={12}
+              step={1}
+              value={crossfade}
+              aria-label="Crossfade length"
+              onChange={(event) => setCrossfade(Number(event.target.value))}
+            />
+            <span>{crossfade} s</span>
+          </label>
+        ) : null}
+      </div>
+    </section>
+  );
+}
+
 const THEMES: Array<{ id: ThemeChoice; label: string }> = [
   { id: 'dark', label: 'Dark' },
   { id: 'light', label: 'Light' },
@@ -134,7 +195,20 @@ export function SettingsView({
   const { user } = useAuth();
   const library = useLibrary();
   const offline = useOffline();
-  const { theme, setTheme, songCovers, setSongCovers, glyphSupported, glyphWaveform, setGlyphWaveform } = useSettings();
+  const {
+    theme,
+    setTheme,
+    songCovers,
+    setSongCovers,
+    glyphSupported,
+    glyphWaveform,
+    setGlyphWaveform,
+    glyphMode,
+    setGlyphMode,
+    vibrateSupported,
+    vibrate,
+    setVibrate,
+  } = useSettings();
 
   return (
     <main className="stage settings-page">
@@ -183,25 +257,64 @@ export function SettingsView({
           </button>
         </div>
         {glyphSupported ? (
+          <>
+            <div className="settings-row">
+              <div>
+                <div className="settings-label">Show on the Glyph Matrix</div>
+                <div className="settings-hint">
+                  Draws what is playing on the back of your phone. A Glyph Toy you switch to takes over the display.
+                </div>
+              </div>
+              <button
+                className={glyphWaveform ? 'switch on' : 'switch'}
+                role="switch"
+                aria-checked={glyphWaveform}
+                aria-label="Show on the Glyph Matrix"
+                onClick={() => setGlyphWaveform(!glyphWaveform)}
+              >
+                <span />
+              </button>
+              {glyphWaveform ? (
+                <div className="settings-sub">
+                  <div className="segmented" role="radiogroup" aria-label="Glyph Matrix visual">
+                    {GLYPH_MODES.map((mode) => (
+                      <button
+                        key={mode.id}
+                        role="radio"
+                        aria-checked={glyphMode === mode.id}
+                        className={glyphMode === mode.id ? 'on' : ''}
+                        onClick={() => setGlyphMode(mode.id)}
+                      >
+                        {mode.label}
+                      </button>
+                    ))}
+                  </div>
+                  <div className="settings-hint">{GLYPH_MODES.find((mode) => mode.id === glyphMode)?.hint}</div>
+                </div>
+              ) : null}
+            </div>
+          </>
+        ) : null}
+        {vibrateSupported ? (
           <div className="settings-row">
             <div>
-              <div className="settings-label">Waveform on the Glyph Matrix</div>
-              <div className="settings-hint">
-                Shows the playback waveform bar on the back of your phone while a song plays. A Glyph Toy you switch to takes over the display.
-              </div>
+              <div className="settings-label">Vibrate to the beat</div>
+              <div className="settings-hint">Taps the vibration motor on the hits of the song while it plays.</div>
             </div>
             <button
-              className={glyphWaveform ? 'switch on' : 'switch'}
+              className={vibrate ? 'switch on' : 'switch'}
               role="switch"
-              aria-checked={glyphWaveform}
-              aria-label="Waveform on the Glyph Matrix"
-              onClick={() => setGlyphWaveform(!glyphWaveform)}
+              aria-checked={vibrate}
+              aria-label="Vibrate to the beat"
+              onClick={() => setVibrate(!vibrate)}
             >
               <span />
             </button>
           </div>
         ) : null}
       </section>
+
+      <SoundSettings />
 
       {LOCAL_ONLY ? <LyricsSettings /> : null}
 

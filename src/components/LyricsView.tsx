@@ -1,8 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { ChevronDown, Music2, RotateCw } from 'lucide-react';
-import { activeLineIndex, findLyrics, type LyricLine, type Lyrics, type LyricsResult } from '../lib/lyrics';
-import { getSavedLyrics, saveLyrics } from '../lib/lyrics-store';
-import { getOfflineLyrics, setOfflineLyrics } from '../lib/offline';
+import { activeLineIndex, type LyricLine, type Lyrics, type LyricsResult } from '../lib/lyrics';
+import { loadLyrics } from '../lib/lyrics-load';
 import { useLibrary } from '../state/LibraryProvider';
 import { usePlayer } from '../state/PlayerProvider';
 import type { Track } from '../types';
@@ -21,25 +20,13 @@ function useLyrics(track: Track | null, album: string | undefined) {
   const trackId = track?.id;
   const title = track?.title;
   const artist = track?.artist;
-  const seconds = (track?.durationMs ?? 0) / 1000;
+  const durationMs = track?.durationMs ?? 0;
 
   useEffect(() => {
     if (!trackId || !title) return;
     const controller = new AbortController();
     setState({ status: 'loading' });
-    void (async () => {
-      const identity = { id: trackId, title, artist: artist ?? '' };
-      const saved = await getSavedLyrics(identity).catch(() => null);
-      if (saved) return saved;
-      const kept = await getOfflineLyrics(trackId).catch(() => null);
-      if (kept) return kept;
-      const found = await findLyrics({ title, artist: artist ?? '', album, duration: seconds }, controller.signal);
-      if (found.status !== 'none') {
-        void setOfflineLyrics(trackId, found).catch(() => undefined);
-        if (cacheRef.current) void saveLyrics(identity, found).catch(() => undefined);
-      }
-      return found;
-    })()
+    loadLyrics({ id: trackId, title, artist: artist ?? '', durationMs }, album, controller.signal, cacheRef.current)
       .then((result) => {
         if (!controller.signal.aborted) setState(result);
       })
@@ -47,7 +34,7 @@ function useLyrics(track: Track | null, album: string | undefined) {
         if (!controller.signal.aborted) setState({ status: 'error' });
       });
     return () => controller.abort();
-  }, [trackId, title, artist, album, seconds, attempt]);
+  }, [trackId, title, artist, album, durationMs, attempt]);
 
   return { state, retry: () => setAttempt((n) => n + 1) };
 }

@@ -1142,3 +1142,19 @@ button.offline-note { cursor: pointer; color: var(--text, #fff); }
   .ly { font-size: clamp(24px, 7vw, 32px); }
   .queue-panel { right: 10px; left: 10px; width: auto; bottom: var(--player-space); max-height: 50vh; }
 }
+
+/* ---------- Sound settings ---------- */
+.settings-eq > .pill-btn { flex: none; }
+.eq-graph { width: 100%; height: auto; max-height: 190px; touch-action: none; user-select: none; display: block; margin-top: 4px; }
+.eq-grid { stroke: var(--field-line); stroke-width: 1; opacity: 0.55; }
+.eq-zero { stroke: var(--muted); stroke-width: 1; stroke-dasharray: 3 4; opacity: 0.8; }
+.eq-line { fill: none; stroke: var(--gold); stroke-width: 2.5; stroke-linecap: round; }
+.eq-fill { fill: var(--gold); opacity: 0.12; }
+.eq-handle { fill: var(--btn-bg); stroke: var(--gold); stroke-width: 3; cursor: grab; outline: none; }
+.eq-handle:focus-visible { stroke-width: 5; }
+.eq-handle:active { cursor: grabbing; }
+.eq-label { fill: var(--muted); font-size: 11px; font-weight: 600; }
+.eq-value { fill: var(--text); font-size: 11px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.settings-slider { flex: 1 1 100%; display: flex; align-items: center; gap: 12px; color: var(--muted); font-size: 13.5px; font-variant-numeric: tabular-nums; }
+.settings-slider input { flex: 1; accent-color: var(--gold); }
+.settings-sub { flex: 1 1 100%; display: flex; flex-direction: column; gap: 8px; align-items: flex-start; }

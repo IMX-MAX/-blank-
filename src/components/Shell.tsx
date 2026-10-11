@@ -12,6 +12,7 @@ import type { Album, Folder, Track } from '../types';
 import { AlbumView } from './AlbumView';
 import { LibraryView } from './LibraryView';
 import { navigateWithTransition } from '../lib/transition';
+import { NativeLiveData } from './NativeLiveData';
 import { PlayerBar } from './PlayerBar';
 import { SettingsView } from './SettingsView';
 import { Presence } from './Presence';
@@ -496,6 +497,7 @@ export function Shell() {
       ) : null}
 
       <PlayerBar />
+      <NativeLiveData />
 
       <input
         ref={fileRef}

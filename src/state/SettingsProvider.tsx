@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useState, type ReactNode } from 'react';
 
-import { glyphMatrix } from '../lib/glyph';
+import { clampBand, EQ_FLAT, type EqBands } from '../lib/audio-engine';
+import { glyphMatrix, type GlyphMode } from '../lib/glyph';
 
 export type ThemeChoice = 'dark' | 'light' | 'system';
 
@@ -19,6 +20,20 @@ type SettingsValue = {
   /** Draw the playback waveform bar on the Glyph Matrix. */
   glyphWaveform: boolean;
   setGlyphWaveform: (on: boolean) => void;
+  /** What the Glyph Matrix draws. */
+  glyphMode: GlyphMode;
+  setGlyphMode: (mode: GlyphMode) => void;
+  /** This phone has a vibration motor the app can use. */
+  vibrateSupported: boolean;
+  /** Vibrate to the beat of the song. */
+  vibrate: boolean;
+  setVibrate: (on: boolean) => void;
+  /** Three-band equaliser, in dB. */
+  eq: EqBands;
+  setEq: (eq: EqBands) => void;
+  /** Seconds of overlap between songs, 0 for none. */
+  crossfade: number;
+  setCrossfade: (seconds: number) => void;
 };
 
 const SettingsContext = createContext<SettingsValue | null>(null);
@@ -27,6 +42,25 @@ const THEME_KEY = 'blank.theme';
 const COVERS_KEY = 'blank.songCovers';
 const LYRICS_KEY = 'blank.cacheLyrics';
 const GLYPH_KEY = 'blank.glyphWaveform';
+const GLYPH_MODE_KEY = 'blank.glyphMode';
+const VIBRATE_KEY = 'blank.vibrate';
+const EQ_KEY = 'blank.eq';
+const CROSSFADE_KEY = 'blank.crossfade';
+
+function readEq(): EqBands {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(EQ_KEY) ?? 'null') as Partial<EqBands> | null;
+    if (!parsed) return EQ_FLAT;
+    return { bass: clampBand(Number(parsed.bass) || 0), mid: clampBand(Number(parsed.mid) || 0), treble: clampBand(Number(parsed.treble) || 0) };
+  } catch {
+    return EQ_FLAT;
+  }
+}
+
+function readGlyphMode(): GlyphMode {
+  const stored = localStorage.getItem(GLYPH_MODE_KEY);
+  return stored === 'lyrics' || stored === 'pulse' ? stored : 'waveform';
+}
 
 function readTheme(): ThemeChoice {
   const stored = localStorage.getItem(THEME_KEY);
@@ -44,6 +78,14 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
   const [cacheLyrics, setCacheLyricsState] = useState(() => localStorage.getItem(LYRICS_KEY) === '1');
   const [glyphWaveform, setGlyphWaveformState] = useState(() => localStorage.getItem(GLYPH_KEY) === '1');
   const [glyphSupported, setGlyphSupported] = useState(false);
+  const [glyphMode, setGlyphModeState] = useState<GlyphMode>(readGlyphMode);
+  const [vibrate, setVibrateState] = useState(() => localStorage.getItem(VIBRATE_KEY) === '1');
+  const [vibrateSupported, setVibrateSupported] = useState(false);
+  const [eq, setEqState] = useState<EqBands>(readEq);
+  const [crossfade, setCrossfadeState] = useState(() => {
+    const seconds = Number(localStorage.getItem(CROSSFADE_KEY));
+    return Number.isFinite(seconds) ? Math.min(12, Math.max(0, Math.round(seconds))) : 0;
+  });
   const resolvedTheme = theme === 'system' ? system : theme;
 
   useEffect(() => {
@@ -78,12 +120,38 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     setGlyphWaveformState(on);
   }, []);
 
+  const setGlyphMode = useCallback((mode: GlyphMode) => {
+    localStorage.setItem(GLYPH_MODE_KEY, mode);
+    setGlyphModeState(mode);
+  }, []);
+
+  const setVibrate = useCallback((on: boolean) => {
+    localStorage.setItem(VIBRATE_KEY, on ? '1' : '0');
+    setVibrateState(on);
+  }, []);
+
+  const setEq = useCallback((next: EqBands) => {
+    const clean = { bass: clampBand(next.bass), mid: clampBand(next.mid), treble: clampBand(next.treble) };
+    localStorage.setItem(EQ_KEY, JSON.stringify(clean));
+    setEqState(clean);
+  }, []);
+
+  const setCrossfade = useCallback((seconds: number) => {
+    const clean = Math.min(12, Math.max(0, Math.round(seconds)));
+    localStorage.setItem(CROSSFADE_KEY, String(clean));
+    setCrossfadeState(clean);
+  }, []);
+
   useEffect(() => {
     if (!glyphMatrix) return;
     let live = true;
     glyphMatrix
       .isSupported()
-      .then((result) => live && setGlyphSupported(result.supported))
+      .then((result) => {
+        if (!live) return;
+        setGlyphSupported(result.supported);
+        setVibrateSupported(result.vibrator);
+      })
       .catch(() => undefined);
     return () => {
       live = false;
@@ -94,6 +162,16 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     if (!glyphMatrix || !glyphSupported) return;
     void glyphMatrix.setEnabled({ enabled: glyphWaveform }).catch(() => undefined);
   }, [glyphSupported, glyphWaveform]);
+
+  useEffect(() => {
+    if (!glyphMatrix || !glyphSupported) return;
+    void glyphMatrix.setMode({ mode: glyphMode }).catch(() => undefined);
+  }, [glyphSupported, glyphMode]);
+
+  useEffect(() => {
+    if (!glyphMatrix || !vibrateSupported) return;
+    void glyphMatrix.setVibrate({ enabled: vibrate }).catch(() => undefined);
+  }, [vibrateSupported, vibrate]);
 
   const value = useMemo(
     () => ({
@@ -107,8 +185,37 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
       glyphSupported,
       glyphWaveform,
       setGlyphWaveform,
+      glyphMode,
+      setGlyphMode,
+      vibrateSupported,
+      vibrate,
+      setVibrate,
+      eq,
+      setEq,
+      crossfade,
+      setCrossfade,
     }),
-    [theme, resolvedTheme, setTheme, songCovers, setSongCovers, cacheLyrics, setCacheLyrics, glyphSupported, glyphWaveform, setGlyphWaveform],
+    [
+      theme,
+      resolvedTheme,
+      setTheme,
+      songCovers,
+      setSongCovers,
+      cacheLyrics,
+      setCacheLyrics,
+      glyphSupported,
+      glyphWaveform,
+      setGlyphWaveform,
+      glyphMode,
+      setGlyphMode,
+      vibrateSupported,
+      vibrate,
+      setVibrate,
+      eq,
+      setEq,
+      crossfade,
+      setCrossfade,
+    ],
   );
 
   return <SettingsContext.Provider value={value}>{children}</SettingsContext.Provider>;
