@@ -12,7 +12,7 @@ use tao::{
 use wry::WebViewBuilder;
 
 const SCHEME: &str = "blank";
-const INDEX: &str = "https://blank.localhost/index.html";
+const INDEX: &str = "blank://localhost/index.html";
 
 fn web_dir() -> PathBuf {
     if let Some(dir) = std::env::var_os("BLANK_WEB_DIR") {
