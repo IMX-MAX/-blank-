@@ -97,7 +97,7 @@ function LyricsSettings() {
       <div className="settings-row">
         <div>
           <div className="settings-label">Save lyrics for offline</div>
-          <div className="settings-hint">Keep the lyrics of every song you open on this phone, so they show with no connection.</div>
+          <div className="settings-hint">Keep the lyrics of every song you open on this device, so they show with no connection.</div>
         </div>
         <button
           className={cacheLyrics ? 'switch on' : 'switch'}
@@ -153,7 +153,7 @@ function LyricsSettings() {
                       {item.name}: {item.detail}
                     </div>
                   ))
-                : 'Look a test song up in AMLL, Apple Music and NetEase to see which can be reached from this phone.'}
+                : 'Look a test song up in AMLL, Apple Music and NetEase to see which can be reached from this device.'}
           </div>
         </div>
         <div className="settings-actions">

@@ -18,7 +18,11 @@ Lyrics are looked up in this order, and the first source that times every word w
 
 Songs that only end up with line timing are given estimated word timing (`src/lib/estimate.ts`), shown with an "Estimated" tag instead of "Word-synced". **Settings > Lyrics > Estimated lyrics** turns that off, and **Word-synced sources > Test** looks a known song up in each source and shows which could not be reached from the phone. Tapping the "Estimated" tag in the lyrics view runs the same check for that song and shows why it has no word timing. The Apple Music service is asked for song and artist only (an album tag it does not know makes it refuse), and a length mismatch is retried without the length. Unsynced lyrics are shown as plain text.
 
-NetEase and the Apple Music service have no public API and send no CORS headers, so they are only queried in the Android app (through the native HTTP client, `src/lib/http.ts`) and are skipped in a plain browser. NetEase matching requires the same title, an overlapping artist and a length within 12 seconds of the file. Its word list sometimes runs words together, so spaces are restored from its plain lyric, and its bracketed ad-libs become backing vocals. Songs saved before this lookup existed are refreshed once if they have no word timing (`LYRICS_VERSION`).
+NetEase and the Apple Music service have no public API and send no CORS headers. The Android app queries them through the native HTTP client (`src/lib/http.ts`). The web app goes through a small stateless pass-through, `api/lyrics-proxy.ts`, which only fetches those two hosts and stores nothing: `npm run dev` and `npm run preview` serve it on `/lyrics-proxy`, and on Vercel it is the function behind the `/lyrics-proxy` rewrite in `vercel.json`. On a host with no proxy those two sources are skipped, or set `VITE_LYRICS_PROXY` at build time to the address of one you host. NetEase matching requires the same title, an overlapping artist and a length within 12 seconds of the file. Its word list sometimes runs words together, so spaces are restored from its plain lyric, and its bracketed ad-libs become backing vocals. Songs saved before this lookup existed are refreshed once if they have no word timing (`LYRICS_VERSION`).
+
+A line that ends less than a second before the next one starts stays lit until the next begins instead of greying out. Syllables timed apart but written without a space between them (`thin` `king`) wrap as one word.
+
+The web and Android apps share all of this code. What only exists on Android: the notification controls, the home-screen widget, the Glyph Matrix and vibration on beats.
 
 ## How it is put together
 
@@ -43,7 +47,7 @@ npm run dev          # http://localhost:5173
 | Script | What it does |
 | --- | --- |
 | `npm run dev` | Vite dev server |
-| `npm test` | Lyrics, cover, beat and parser tests |
+| `npm test` | Lyrics, cover, beat, parser and lyrics-proxy tests |
 | `npm run build` | Typechecks and builds the web app into `dist/` (host it on any static server) |
 | `npm run android:apk` | Builds the web app and a debug APK |
 

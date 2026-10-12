@@ -7,7 +7,7 @@
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
-    "test": "tsx --test src/lib/lyrics.test.ts src/lib/covers.test.ts src/lib/beats.test.ts src/lib/romanize.test.ts src/lib/ncm.test.ts src/lib/apple.test.ts",
+    "test": "tsx --test src/lib/lyrics.test.ts src/lib/covers.test.ts src/lib/beats.test.ts src/lib/romanize.test.ts src/lib/ncm.test.ts src/lib/apple.test.ts src/lib/lyrics-proxy.test.ts",
     "android:sync": "npm run build && cap sync android",
     "android:apk": "npm run android:sync && cd android && ./gradlew assembleDebug"
   },
