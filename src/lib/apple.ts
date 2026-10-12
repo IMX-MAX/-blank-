@@ -36,21 +36,27 @@ export async function findApple(
     const key = `${candidate.title}|${candidate.artist}`.toLowerCase();
     if (tried.has(key)) continue;
     tried.add(key);
-    const params = new URLSearchParams({ s: candidate.title, a: candidate.artist });
-    if (query.duration > 0) params.set('d', String(Math.round(query.duration)));
-    if (query.album) params.set('al', query.album);
-    let body: string | null;
-    try {
-      body = await get(`${ENDPOINT}?${params}`, signal);
-    } catch (error) {
-      if (error instanceof HttpError && error.status === 429) {
-        pausedUntil = Date.now() + COOLDOWN_MS;
+    // The album tag is left out on purpose: the service answers from a cache keyed on song and artist, and an
+    // album it does not know makes it treat the song as new and refuse.
+    const ask = async (withLength: boolean): Promise<string | null> => {
+      const params = new URLSearchParams({ s: candidate.title, a: candidate.artist });
+      if (withLength && query.duration > 0) params.set('d', String(Math.round(query.duration)));
+      try {
+        return await get(`${ENDPOINT}?${params}`, signal);
+      } catch (error) {
+        if (error instanceof HttpError && error.status === 429) {
+          pausedUntil = Date.now() + COOLDOWN_MS;
+          throw error;
+        }
+        // Without an API key the service only answers for songs it already has, and says 401 for the rest.
+        if (error instanceof HttpError && (error.status === 401 || error.status === 403)) return '';
         throw error;
       }
-      // Without an API key the service only answers for songs it already has, and says 401 for the rest.
-      if (error instanceof HttpError && (error.status === 401 || error.status === 403)) continue;
-      throw error;
-    }
+    };
+    // A 404 with a length means it knows the song but only in a version of a different length. The length of
+    // whatever comes back is checked below.
+    let body = await ask(true);
+    if (body === null && query.duration > 0) body = await ask(false);
     if (!body) continue;
     let ttml: string | undefined;
     try {

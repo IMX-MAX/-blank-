@@ -47,3 +47,28 @@ test('a transcription that runs far past the file is a different recording', asy
   resetApplePause();
   assert.equal(await findApple({ title: 'Song', artist: 'Band', duration: 5 }, undefined, ok, parse), null);
 });
+
+test('the album tag is never sent, and a length mismatch is retried without the length', async () => {
+  resetApplePause();
+  const asked: string[] = [];
+  const get: TextFetch = async (url) => {
+    asked.push(url);
+    return url.includes('d=') ? null : JSON.stringify({ ttml: TTML });
+  };
+  const found = await findApple({ title: 'Song', artist: 'Band', album: 'Some Album', duration: 132 }, undefined, get, parse);
+  assert.ok(found);
+  assert.equal(asked.length, 2);
+  assert.ok(asked.every((url) => !url.includes('al=')));
+  assert.ok(asked[0]!.includes('d=132') && !asked[1]!.includes('d='));
+});
+
+test('a refusal for an unknown song is not retried', async () => {
+  resetApplePause();
+  let calls = 0;
+  const get: TextFetch = async () => {
+    calls += 1;
+    throw new HttpError(401, 'API key required');
+  };
+  assert.equal(await findApple({ title: 'Song', artist: 'Band', duration: 100 }, undefined, get, parse), null);
+  assert.equal(calls, 1);
+});

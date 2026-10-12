@@ -1320,3 +1320,18 @@ button.offline-note { cursor: pointer; color: var(--text, #fff); }
 
 .source-ok { color: var(--muted); }
 .source-bad { color: #ff8a80; }
+
+button.lyrics-chip { border: 0; font: inherit; font-size: 12px; cursor: pointer; }
+.lyrics-why {
+  position: relative;
+  z-index: 3;
+  margin: 0 16px 8px;
+  padding: 12px 14px;
+  border-radius: 16px;
+  background: rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(14px);
+  color: rgba(255, 255, 255, 0.82);
+  font-size: 13px;
+  line-height: 1.5;
+}
+.lyrics-why-title { font-weight: 600; color: #fff; margin-bottom: 4px; }

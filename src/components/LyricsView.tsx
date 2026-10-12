@@ -1,6 +1,6 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { ChevronDown, Music2, RotateCw } from 'lucide-react';
-import { activeLineIndex, type LyricLine, type LyricWord, type Lyrics, type LyricsResult } from '../lib/lyrics';
+import { activeLineIndex, checkSources, type SourceCheck, type LyricLine, type LyricWord, type Lyrics, type LyricsResult } from '../lib/lyrics';
 import { withEstimatedWords } from '../lib/estimate';
 import { addPronunciation } from '../lib/romanize';
 import { loadLyrics } from '../lib/lyrics-load';
@@ -153,6 +153,19 @@ export function LyricsView() {
   const album = albums.find((item) => item.id === track?.albumId);
   const { state, retry } = useLyrics(track, album?.name);
   const found = state.status === 'found' ? state.lyrics : null;
+  const [why, setWhy] = useState<SourceCheck[] | 'running' | null>(null);
+  const explain = () => {
+    if (!track) return;
+    if (why) {
+      setWhy(null);
+      return;
+    }
+    setWhy('running');
+    checkSources(undefined, { title: track.title, artist: track.artist ?? '', duration: track.durationMs / 1000 })
+      .then(setWhy)
+      .catch(() => setWhy(null));
+  };
+  useEffect(() => setWhy(null), [track?.id]);
   const base = useMemo(() => (found && estimateWords ? withEstimatedWords(found) : found), [found, estimateWords]);
 
   const [enriched, setEnriched] = useState<{ source: Lyrics; lyrics: Lyrics } | null>(null);
@@ -369,10 +382,28 @@ export function LyricsView() {
           <div className="lyrics-title">{track.title}</div>
           <div className="lyrics-artist">{track.artist}</div>
         </div>
-        {lyrics && lyrics.mode !== 'line' ? (
-          <span className={`lyrics-chip ${lyrics.estimated ? 'estimated' : lyrics.mode}`}>{lyrics.estimated ? 'Estimated' : MODE_LABEL[lyrics.mode]}</span>
+        {lyrics?.estimated ? (
+          <button className="lyrics-chip estimated" onClick={explain} aria-expanded={why !== null}>
+            Estimated
+          </button>
+        ) : lyrics && lyrics.mode !== 'line' ? (
+          <span className={`lyrics-chip ${lyrics.mode}`}>{MODE_LABEL[lyrics.mode]}</span>
         ) : null}
       </header>
+      {why ? (
+        <div className="lyrics-why">
+          <div className="lyrics-why-title">Why this song is only estimated</div>
+          {why === 'running' ? (
+            <div>Checking the sources&hellip;</div>
+          ) : (
+            why.map((item) => (
+              <div key={item.name} className={item.ok ? undefined : 'source-bad'}>
+                {item.name}: {item.detail}
+              </div>
+            ))
+          )}
+        </div>
+      ) : null}
 
       <div
         className="lyrics-scroll"

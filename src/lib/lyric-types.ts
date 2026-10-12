@@ -34,9 +34,10 @@ export type LyricSource = 'amll' | 'lrclib' | 'ncm' | 'apple';
 
 /**
  * Bumped when lookups improve enough that older saved copies are worth refreshing: 2 added backing vocals and
- * pronunciation to AMLL files, 3 added word timing from NetEase for songs AMLL does not have.
+ * pronunciation to AMLL files, 3 added word timing from NetEase for songs AMLL does not have, 4 fixed the
+ * Apple Music lookup, which missed songs whose album tag differs from the one it knows.
  */
-export const LYRICS_VERSION = 3;
+export const LYRICS_VERSION = 4;
 
 export type Lyrics = {
   /** Parser version of the file this came from. */

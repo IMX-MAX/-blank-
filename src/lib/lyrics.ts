@@ -299,9 +299,10 @@ export const WORD_SOURCES: Array<{
 
 export type SourceCheck = { name: string; ok: boolean; detail: string };
 
-/** Looks one well known song up in every word-timed source, so a broken one shows what went wrong. */
-export async function checkSources(signal?: AbortSignal): Promise<SourceCheck[]> {
-  const query: LyricsQuery = { title: 'As It Was', artist: 'Harry Styles', duration: 167 };
+const TEST_SONG: LyricsQuery = { title: 'As It Was', artist: 'Harry Styles', duration: 167 };
+
+/** Looks a song up in every word-timed source (a well known one by default), so a broken source shows what went wrong. */
+export async function checkSources(signal?: AbortSignal, query: LyricsQuery = TEST_SONG): Promise<SourceCheck[]> {
   const out: SourceCheck[] = [];
   for (const source of WORD_SOURCES) {
     const started = Date.now();
@@ -311,7 +312,7 @@ export async function checkSources(signal?: AbortSignal): Promise<SourceCheck[]>
       out.push(
         found?.lyrics.mode === 'word'
           ? { name: source.name, ok: true, detail: `Word timing, ${found.lyrics.lines.length} lines (${took})` }
-          : { name: source.name, ok: true, detail: `Reachable, no word timing for the test song (${took})` },
+          : { name: source.name, ok: true, detail: found ? `Only line timing (${took})` : `Reachable, no match for this song (${took})` },
       );
     } catch (err) {
       if (signal?.aborted) throw err;
