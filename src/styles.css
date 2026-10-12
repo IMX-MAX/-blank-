@@ -838,7 +838,9 @@ button { cursor: pointer; }
 .ly.right { text-align: right; }
 .ly.right .ly-in { transform-origin: right center; }
 .ly[role="button"] { cursor: pointer; }
-.ly[role="button"]:hover .ly-in { filter: none; --on: rgba(255, 255, 255, 0.62); --off: rgba(255, 255, 255, 0.62); }
+@media (hover: hover) {
+  .ly[role="button"]:not(.hot):hover .ly-in { filter: none; --on: rgba(255, 255, 255, 0.62); --off: rgba(255, 255, 255, 0.62); }
+}
 .ly.hot .ly-in { --on: #fff; --off: rgba(255, 255, 255, 0.36); transform: scale(1); filter: none; }
 .ly.plain .ly-in { --on: rgba(255, 255, 255, 0.86); --off: rgba(255, 255, 255, 0.86); transform: none; filter: none; font-size: clamp(20px, 2.2vw, 28px); font-weight: 600; }
 .ly.plain { padding: 0.18em 0; }
