@@ -343,6 +343,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     };
   }, [next, previous]);
 
+  const toggleShuffleRef = useRef<() => void>(() => undefined);
   const controlsRef = useRef<(action: ControlAction) => void>(() => undefined);
   controlsRef.current = (control) => {
     const audio = audioRef.current;
@@ -350,6 +351,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     else if (control.action === 'pause') audio?.pause();
     else if (control.action === 'next') next();
     else if (control.action === 'previous') previous();
+    else if (control.action === 'shuffle') toggleShuffleRef.current();
     else if (control.action === 'seekto' && audio && control.position !== undefined) {
       audio.currentTime = Math.max(0, control.position);
       setCurrentTime(audio.currentTime);
@@ -399,6 +401,8 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
         playing: !audio.paused,
         artwork,
         peaks: glyphSupported && glyphWaveform ? readPeaks(nowPlaying.waveform, nowPlaying.id) : undefined,
+        shuffle,
+        widgetPeaks: readPeaks(nowPlaying.waveform, nowPlaying.id),
       });
     };
     const refresh = () => void push().catch(() => undefined);
@@ -410,7 +414,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       audio.removeEventListener('seeked', refresh);
       audio.removeEventListener('durationchange', refresh);
     };
-  }, [albums, nowPlaying, nowPlayingCover, playing, glyphSupported, glyphWaveform]);
+  }, [albums, nowPlaying, nowPlayingCover, playing, shuffle, glyphSupported, glyphWaveform]);
 
   const playTracks = useCallback(
     (list: Track[], startIndex = 0) => {
@@ -515,6 +519,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     setQueue(nextList);
     setIndex(nextIndex);
   }, []);
+  toggleShuffleRef.current = toggleShuffle;
 
   const cycleRepeat = useCallback(() => {
     setRepeat((value) => (value === 'off' ? 'all' : value === 'all' ? 'one' : 'off'));

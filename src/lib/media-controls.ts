@@ -2,7 +2,7 @@ import { Capacitor, registerPlugin, type PluginListenerHandle } from '@capacitor
 import { coverObjectUrl } from '../api';
 
 export type ControlAction = {
-  action: 'play' | 'pause' | 'next' | 'previous' | 'seekto';
+  action: 'play' | 'pause' | 'next' | 'previous' | 'seekto' | 'shuffle';
   /** Seconds, for `seekto`. */
   position?: number;
 };
@@ -19,6 +19,10 @@ type NowPlaying = {
   artwork?: string;
   /** Waveform bars (0 to 1) for the Glyph Matrix. Leave out unless it is switched on. */
   peaks?: number[];
+  /** Shown by the home screen widget. */
+  shuffle?: boolean;
+  /** Waveform bars for the home screen widget, sent whenever a song plays. */
+  widgetPeaks?: number[];
 };
 
 type NativeControls = {

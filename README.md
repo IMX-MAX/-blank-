@@ -151,4 +151,8 @@ The queue (`src/components/QueuePanel.tsx`) shows the current song, the songs up
 
 **Settings > Sound** has a three-point equalizer (bass, mid, treble, -12 to +12 dB) you drag on a graph, and a crossfade switch with a 1 to 12 second slider. Both run on the Web Audio API (`src/lib/audio-engine.ts`): each song plays through its own gain into a low shelf, a peaking filter and a high shelf. Crossfading uses two audio elements that swap roles, with an equal-power fade, so the next song starts under the end of the current one. The audio graph is only built once the equalizer is not flat or crossfade is on.
 
+### Home-screen widget
+
+Long-press the home screen, open Widgets and add **[blank]**. It mirrors the bottom playback bar: cover, title and artist, a waveform that fills as the song plays, previous, play/pause and next, and shuffle (gold when on). The elapsed time and waveform refresh about every two seconds while a song plays and the screen is on. The buttons go through the playback service to the same controls as the in-app bar. If the app has been closed they open it instead. The code is in `NowPlayingWidget.java` and `WidgetBars.java`.
+
 Nothing's licence does not allow redistributing the Glyph Matrix SDK, so it is not in the repo: `fetchGlyphSdk` in `android/app/build.gradle` downloads it from their developer kit the first time you build.

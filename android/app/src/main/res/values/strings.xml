@@ -4,4 +4,5 @@
     <string name="title_activity_main">[blank] local</string>
     <string name="package_name">app.blank.local</string>
     <string name="custom_url_scheme">app.blank.local</string>
+    <string name="widget_description">What is playing, with the controls and waveform of the playback bar.</string>
 </resources>

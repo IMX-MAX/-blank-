@@ -48,6 +48,9 @@ public class PlaybackService extends Service {
         public boolean keepArtwork;
         public float[] peaks;
         public String trackId;
+        public boolean shuffle;
+        /** Waveform for the home screen widget, which wants it whether or not the Glyph waveform is on. */
+        public float[] widgetPeaks;
     }
 
     private static final String CHANNEL = "playback";
@@ -72,6 +75,16 @@ public class PlaybackService extends Service {
 
     public static void setListener(Listener next) {
         listener = next;
+    }
+
+    /** Whether a playback session is alive, so the widget's buttons have something to talk to. */
+    public static boolean isRunning() {
+        return instance != null && instance.session != null;
+    }
+
+    /** A control pressed on the home screen widget, handled like one from the notification. */
+    public static void dispatch(String action) {
+        MAIN.post(() -> emit(action, 0));
     }
 
     public static void update(Context context, State state) {
@@ -190,6 +203,9 @@ public class PlaybackService extends Service {
             .build());
 
         holdWakeLock(state.playing);
+        NowPlayingWidget.onState(getApplicationContext(), state);
+        MAIN.removeCallbacks(widgetTick);
+        if (state.playing) MAIN.postDelayed(widgetTick, WIDGET_TICK_MS);
         LiveVisuals.onState(this, state.trackId, state.peaks, state.durationMs, state.positionMs, state.playing);
         Notification notification = buildNotification(state, shown);
         if (!foreground) {
@@ -212,6 +228,16 @@ public class PlaybackService extends Service {
             MAIN.postDelayed(demote, 5000);
         }
     }
+
+    private static final long WIDGET_TICK_MS = 2000;
+
+    private final Runnable widgetTick = new Runnable() {
+        @Override
+        public void run() {
+            NowPlayingWidget.tick(getApplicationContext());
+            MAIN.postDelayed(this, WIDGET_TICK_MS);
+        }
+    };
 
     private final Runnable demote = new Runnable() {
         @Override
@@ -280,6 +306,9 @@ public class PlaybackService extends Service {
 
     private void shutdown() {
         MAIN.removeCallbacks(demote);
+        MAIN.removeCallbacks(widgetTick);
+        instance = null;
+        NowPlayingWidget.onStopped(getApplicationContext());
         LiveVisuals.onStop();
         holdWakeLock(false);
         foreground = false;
@@ -302,7 +331,11 @@ public class PlaybackService extends Service {
     @Override
     public void onDestroy() {
         holdWakeLock(false);
-        if (instance == this) instance = null;
+        MAIN.removeCallbacks(widgetTick);
+        if (instance == this) {
+            instance = null;
+            NowPlayingWidget.onStopped(getApplicationContext());
+        }
         if (session != null) {
             session.release();
             session = null;

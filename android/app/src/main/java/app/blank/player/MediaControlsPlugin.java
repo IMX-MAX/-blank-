@@ -56,6 +56,13 @@ public class MediaControlsPlugin extends Plugin {
             for (int i = 0; i < values.length; i++) values[i] = (float) waveform.optDouble(i, 0);
             state.peaks = values;
         }
+        state.shuffle = Boolean.TRUE.equals(call.getBoolean("shuffle", false));
+        JSArray widgetWave = call.getArray("widgetPeaks");
+        if (widgetWave != null && widgetWave.length() > 0) {
+            float[] values = new float[widgetWave.length()];
+            for (int i = 0; i < values.length; i++) values[i] = (float) widgetWave.optDouble(i, 0);
+            state.widgetPeaks = values;
+        }
         PlaybackService.update(getContext().getApplicationContext(), state);
         call.resolve();
     }
