@@ -58,6 +58,18 @@ type Item = { kind: 'line'; index: number } | { kind: 'gap' } | { kind: 'dots'; 
 /** A line stays lit until its backing vocals have finished too. */
 const lineEnd = (line: LyricLine) => Math.max(line.end, line.bg?.end ?? 0);
 
+/** When the next line follows in under this long, the finished line stays lit until it starts. */
+const HOLD_SECONDS = 1;
+
+/** When each line stops being lit: its own end, held on until the next line when that follows almost at once. */
+function litUntil(lines: LyricLine[]): number[] {
+  return lines.map((line, index) => {
+    const end = lineEnd(line);
+    const next = lines.slice(index + 1).find((item) => item.text.trim());
+    return next && next.start > end && next.start - end < HOLD_SECONDS ? next.start : end;
+  });
+}
+
 /** The lyrics as rows, with a row of dots wherever the singing stops for a while. */
 function buildItems(lines: LyricLine[], synced: boolean): Item[] {
   const items: Item[] = [];
@@ -86,7 +98,22 @@ function wordSpans(
       {word.text}
     </span>
   );
-  if (!groups) return words.map(span);
+  if (!groups) {
+    // Syllables of one word are timed apart but have no space between them, so they must wrap together.
+    const units: Array<Array<{ word: LyricWord; index: number }>> = [];
+    words.forEach((word, index) => {
+      const joined = index > 0 && !/\s$/.test(words[index - 1]!.text) && !/^\s/.test(word.text);
+      if (joined) units[units.length - 1]!.push({ word, index });
+      else units.push([{ word, index }]);
+    });
+    return units.map((unit) =>
+      unit.length === 1 ? span(unit[0]!.word, unit[0]!.index) : (
+        <span className="lw-word" key={unit[0]!.index}>
+          {unit.map((part) => span(part.word, part.index))}
+        </span>
+      ),
+    );
+  }
   return groups.map((group, index) => (
     <span className="rg" key={index}>
       <span className="rg-w">{words.slice(group.from, group.to).map((word, offset) => span(word, group.from + offset))}</span>
@@ -202,6 +229,7 @@ export function LyricsView() {
 
   const lines = useMemo(() => lyrics?.lines ?? [], [lyrics]);
   const items = useMemo(() => buildItems(lines, synced), [lines, synced]);
+  const until = useMemo(() => litUntil(lines), [lines]);
   const itemOfLine = useMemo(() => {
     const map = new Map<number, number>();
     items.forEach((item, index) => {
@@ -255,7 +283,7 @@ export function LyricsView() {
       const anchor = activeLineIndex(lines, time);
       const hot: number[] = [];
       for (let index = anchor; index >= 0 && index > anchor - 6; index -= 1) {
-        if (time < lineEnd(lines[index]!)) hot.unshift(index);
+        if (time < until[index]!) hot.unshift(index);
       }
       const dotsAt = items.findIndex((item) => item.kind === 'dots' && time >= item.start && time < item.end);
       const next: View = { anchor, hot: hot.join(','), dots: dotsAt };
@@ -299,7 +327,7 @@ export function LyricsView() {
       cancelAnimationFrame(frame);
       root.querySelectorAll<HTMLElement>('.lw').forEach((span) => span.style.removeProperty('--p'));
     };
-  }, [lyrics, synced, lines, items, getTime]);
+  }, [lyrics, synced, lines, items, until, getTime]);
 
   const anchorItem = useMemo(() => {
     if (view.dots >= 0) return view.dots;

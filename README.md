@@ -7,7 +7,7 @@
 
 # [blank]
 
-A desktop music library for the records you already own. Upload a collection, keep it in the cloud, and play it back. The layout follows the quiet dark player in the reference shots: a library of covers, an album page, and a pill-shaped waveform bar along the bottom.
+A music library for the records you already own, with no account and no server. Add songs and they are copied into the browser's IndexedDB (or the app's storage on Android), so the library, covers, playlists and saved lyrics all live on your device. The same code runs as a web app and, wrapped with Capacitor, as an Android app.
 
 Lyrics are looked up in this order, and the first source that times every word wins:
 
@@ -18,79 +18,42 @@ Lyrics are looked up in this order, and the first source that times every word w
 
 Songs that only end up with line timing are given estimated word timing (`src/lib/estimate.ts`), shown with an "Estimated" tag instead of "Word-synced". **Settings > Lyrics > Estimated lyrics** turns that off, and **Word-synced sources > Test** looks a known song up in each source and shows which could not be reached from the phone. Tapping the "Estimated" tag in the lyrics view runs the same check for that song and shows why it has no word timing. The Apple Music service is asked for song and artist only (an album tag it does not know makes it refuse), and a length mismatch is retried without the length. Unsynced lyrics are shown as plain text.
 
-NetEase and the Apple Music service have no public API and send no CORS headers, so they are only queried in the Android app (through the native HTTP client, `src/lib/http.ts`) and are skipped in a plain browser. NetEase matching requires the same title, an overlapping artist and a length within 12 seconds of the file. Its word list sometimes runs words together, so spaces are restored from its plain lyric, and its bracketed ad-libs become backing vocals. Songs saved before this lookup existed are refreshed once if they have no word timing (`LYRICS_VERSION`).
+NetEase and the Apple Music service have no public API and send no CORS headers. The Android app queries them through the native HTTP client (`src/lib/http.ts`). The web app goes through a small stateless pass-through, `api/lyrics-proxy.ts`, which only fetches those two hosts and stores nothing: `npm run dev` and `npm run preview` serve it on `/lyrics-proxy`, and on Vercel it is the function behind the `/lyrics-proxy` rewrite in `vercel.json`. On a host with no proxy those two sources are skipped, or set `VITE_LYRICS_PROXY` at build time to the address of one you host. NetEase matching requires the same title, an overlapping artist and a length within 12 seconds of the file. Its word list sometimes runs words together, so spaces are restored from its plain lyric, and its bracketed ad-libs become backing vocals. Songs saved before this lookup existed are refreshed once if they have no word timing (`LYRICS_VERSION`).
+
+A line that ends less than a second before the next one starts stays lit until the next begins instead of greying out. Syllables timed apart but written without a space between them (`thin` `king`) wrap as one word.
+
+The web and Android apps share all of this code. What only exists on Android: the notification controls, the home-screen widget, the Glyph Matrix and vibration on beats.
 
 ## How it is put together
 
 ```
-browser (Vite + React)
-  ├─ Neon Auth (Managed Better Auth)  ← sign up / sign in, issues a short-lived JWT
-  └─ Bearer JWT ─▶ Neon Function "api" (Hono, api/src)
-                     ├─ Postgres  (folders, albums, tracks, playlist_tracks)
-                     └─ Object Storage bucket "uploads" (audio + cover art, private)
+React app (Vite)
+  ├─ src/lib/local-store.ts   folders, albums, tracks, playlists and the audio/cover files, in IndexedDB "blank-local"
+  ├─ src/lib/lyrics-store.ts  saved lyrics, in IndexedDB "blank-lyrics"
+  └─ src/auth.ts              the profile: a name kept in localStorage
 ```
 
-Every row and file is scoped to the signed-in user's id. The bucket stays private. Audio is uploaded and played through short-lived presigned URLs, because the Function rejects request bodies above roughly 10 MB. Cover art (max 8 MB) goes through the Function.
-
-## Set up the Neon database
-
-Needs Node 22.20+ and a Neon account.
-
-```bash
-npm i -g neon@latest && neon login          # opens a browser to sign in
-neon skills -y                              # optional: agent skills for this repo
-neon link --project-id noisy-heart-23370832 --branch production -y
-neon deploy                                 # applies neon.ts: Auth, the "uploads" bucket, the "api" Function
-neon env pull                               # writes DATABASE_URL, NEON_AUTH_*, AWS_* to .env
-```
-
-`neon.ts` declares everything Neon should provision:
-
-- `auth: true` turns on Neon Auth (users and sessions live in the `neon_auth` schema).
-- `buckets.uploads` is the private Object Storage bucket for audio and artwork.
-- `functions.api` deploys `api/src/index.ts`, the only thing that talks to Postgres and the bucket.
-
-The tables are created by the Function on its first request (`api/src/schema.ts`, idempotent `create table if not exists`). To create them up front instead, run the SQL against your branch:
-
-```bash
-npm run db:schema | psql "$DATABASE_URL_UNPOOLED"
-```
-
-Then point the frontend at your branch. Put these in `.env.local`:
-
-```bash
-VITE_NEON_AUTH_URL=<NEON_AUTH_BASE_URL from .env>
-VITE_API_URL=<invocation_url from `neon functions get api`>
-```
-
-`.env.production` holds the same two public URLs so Vercel (or any host) builds work without extra settings. Add every origin you serve the app from as a trusted Auth domain, including each Vercel domain you sign in on (localhost ports are allowed by default):
-
-```bash
-neon neon-auth domain add https://your-app.example.com
-```
+Nothing is sent anywhere except the lyric lookups described above. The profile is only a name used as the default artist for new albums. Clearing the site's data (or the app's storage on Android) deletes the library, so back up files you care about. The app asks the browser to keep its storage persistent so it is not evicted under pressure.
 
 ## Run
 
 ```bash
 npm install
-npm run dev          # the app on http://localhost:5173
+npm run dev          # http://localhost:5173
 ```
-
-With `VITE_NEON_AUTH_URL` unset, `npm run dev` uses a local stand-in so you can try the UI with no Neon project: run `npm run dev:api` in a second terminal (an embedded Postgres and a folder on disk, data in `.dev/`) and sign in with any email. This stand-in only exists in dev builds.
 
 ## Scripts
 
 | Script | What it does |
 | --- | --- |
 | `npm run dev` | Vite dev server |
-| `npm run dev:api` | Local API on :8787 with embedded Postgres, no Neon needed |
-| `npm test` | API tests (embedded Postgres) and lyrics parser tests |
-| `npm run db:schema` | Prints the schema SQL |
-| `npm run build` | Typechecks and builds the app |
+| `npm test` | Lyrics, cover, beat, parser and lyrics-proxy tests |
+| `npm run build` | Typechecks and builds the web app into `dist/` (host it on any static server) |
+| `npm run android:apk` | Builds the web app and a debug APK |
 
 ## Android app
 
-The Android app is the same web app wrapped with [Capacitor](https://capacitorjs.com) (`android/`). It talks to the same Neon Auth and API as the web version, using the public URLs in `.env.production`.
+The Android app is the web app wrapped with [Capacitor](https://capacitorjs.com) (`android/`), app id `app.blank.local`. Songs you add are copied into the app, so everything works without a connection except lyric lookups for songs that are not saved yet.
 
 Build a debug APK (needs JDK 21 and the Android SDK with platform 36; set `ANDROID_HOME` or `android/local.properties`):
 
@@ -98,18 +61,6 @@ Build a debug APK (needs JDK 21 and the Android SDK with platform 36; set `ANDRO
 npm run android:apk
 # android/app/build/outputs/apk/debug/app-debug.apk
 ```
-
-The Android app's origin is `https://localhost`, which must be a trusted Neon Auth domain: `neon neon-auth domain add https://localhost`.
-
-## Offline
-
-Right-click (long-press on Android) a song or album and choose **Make available offline**. The audio, cover art and lyrics are stored on the device in IndexedDB, and a snapshot of the library is kept so the app opens and plays downloaded songs with no connection. Songs that are not downloaded are greyed out while offline. **Settings** shows how much space downloads use and can remove them all.
-
-## Local-only Android build (`cursor/android-local-788f`)
-
-This branch builds a version of the Android app with no cloud: you create a profile (just a name), songs you add are copied into the app, and the whole library (songs, covers, albums, folders, playlists, lyrics cache) lives in the phone's storage. There is no sign-in, no server and no download option, since every song is already on the device. Lyrics are still looked up online when a song is first opened and then cached. The app id is `app.blank.local`, so it installs next to the cloud version.
-
-Build it with `npm run android:apk`. The storage code is in `src/lib/local-store.ts`.
 
 ### Lyrics offline
 

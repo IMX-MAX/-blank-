@@ -1,8 +1,8 @@
 /// <reference types="vite/client" />
 
 interface ImportMetaEnv {
-  readonly VITE_NEON_AUTH_URL?: string;
-  readonly VITE_API_URL?: string;
+  /** Where the web app asks for lyrics from services without CORS. Defaults to this site's /lyrics-proxy. */
+  readonly VITE_LYRICS_PROXY?: string;
 }
 
 interface ImportMeta {

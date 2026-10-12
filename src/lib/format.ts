@@ -62,9 +62,3 @@ export function matchesQuery(query: string, ...parts: Array<string | null | unde
   if (!needle) return true;
   return parts.some((part) => (part ?? '').toLowerCase().includes(needle));
 }
-
-export function formatBytes(bytes: number): string {
-  if (bytes < 1024 * 1024) return `${Math.max(1, Math.round(bytes / 1024))} KB`;
-  if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(bytes < 100 * 1024 * 1024 ? 1 : 0)} MB`;
-  return `${(bytes / (1024 * 1024 * 1024)).toFixed(1)} GB`;
-}
