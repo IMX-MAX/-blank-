@@ -28,6 +28,9 @@ type SettingsValue = {
   /** Vibrate to the beat of the song. */
   vibrate: boolean;
   setVibrate: (on: boolean) => void;
+  /** Show a reading under Korean, Japanese and Chinese lyrics. */
+  pronunciation: boolean;
+  setPronunciation: (on: boolean) => void;
   /** Keep the screen on while the lyrics are open. */
   keepAwake: boolean;
   setKeepAwake: (on: boolean) => void;
@@ -48,6 +51,7 @@ const GLYPH_KEY = 'blank.glyphWaveform';
 const GLYPH_MODE_KEY = 'blank.glyphMode';
 const VIBRATE_KEY = 'blank.vibrate';
 const AWAKE_KEY = 'blank.keepAwake';
+const ROMAN_KEY = 'blank.pronunciation';
 const EQ_KEY = 'blank.eq';
 const CROSSFADE_KEY = 'blank.crossfade';
 
@@ -85,6 +89,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
   const [glyphMode, setGlyphModeState] = useState<GlyphMode>(readGlyphMode);
   const [vibrate, setVibrateState] = useState(() => localStorage.getItem(VIBRATE_KEY) === '1');
   const [vibrateSupported, setVibrateSupported] = useState(false);
+  const [pronunciation, setPronunciationState] = useState(() => localStorage.getItem(ROMAN_KEY) !== '0');
   const [keepAwake, setKeepAwakeState] = useState(() => localStorage.getItem(AWAKE_KEY) === '1');
   const [eq, setEqState] = useState<EqBands>(readEq);
   const [crossfade, setCrossfadeState] = useState(() => {
@@ -133,6 +138,11 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
   const setVibrate = useCallback((on: boolean) => {
     localStorage.setItem(VIBRATE_KEY, on ? '1' : '0');
     setVibrateState(on);
+  }, []);
+
+  const setPronunciation = useCallback((on: boolean) => {
+    localStorage.setItem(ROMAN_KEY, on ? '1' : '0');
+    setPronunciationState(on);
   }, []);
 
   const setKeepAwake = useCallback((on: boolean) => {
@@ -200,6 +210,8 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
       vibrateSupported,
       vibrate,
       setVibrate,
+      pronunciation,
+      setPronunciation,
       keepAwake,
       setKeepAwake,
       eq,
@@ -223,6 +235,8 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
       vibrateSupported,
       vibrate,
       setVibrate,
+      pronunciation,
+      setPronunciation,
       keepAwake,
       setKeepAwake,
       eq,

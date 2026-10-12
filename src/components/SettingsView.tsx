@@ -203,6 +203,8 @@ export function SettingsView({
     setVibrate,
     keepAwake,
     setKeepAwake,
+    pronunciation,
+    setPronunciation,
   } = useSettings();
 
   return (
@@ -307,6 +309,21 @@ export function SettingsView({
             </button>
           </div>
         ) : null}
+        <div className="settings-row">
+          <div>
+            <div className="settings-label">Show pronunciation</div>
+            <div className="settings-hint">A reading under Korean, Japanese and Chinese lyrics.</div>
+          </div>
+          <button
+            className={pronunciation ? 'switch on' : 'switch'}
+            role="switch"
+            aria-checked={pronunciation}
+            aria-label="Show pronunciation"
+            onClick={() => setPronunciation(!pronunciation)}
+          >
+            <span />
+          </button>
+        </div>
         <div className="settings-row">
           <div>
             <div className="settings-label">Keep the screen on for lyrics</div>
