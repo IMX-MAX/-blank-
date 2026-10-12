@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from 'react';
-import { AudioLines, Folder, Plus, X } from 'lucide-react';
+import { AudioLines, Download, Folder, Plus, X } from 'lucide-react';
 
 export type Point = { x: number; y: number };
 
@@ -86,11 +86,13 @@ export function AnchoredMenu({
 export function AddMenu({
   onClose,
   onAudio,
+  onYoutube,
   onFolder,
   onProject,
 }: {
   onClose: () => void;
   onAudio: () => void;
+  onYoutube: () => void;
   onFolder: () => void;
   onProject: () => void;
 }) {
@@ -99,7 +101,10 @@ export function AddMenu({
       <div className="add-stack">
         <div className="add-card" role="menu">
           <button className="add-row" onClick={onAudio}>
-            <AudioLines size={20} strokeWidth={1.75} /> Audio
+            <AudioLines size={20} strokeWidth={1.75} /> Upload a song
+          </button>
+          <button className="add-row" onClick={onYoutube}>
+            <Download size={20} strokeWidth={1.75} /> From YouTube Music
           </button>
           <button className="add-row" onClick={onFolder}>
             <Folder size={20} strokeWidth={1.75} /> New Folder

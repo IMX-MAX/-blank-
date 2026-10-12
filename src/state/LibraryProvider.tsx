@@ -1,7 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { api, forgetCover, type Library } from '../api';
 import { hueFromName } from '../lib/format';
-import { coverFileFromPicture, isAudioFile, readMetadata } from '../lib/metadata';
+import { coverFileFromPicture, isAudioFile, readMetadata, type TrackMetadata } from '../lib/metadata';
 import { peaksForUpload } from '../lib/peaks';
 import type { Album, Folder, PlaylistTrack, Track, UploadProgress } from '../types';
 import { useAuth } from './AuthProvider';
@@ -9,6 +9,16 @@ import { useAuth } from './AuthProvider';
 type ImportTarget = {
   albumId?: string;
   folderId?: string | null;
+};
+
+/** What is known about a file beyond its own tags, for songs that arrive from somewhere that has the details. */
+export type ImportHints = {
+  title?: string;
+  artist?: string;
+  album?: string | null;
+  year?: number | null;
+  durationMs?: number;
+  cover?: File | null;
 };
 
 type LibraryContextValue = {
@@ -19,7 +29,7 @@ type LibraryContextValue = {
   tracks: Track[];
   playlistTracks: PlaylistTrack[];
   refresh: () => Promise<void>;
-  importFiles: (files: File[], target?: ImportTarget) => Promise<Track[]>;
+  importFiles: (files: File[], target?: ImportTarget, hints?: Map<File, ImportHints>) => Promise<Track[]>;
   createFolder: (name: string) => Promise<Folder>;
   createProject: (name: string, folderId?: string | null) => Promise<Album>;
   createPlaylist: (name: string, folderId?: string | null) => Promise<Album>;
@@ -41,6 +51,21 @@ function pictureKey(bytes: Uint8Array): string {
   const sample = (from: number) => Array.from(bytes.subarray(from, from + 48)).join(',');
   const middle = Math.max(0, Math.floor(bytes.byteLength / 2) - 24);
   return `${bytes.byteLength}:${sample(0)}:${sample(middle)}:${sample(Math.max(0, bytes.byteLength - 48))}`;
+}
+
+async function applyHints(meta: TrackMetadata, hint: ImportHints): Promise<void> {
+  if (hint.title?.trim()) meta.title = hint.title.trim();
+  if (hint.artist?.trim()) {
+    meta.artist = hint.artist.trim();
+    meta.albumArtist = meta.artist;
+  }
+  if (hint.album?.trim()) meta.album = hint.album.trim();
+  else if (meta.album === 'untitled project') meta.album = meta.title;
+  if (hint.year) meta.year = hint.year;
+  if (!meta.durationMs && hint.durationMs) meta.durationMs = hint.durationMs;
+  if (hint.cover && !meta.picture) {
+    meta.picture = { mime: hint.cover.type || 'image/jpeg', bytes: new Uint8Array(await hint.cover.arrayBuffer()) };
+  }
 }
 
 function albumKey(name: string, artist: string, folderId: string | null) {
@@ -207,7 +232,7 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const importFiles = useCallback(
-    async (files: File[], target?: ImportTarget) => {
+    async (files: File[], target?: ImportTarget, hints?: Map<File, ImportHints>) => {
       const accepted = files.filter(isAudioFile);
       if (!accepted.length || !user) return [];
       importing.current = true;
@@ -220,6 +245,8 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
           const file = accepted[index]!;
           setUpload({ current: index + 1, total: accepted.length, name: file.name });
           const meta = await readMetadata(file, fallbackArtist);
+          const hint = hints?.get(file);
+          if (hint) await applyHints(meta, hint);
           const peaks = await peaksForUpload(file);
 
           let album: Album | undefined;

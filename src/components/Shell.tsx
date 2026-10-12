@@ -4,15 +4,17 @@ import { Bell, ChevronLeft, Link, MoreHorizontal, Plus, Search, Settings } from 
 import { errorMessage, plural, relativeTime } from '../lib/format';
 import { isNativeApp } from '../lib/shell-cache';
 import { useAuth } from '../state/AuthProvider';
-import { useLibrary } from '../state/LibraryProvider';
+import { useLibrary, type ImportHints } from '../state/LibraryProvider';
 import { usePlayer } from '../state/PlayerProvider';
 import type { Album, Folder, Track } from '../types';
 import { AlbumView } from './AlbumView';
 import { LibraryView } from './LibraryView';
 import { navigateWithTransition } from '../lib/transition';
+import type { YtDownload } from '../lib/ytdlp';
 import { NativeLiveData } from './NativeLiveData';
 import { PlayerBar } from './PlayerBar';
 import { SettingsView } from './SettingsView';
+import { YoutubeDialog } from './YoutubeDialog';
 import { Presence } from './Presence';
 import {
   AddMenu,
@@ -39,7 +41,8 @@ type Dialog =
   | { kind: 'delete-track'; track: Track }
   | { kind: 'move'; album: Album }
   | { kind: 'add-playlist'; track: Track }
-  | { kind: 'pick-tracks'; playlist: Album };
+  | { kind: 'pick-tracks'; playlist: Album }
+  | { kind: 'youtube' };
 
 export function Shell() {
   const { user, saveName } = useAuth();
@@ -168,19 +171,28 @@ export function Shell() {
     );
   }
 
-  async function importFiles(files: File[]) {
+  async function importFiles(files: File[], hints?: Map<File, ImportHints>, quiet = false) {
     const target =
       route.name === 'folder'
         ? { folderId: route.folderId }
         : route.name === 'album' && album?.kind === 'album'
           ? { albumId: album.id }
           : undefined;
-    const created = await library.importFiles(files, target);
+    const created = await library.importFiles(files, target, hints);
     if (route.name === 'album' && album?.kind === 'playlist' && created.length) {
       await library.addTracksToPlaylist(album.id, created.map((track) => track.id));
     }
+    if (quiet) return created;
     if (!created.length) notify('Choose audio files — mp3, flac, wav, m4a, and similar');
     else notify(`Added ${plural(created.length, 'track')}`);
+    return created;
+  }
+
+  async function importDownload({ audio, cover, entry }: YtDownload) {
+    const hints = new Map([[audio, { title: entry.title, artist: entry.artist, album: entry.album, year: entry.year, durationMs: entry.durationMs, cover }]]);
+    const created = await importFiles([audio], hints, true);
+    if (created.length) notify(`Added ${entry.title}`);
+    return created.length > 0;
   }
 
   function openFiles() {
@@ -398,10 +410,18 @@ export function Shell() {
           onPlay={() => playCollection(album)}
           onTrack={(track) => player.toggleTrack(track, library.tracksFor(album))}
           onTrackMenu={(track, at) => trackMenu(track, at, album)}
-          onAdd={() => {
-            if (album.kind === 'playlist') setDialog({ kind: 'pick-tracks', playlist: album });
-            else openFiles();
-          }}
+          onAdd={(at) =>
+            setMenu({
+              ...at,
+              items: [
+                ...(album.kind === 'playlist'
+                  ? [{ id: 'library', label: 'From your library', onClick: () => setDialog({ kind: 'pick-tracks', playlist: album }) }]
+                  : []),
+                { id: 'upload', label: 'Upload a song', onClick: openFiles },
+                { id: 'youtube', label: 'From YouTube Music', onClick: () => setDialog({ kind: 'youtube' }) },
+              ],
+            })
+          }
           onCover={(file) => void run(() => library.setAlbumCover(album.id, file), 'Cover updated')}
         />
       ) : (
@@ -466,6 +486,10 @@ export function Shell() {
         <AddMenu
           onClose={() => setAddOpen(false)}
           onAudio={openFiles}
+          onYoutube={() => {
+            setAddOpen(false);
+            setDialog({ kind: 'youtube' });
+          }}
           onFolder={() => {
             setAddOpen(false);
             setDialog({ kind: 'folder' });
@@ -499,6 +523,7 @@ export function Shell() {
       </Presence>
 
       <Presence show={dialog !== null}>
+      {dialog?.kind === 'youtube' ? <YoutubeDialog onClose={() => setDialog(null)} onImport={importDownload} /> : null}
       {dialog?.kind === 'folder' ? (
         <NameDialog
           title="New folder"
