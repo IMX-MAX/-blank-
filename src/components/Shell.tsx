@@ -579,7 +579,7 @@ export function Shell() {
           body={
             dialog.album.kind === 'playlist'
               ? 'The playlist goes away. The songs stay in your library.'
-              : 'This removes the album and its songs from this phone.'
+              : 'This removes the album and its songs from this device.'
           }
           confirm="Delete"
           onCancel={() => setDialog(null)}
@@ -606,7 +606,7 @@ export function Shell() {
       {dialog?.kind === 'delete-track' ? (
         <ConfirmDialog
           title="Delete track?"
-          body={`“${dialog.track.title}” will be removed from this phone.`}
+          body={`“${dialog.track.title}” will be removed from this device.`}
           confirm="Delete"
           onCancel={() => setDialog(null)}
           onConfirm={() => {

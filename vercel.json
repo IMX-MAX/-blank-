@@ -1,0 +1,3 @@
+{
+  "rewrites": [{ "source": "/lyrics-proxy", "destination": "/api/lyrics-proxy" }]
+}
