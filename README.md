@@ -22,7 +22,7 @@ NetEase and the Apple Music service have no public API and send no CORS headers.
 
 A line that ends less than a second before the next one starts stays lit until the next begins instead of greying out. Syllables timed apart but written without a space between them (`thin` `king`) wrap as one word.
 
-The web and Android apps share all of this code. What only exists on Android: the notification controls, the home-screen widget, the Glyph Matrix, vibration on beats and saving to a file the system can see.
+The web and Android apps share all of this code. What only exists on Android: the notification controls, the home-screen widget, the Glyph Matrix and vibration on beats.
 
 ## How it is put together
 
