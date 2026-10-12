@@ -1,14 +1,10 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { api, forgetCover, type Library } from '../api';
-import { LOCAL_ONLY } from '../config';
 import { hueFromName } from '../lib/format';
-import { loadLibrarySnapshot, saveLibrarySnapshot } from '../lib/offline';
 import { coverFileFromPicture, isAudioFile, readMetadata } from '../lib/metadata';
 import { peaksForUpload } from '../lib/peaks';
 import type { Album, Folder, PlaylistTrack, Track, UploadProgress } from '../types';
 import { useAuth } from './AuthProvider';
-
-const POLL_MS = 30_000;
 
 type ImportTarget = {
   albumId?: string;
@@ -17,9 +13,6 @@ type ImportTarget = {
 
 type LibraryContextValue = {
   ready: boolean;
-  /** False while showing the last saved copy of the library because the server cannot be reached. */
-  live: boolean;
-  syncing: boolean;
   upload: UploadProgress | null;
   folders: Folder[];
   albums: Album[];
@@ -57,8 +50,6 @@ function albumKey(name: string, artist: string, folderId: string | null) {
 export function LibraryProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
   const [ready, setReady] = useState(false);
-  const [syncing, setSyncing] = useState(false);
-  const [live, setLive] = useState(true);
   const [upload, setUpload] = useState<UploadProgress | null>(null);
   const [folders, setFolders] = useState<Folder[]>([]);
   const [albums, setAlbums] = useState<Album[]>([]);
@@ -66,7 +57,6 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
   const [playlistTracks, setPlaylistTracks] = useState<PlaylistTrack[]>([]);
   const importing = useRef(false);
 
-  const userId = user?.id;
   const apply = useCallback((next: Library) => {
     setFolders(next.folders);
     setAlbums(next.albums);
@@ -75,53 +65,15 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const refresh = useCallback(async () => {
-    setSyncing(true);
     try {
-      const next = await api.library();
-      apply(next);
-      setLive(true);
-      if (userId && !LOCAL_ONLY) void saveLibrarySnapshot(userId, next).catch(() => undefined);
-    } catch (err) {
-      setLive(false);
-      throw err;
+      apply(await api.library());
     } finally {
-      setSyncing(false);
       setReady(true);
     }
-  }, [apply, userId]);
+  }, [apply]);
 
   useEffect(() => {
-    let cancelled = false;
-    void (async () => {
-      const saved = userId && !LOCAL_ONLY ? await loadLibrarySnapshot(userId).catch(() => null) : null;
-      if (saved && !cancelled) {
-        apply(saved);
-        setReady(true);
-      }
-      await refresh().catch(() => setReady(true));
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [apply, refresh, userId]);
-
-  useEffect(() => {
-    if (!userId || !ready || !live || LOCAL_ONLY) return;
-    void saveLibrarySnapshot(userId, { folders, albums, tracks, playlistTracks }).catch(() => undefined);
-  }, [userId, ready, live, folders, albums, tracks, playlistTracks]);
-
-  useEffect(() => {
-    if (LOCAL_ONLY) return;
-    const poll = () => {
-      if (importing.current || document.hidden) return;
-      void refresh().catch(() => undefined);
-    };
-    const timer = window.setInterval(poll, POLL_MS);
-    document.addEventListener('visibilitychange', poll);
-    return () => {
-      window.clearInterval(timer);
-      document.removeEventListener('visibilitychange', poll);
-    };
+    void refresh().catch(() => undefined);
   }, [refresh]);
 
   const tracksFor = useCallback(
@@ -309,7 +261,6 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
             artist: meta.artist,
             albumId: album.id,
             audioFileId: audio.fileId,
-            audioType: audio.contentType,
             durationMs: meta.durationMs,
             hue: album.hue ?? hueFromName(album.name),
             waveform: JSON.stringify(peaks),
@@ -339,8 +290,6 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
   const value = useMemo<LibraryContextValue>(
     () => ({
       ready,
-      live,
-      syncing,
       upload,
       folders,
       albums,
@@ -364,8 +313,6 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
     }),
     [
       ready,
-      live,
-      syncing,
       upload,
       folders,
       albums,

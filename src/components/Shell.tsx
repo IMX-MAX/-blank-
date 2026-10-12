@@ -1,12 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
 import { App } from '@capacitor/app';
-import { Bell, ChevronLeft, Link, MoreHorizontal, Plus, Search, Settings, WifiOff } from 'lucide-react';
+import { Bell, ChevronLeft, Link, MoreHorizontal, Plus, Search, Settings } from 'lucide-react';
 import { errorMessage, plural, relativeTime } from '../lib/format';
 import { isNativeApp } from '../lib/shell-cache';
 import { useAuth } from '../state/AuthProvider';
 import { useLibrary } from '../state/LibraryProvider';
-import { LOCAL_ONLY } from '../config';
-import { useOffline, useOnline } from '../state/OfflineProvider';
 import { usePlayer } from '../state/PlayerProvider';
 import type { Album, Folder, Track } from '../types';
 import { AlbumView } from './AlbumView';
@@ -44,11 +42,9 @@ type Dialog =
   | { kind: 'pick-tracks'; playlist: Album };
 
 export function Shell() {
-  const { user, signOut, signUp, leaveOffline } = useAuth();
+  const { user, saveName } = useAuth();
   const library = useLibrary();
   const player = usePlayer();
-  const offline = useOffline();
-  const online = useOnline();
   const fileRef = useRef<HTMLInputElement>(null);
   const [stack, setStack] = useState<Route[]>([{ name: 'library' }]);
   const [addOpen, setAddOpen] = useState(false);
@@ -202,41 +198,9 @@ export function Shell() {
     else player.playTracks(list, 0);
   }
 
-  function offlineItem(tracks: Track[], noun: string): MenuItem[] {
-    if (!tracks.length || LOCAL_ONLY) return [];
-    const pending = tracks.filter((track) => !offline.isSaved(track.id));
-    if (!pending.length) {
-      return [
-        {
-          id: 'offline-remove',
-          label: 'Remove download',
-          onClick: () => void run(() => offline.remove(tracks), `Removed from this device`),
-        },
-      ];
-    }
-    if (tracks.every((track) => offline.progress[track.id] !== undefined)) {
-      return [{ id: 'offline-busy', label: 'Downloading…', onClick: () => undefined }];
-    }
-    return [
-      {
-        id: 'offline',
-        label: 'Make available offline',
-        onClick: () => {
-          if (!online) {
-            notify('Connect to the internet to download songs');
-            return;
-          }
-          notify(pending.length > 1 ? `Downloading ${plural(pending.length, 'song')}` : `Downloading ${noun}`);
-          void run(() => offline.makeAvailable(pending), pending.length > 1 ? 'Songs are available offline' : 'Available offline');
-        },
-      },
-    ];
-  }
-
   function albumMenu(item: Album, at: Point) {
     const items: MenuItem[] = [
       { id: 'play', label: 'Play', onClick: () => playCollection(item) },
-      ...offlineItem(library.tracksFor(item), item.name),
       { id: 'rename', label: 'Rename', onClick: () => setDialog({ kind: 'rename-album', album: item }) },
       { id: 'move', label: 'Move to folder', onClick: () => setDialog({ kind: 'move', album: item }) },
       {
@@ -253,7 +217,6 @@ export function Shell() {
     const items: MenuItem[] = [
       { id: 'play', label: 'Play', onClick: () => player.playTracks(from ? library.tracksFor(from) : [track], from ? Math.max(0, library.tracksFor(from).findIndex((item) => item.id === track.id)) : 0) },
       { id: 'next', label: 'Play next', onClick: () => player.playNext(track) },
-      ...offlineItem([track], track.title),
       { id: 'add', label: 'Add to playlist', onClick: () => setDialog({ kind: 'add-playlist', track }) },
     ];
     if (from?.kind === 'playlist') {
@@ -317,16 +280,6 @@ export function Shell() {
             </button>
           )}
           {route.name === 'folder' ? <h1 className="wordmark folder-title">{headerTitle}</h1> : null}
-          {library.syncing && library.ready && route.name === 'library' && online ? <span className="sync-dot" title="Syncing" /> : null}
-          {user?.stale ? (
-            <button className="offline-note" title="Sign in to sync your library" onClick={leaveOffline}>
-              <WifiOff size={14} /> Sign in to sync
-            </button>
-          ) : !online || !library.live ? (
-            <span className="offline-note" title="Songs saved on this device still play">
-              <WifiOff size={14} /> Offline
-            </span>
-          ) : null}
         </div>
         <div className="topbar-right">
           {route.name === 'album' && album ? (
@@ -432,11 +385,9 @@ export function Shell() {
       ) : route.name === 'settings' ? (
         <SettingsView
           onNewPlaylist={() => setDialog({ kind: 'playlist' })}
-          onRemoveDownloads={() => void run(() => offline.removeAll(), 'Removed all downloads')}
-          onSignOut={() => void run(() => signOut())}
           onChangeName={() => {
             const next = window.prompt('Your name', user?.name ?? '')?.trim();
-            if (next) void run(() => signUp(next, '', ''), 'Name updated');
+            if (next) saveName(next);
           }}
         />
       ) : route.name === 'album' && album ? (

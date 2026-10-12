@@ -1,14 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { LOCAL_ONLY } from '../config';
 import { EQ_FLAT, isFlat } from '../lib/audio-engine';
 import type { GlyphMode } from '../lib/glyph';
 import { EqualizerGraph } from './EqualizerGraph';
 import { Slider } from './Slider';
 import { useAuth } from '../state/AuthProvider';
 import { useLibrary } from '../state/LibraryProvider';
-import { useOffline } from '../state/OfflineProvider';
 import { useSettings, type ThemeChoice } from '../state/SettingsProvider';
-import { formatBytes, plural } from '../lib/format';
+import { plural } from '../lib/format';
 import { checkSources, type SourceCheck } from '../lib/lyrics';
 import { clearSavedLyrics, onSavedLyricsChange, saveLyricsFor, savedLyricsTrackIds, type CacheSummary } from '../lib/lyrics-store';
 
@@ -226,18 +224,13 @@ const THEMES: Array<{ id: ThemeChoice; label: string }> = [
 
 export function SettingsView({
   onNewPlaylist,
-  onRemoveDownloads,
-  onSignOut,
   onChangeName,
 }: {
   onNewPlaylist: () => void;
-  onRemoveDownloads: () => void;
-  onSignOut: () => void;
   onChangeName: () => void;
 }) {
   const { user } = useAuth();
   const library = useLibrary();
-  const offline = useOffline();
   const {
     theme,
     setTheme,
@@ -393,26 +386,15 @@ export function SettingsView({
 
       <SoundSettings />
 
-      {LOCAL_ONLY ? <LyricsSettings /> : null}
+      <LyricsSettings />
 
       <section className="settings-group">
         <h2>Library</h2>
         <div className="settings-row">
           <div>
             <div className="settings-label">{plural(library.tracks.length, 'song')}</div>
-            <div className="settings-hint">
-              {LOCAL_ONLY
-                ? 'Stored on this phone.'
-                : offline.count
-                  ? `${plural(offline.count, 'song')} saved on this device · ${formatBytes(offline.bytes)}`
-                  : 'Right-click or long-press a song or album to make it available offline.'}
-            </div>
+            <div className="settings-hint">Stored on this device.</div>
           </div>
-          {!LOCAL_ONLY && offline.count ? (
-            <button className="pill-btn" onClick={onRemoveDownloads}>
-              Remove downloads
-            </button>
-          ) : null}
         </div>
         <div className="settings-row">
           <div>
@@ -426,14 +408,14 @@ export function SettingsView({
       </section>
 
       <section className="settings-group">
-        <h2>{LOCAL_ONLY ? 'Profile' : 'Account'}</h2>
+        <h2>Profile</h2>
         <div className="settings-row">
           <div>
             <div className="settings-label">{user?.name || 'Listener'}</div>
-            <div className="settings-hint">{LOCAL_ONLY ? 'Your profile on this phone' : user?.email}</div>
+            <div className="settings-hint">Your profile on this device</div>
           </div>
-          <button className="pill-btn" onClick={LOCAL_ONLY ? onChangeName : onSignOut}>
-            {LOCAL_ONLY ? 'Change name' : 'Sign out'}
+          <button className="pill-btn" onClick={onChangeName}>
+            Change name
           </button>
         </div>
       </section>

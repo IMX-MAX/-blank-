@@ -2,10 +2,8 @@ import { useRef } from 'react';
 import { AudioLines, ImagePlus, MoreHorizontal, Pause, Play, Plus, Shuffle } from 'lucide-react';
 import type { Album, Track } from '../types';
 import { formatTotal, matchesQuery, plural, relativeTime } from '../lib/format';
-import { useOffline, useOnline } from '../state/OfflineProvider';
 import { usePlayer } from '../state/PlayerProvider';
 import { Cover } from './Cover';
-import { OfflineBadge } from './OfflineBadge';
 import { atPointer, below, type Point } from './overlays';
 
 export function AlbumView({
@@ -28,8 +26,6 @@ export function AlbumView({
   onCover: (file: File) => void;
 }) {
   const player = usePlayer();
-  const offline = useOffline();
-  const online = useOnline();
   const coverInput = useRef<HTMLInputElement>(null);
   const visible = tracks
     .map((track, index) => ({ track, index }))
@@ -92,14 +88,13 @@ export function AlbumView({
         <div className="track-list">
           {visible.map(({ track, index }) => {
             const active = player.track?.id === track.id;
-            const unavailable = !online && !offline.isSaved(track.id);
             return (
               <div
-                className={`track${active ? ' active' : ''}${unavailable ? ' unavailable' : ''}`}
+                className={`track${active ? ' active' : ''}`}
                 key={track.id}
                 onContextMenu={(event) => onTrackMenu(track, atPointer(event))}
               >
-                <button className="track-hit" disabled={unavailable} onClick={() => onTrack(track)}>
+                <button className="track-hit" onClick={() => onTrack(track)}>
                   <span className="track-num">
                     {active ? <AudioLines size={15} /> : index + 1}
                   </span>
@@ -108,7 +103,6 @@ export function AlbumView({
                     <span className="track-sub">{relativeTime(track.createdAt)}</span>
                   </span>
                 </button>
-                <OfflineBadge trackId={track.id} />
                 <button
                   className="ghost-more track-more"
                   aria-label={`Options for ${track.title}`}
