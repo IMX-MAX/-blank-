@@ -22,7 +22,7 @@ export function AlbumView({
   onPlay: () => void;
   onTrack: (track: Track) => void;
   onTrackMenu: (track: Track, at: Point) => void;
-  onAdd: (at: Point) => void;
+  onAdd: () => void;
   onCover: (file: File) => void;
 }) {
   const player = usePlayer();
@@ -82,7 +82,7 @@ export function AlbumView({
             </button>
           </div>
         </div>
-        <button className="add-tracks" onClick={(event) => onAdd(below(event.currentTarget))}>
+        <button className="add-tracks" onClick={onAdd}>
           <Plus size={16} /> Add tracks
         </button>
         <div className="track-list">

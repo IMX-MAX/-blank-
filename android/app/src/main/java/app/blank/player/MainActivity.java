@@ -10,7 +10,6 @@ public class MainActivity extends BridgeActivity {
     public void onCreate(Bundle savedInstanceState) {
         registerPlugin(MediaControlsPlugin.class);
         registerPlugin(GlyphMatrixPlugin.class);
-        registerPlugin(YtDlpPlugin.class);
         super.onCreate(savedInstanceState);
         // Sign-in lives on another origin, so its session cookie is a third-party cookie to the app.
         CookieManager cookies = CookieManager.getInstance();

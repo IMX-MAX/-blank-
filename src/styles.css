@@ -2045,22 +2045,3 @@ button.lyrics-chip { border: 0; font: inherit; font-size: 12px; cursor: pointer;
   line-height: 1.5;
 }
 .lyrics-why-title { font-weight: 600; color: #fff; margin-bottom: 4px; }
-
-/* ---------- From YouTube Music ---------- */
-.dialog.yt { width: min(560px, calc(100vw - 32px)); max-height: calc(100dvh - 48px); }
-.yt-search { display: flex; gap: 8px; }
-.yt-search input { flex: 1; min-width: 0; }
-.yt-search .white-btn { width: 44px; padding: 0; display: grid; place-items: center; flex: none; }
-.yt-note { font-size: 13.5px; }
-.yt-fine { font-size: 12px; opacity: 0.7; }
-.yt-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; font-weight: 600; }
-.yt-head > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.yt-list { overflow: auto; display: flex; flex-direction: column; gap: 4px; min-height: 0; }
-.yt-row { display: flex; align-items: center; gap: 12px; padding: 6px 4px; border-radius: 12px; }
-.yt-thumb { width: 52px; height: 52px; border-radius: 8px; object-fit: cover; background: var(--surface); flex: none; }
-.yt-copy { display: flex; flex-direction: column; min-width: 0; flex: 1; }
-.yt-copy .track-title, .yt-copy .track-sub { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.yt-error { color: var(--danger); font-size: 12.5px; margin-top: 2px; }
-.yt-progress, .yt-done { color: var(--muted); font-size: 13px; flex: none; min-width: 52px; text-align: right; }
-.yt-done { display: grid; place-items: center; color: var(--gold); }
-.yt-row .pill-btn { flex: none; display: inline-flex; align-items: center; gap: 6px; }

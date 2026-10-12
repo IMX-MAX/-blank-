@@ -47,7 +47,7 @@ npm run dev          # http://localhost:5173
 | Script | What it does |
 | --- | --- |
 | `npm run dev` | Vite dev server |
-| `npm test` | Lyrics, cover, beat, parser, lyrics-proxy and yt-dlp tests |
+| `npm test` | Lyrics, cover, beat, parser and lyrics-proxy tests |
 | `npm run build` | Typechecks and builds the web app into `dist/` (host it on any static server) |
 | `npm run android:apk` | Builds the web app and a debug APK |
 
@@ -61,15 +61,6 @@ Build a debug APK (needs JDK 21 and the Android SDK with platform 36; set `ANDRO
 npm run android:apk
 # android/app/build/outputs/apk/debug/app-debug.apk
 ```
-
-### Adding songs from YouTube Music
-
-The **Add** button (and **Add tracks** on an album) offers **Upload a song** or **From YouTube Music**. The second opens a search box: paste a YouTube or YouTube Music link (a song, or an album or playlist to add all at once) or type a song name, pick results and press **Add**. Each song is downloaded with [yt-dlp](https://github.com/yt-dlp/yt-dlp), its title, artist, album and year are filled in from what YouTube knows about it, its picture becomes the cover (cropped square), and it is stored in the library like any uploaded file. Only YouTube and YouTube Music addresses are ever passed to yt-dlp. Only download music you have the right to keep.
-
-- **Android**: yt-dlp runs inside the app (the [youtubedl-android](https://github.com/yausername/youtubedl-android) library bundles Python), so it works on the phone by itself. The app asks for a newer yt-dlp from GitHub at most once a day, because YouTube changes often. The app is arm64 only and about 18 MB larger for this. The code is `YtDlpPlugin.java`.
-- **Web**: a browser cannot run yt-dlp, so `npm run dev` and `npm run preview` use the yt-dlp installed on that computer (`pip install yt-dlp`, or set `BLANK_YTDLP` to its path). The helper in `tools/ytdlp-server.ts` only answers requests from the same machine. A web app hosted elsewhere shows the option with a note that yt-dlp is not available.
-
-YouTube sometimes asks the downloading address to "sign in to confirm you're not a bot", mostly from servers and VPNs. That is shown as the error on the song; a home connection normally works.
 
 ### Lyrics offline
 
