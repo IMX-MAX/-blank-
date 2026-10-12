@@ -120,6 +120,20 @@ The drawing lives in the playback service (`LiveVisuals.java`, `WaveformFrame.ja
 
 Beats come from `src/lib/beat-detect.ts`, an onset detector that decodes the song once, finds the hits (drums, plucks) rather than a steady tempo, and caches them in IndexedDB (`blank-beats`).
 
+### Lyrics look
+
+The lyrics view follows the Apple Music / [AMLL](https://github.com/amll-dev/applemusic-like-lyrics) style: large bold lines, the sung line sharp and the rest blurred by distance, a soft-edged highlight sweeping through each word with the current word lifting slightly, a staggered scroll, and breathing dots for long instrumental gaps (`src/components/LyricsView.tsx`).
+
+- **Background vocals** (the `x-bg` spans in AMLL TTML) are drawn as smaller lines under the main one and fade in only while they are sung. A paragraph that holds only backing vocals is drawn as a small line on its own.
+- **Duets**: lines of the second singer (`ttm:agent="v2"`) are right aligned.
+- **Pronunciation** (**Settings > Playback > Show pronunciation**): readings the TTML supplies (`x-roman`, `amll:roman`) are used as is. Otherwise Korean is romanised (revised romanisation with the usual sound changes), Chinese gets pinyin (`pinyin-pro`, loaded on demand) and kana-only Japanese gets Hepburn romaji. Japanese lines with kanji get no generated reading. Plain LRCLIB lyrics carry no backing or duet information.
+
+Lyrics saved before this feature are refreshed once (`LYRICS_VERSION` in `src/lib/lyric-types.ts`), keeping the old copy if the lookup fails.
+
+### Queue and button feel
+
+The queue (`src/components/QueuePanel.tsx`) shows the current song, the songs up next with cover, length and a remove button, and the songs already played. Every button, link and `[role=button]` springs in when pressed and overshoots when released (`src/lib/bounce.ts`, Web Animations on the `scale` property, skipped with reduced motion). Add `data-no-bounce` to opt an element out.
+
 ### Keep the screen on for lyrics
 
 **Settings > Playback > Keep the screen on for lyrics** holds the screen awake while the lyrics view is open (the window's keep-screen-on flag in the app, the Screen Wake Lock API in a browser).
