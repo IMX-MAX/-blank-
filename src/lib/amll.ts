@@ -90,6 +90,60 @@ function unbracket(words: LyricWord[]): LyricWord[] {
 
 const joinText = (words: Array<{ text: string }>) => words.map((word) => word.text).join('').replace(/\s+/g, ' ').trim();
 
+type Reading = { start: number; end: number; text: string };
+
+/** Apple's `<transliterations>`: a word-timed reading per line key (`L1`, `L2`, ...). */
+function transliterations(doc: Document): Map<string, Reading[]> {
+  const out = new Map<string, Reading[]>();
+  const block = doc.getElementsByTagName('transliteration')[0];
+  if (!block) return out;
+  for (const entry of Array.from(block.getElementsByTagName('text'))) {
+    const key = attr(entry, 'for');
+    if (!key) continue;
+    const spans: Reading[] = [];
+    for (const span of Array.from(entry.getElementsByTagName('span'))) {
+      const text = (span.textContent ?? '').trim();
+      const start = parseClock(attr(span, 'begin'));
+      if (text && start !== null) spans.push({ start, end: parseClock(attr(span, 'end')) ?? start, text });
+    }
+    if (spans.length) out.set(key, spans);
+  }
+  return out;
+}
+
+const plain = (value: string) => value.normalize('NFKC').toLowerCase().replace(/[^\p{L}\p{N}]+/gu, '');
+
+/** Puts each reading under the words that are sung while it is. Lines that are already in Latin script keep none. */
+function readingGroups(line: LyricLine, spans: Reading[] | undefined) {
+  if (!spans || !line.words.length) return null;
+  if (plain(spans.map((span) => span.text).join('')) === plain(line.text)) return null;
+  const owner = line.words.map((word) => {
+    let best = 0;
+    let bestGap = Infinity;
+    spans.forEach((span, index) => {
+      const gap =
+        word.start < span.start - 0.1 ? span.start - word.start : word.start >= span.end ? word.start - span.end + 0.001 : 0;
+      if (gap < bestGap) {
+        best = index;
+        bestGap = gap;
+      }
+    });
+    return best;
+  });
+  const groups: Array<{ from: number; to: number; text: string }> = [];
+  const used = new Set<number>();
+  owner.forEach((index, at) => {
+    const last = groups[groups.length - 1];
+    if (last && owner[at - 1] === index) {
+      last.to = at + 1;
+    } else {
+      groups.push({ from: at, to: at + 1, text: used.has(index) ? '' : spans[index]!.text });
+      used.add(index);
+    }
+  });
+  return groups;
+}
+
 /** Parses an Apple/AMLL style TTML document. Word timing is kept only when the file actually has it. */
 export function parseTtml(source: string, parse: XmlParser = browserParser): Lyrics | null {
   let doc: Document;
@@ -102,13 +156,14 @@ export function parseTtml(source: string, parse: XmlParser = browserParser): Lyr
 
   const paragraphs = Array.from(doc.getElementsByTagName('p'));
   const agents: string[] = [];
-  const raw: Array<LyricLine & { agent: string | null }> = [];
+  const raw: Array<LyricLine & { agent: string | null; key: string | null }> = [];
   let anyWords = false;
 
   for (const p of paragraphs) {
     const begin = parseClock(attr(p, 'begin'));
     const end = parseClock(attr(p, 'end'));
     const agent = attr(p, 'agent');
+    const key = attr(p, 'key');
     const words: RawWord[] = [];
     collectWords(p, words, begin ?? 0, end ?? begin ?? 0);
 
@@ -154,7 +209,7 @@ export function parseTtml(source: string, parse: XmlParser = browserParser): Lyr
         : undefined;
     const lineEnd = Math.max(lineStart + 0.1, end ?? 0, ...timed.map((word) => word.end));
     if (agent && !agents.includes(agent)) agents.push(agent);
-    const line: LyricLine & { agent: string | null } = { text, start: lineStart, end: lineEnd, words: timed, agent };
+    const line: LyricLine & { agent: string | null; key: string | null } = { text, start: lineStart, end: lineEnd, words: timed, agent, key };
     if (backingOnly) line.backing = true;
     if (backing.length) {
       anyWords = true;
@@ -170,10 +225,15 @@ export function parseTtml(source: string, parse: XmlParser = browserParser): Lyr
   if (!raw.length) return null;
   raw.sort((a, b) => a.start - b.start);
   const duet = agents.length > 1;
-  const lines: LyricLine[] = raw.map(({ agent, ...line }) => ({
-    ...line,
-    ...(duet && agent && agent !== agents[0] ? { align: 'right' as const } : {}),
-  }));
+  const readings = transliterations(doc);
+  const lines: LyricLine[] = raw.map(({ agent, key, ...line }) => {
+    const groups = key && !line.romanGroups ? readingGroups(line, readings.get(key)) : null;
+    return {
+      ...line,
+      ...(groups ? { romanGroups: groups, roman: undefined } : {}),
+      ...(duet && agent && agent !== agents[0] ? { align: 'right' as const } : {}),
+    };
+  });
   return { v: LYRICS_VERSION, mode: anyWords ? 'word' : 'line', source: 'amll', lines };
 }
 

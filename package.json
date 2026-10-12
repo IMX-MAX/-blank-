@@ -10,7 +10,7 @@
     "dev:api": "tsx api/src/dev.ts",
     "test:api": "tsx --test api/src/app.test.ts",
     "db:schema": "tsx -e \"import(\\\"./api/src/schema.ts\\\").then(m=>console.log(m.SCHEMA_SQL))\"",
-    "test": "tsx --test api/src/app.test.ts src/lib/lyrics.test.ts src/lib/covers.test.ts src/lib/beats.test.ts src/lib/romanize.test.ts src/lib/ncm.test.ts",
+    "test": "tsx --test api/src/app.test.ts src/lib/lyrics.test.ts src/lib/covers.test.ts src/lib/beats.test.ts src/lib/romanize.test.ts src/lib/ncm.test.ts src/lib/apple.test.ts",
     "android:sync": "npm run build && cap sync android",
     "android:apk": "npm run android:sync && cd android && ./gradlew assembleDebug"
   },

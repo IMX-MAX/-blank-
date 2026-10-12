@@ -9,9 +9,16 @@
 
 A desktop music library for the records you already own. Upload a collection, keep it in the cloud, and play it back. The layout follows the quiet dark player in the reference shots: a library of covers, an album page, and a pill-shaped waveform bar along the bottom.
 
-Lyrics are looked up in the [AMLL TTML database](https://github.com/amll-dev/amll-ttml-db) first, which carries real per-word timing, then on NetEase Cloud Music (`src/lib/ncm.ts`, word timing for most popular songs), then in [LRCLIB](https://lrclib.net). Songs that only have line timing are given estimated word timing (`src/lib/estimate.ts`, **Settings > Playback > Estimate word timing**), shown with an "Estimated" tag instead of "Word-synced". Unsynced lyrics are shown as plain text.
+Lyrics are looked up in this order, and the first source that times every word wins:
 
-NetEase has no public API and sends no CORS headers, so it is only queried in the Android app (through the native HTTP client) and is skipped in a plain browser. The matching requires the same title, an overlapping artist and a length within 6 seconds of the file. Its word list sometimes runs words together, so spaces are restored from its plain lyric, and its bracketed ad-libs become backing vocals. Songs saved before this lookup existed are refreshed once if they have no word timing (`LYRICS_VERSION`).
+1. the [AMLL TTML database](https://github.com/amll-dev/amll-ttml-db) (`src/lib/amll.ts`),
+2. a community service that serves Apple Music's word-timed TTML, with backing vocals, duets and a reading under Korean, Japanese and Chinese lines (`src/lib/apple.ts`). Without an API key it only answers for songs it already has and allows a few lookups in a short while, so a refusal pauses it for 90 seconds and a song is looked up again later,
+3. NetEase Cloud Music, word timing for most popular songs (`src/lib/ncm.ts`),
+4. [LRCLIB](https://lrclib.net), which only sometimes has word timing.
+
+Songs that only end up with line timing are given estimated word timing (`src/lib/estimate.ts`), shown with an "Estimated" tag instead of "Word-synced". **Settings > Lyrics > Estimated lyrics** turns that off, and **Word-synced sources > Test** looks a known song up in each source and shows which could not be reached from the phone. Unsynced lyrics are shown as plain text.
+
+NetEase and the Apple Music service have no public API and send no CORS headers, so they are only queried in the Android app (through the native HTTP client, `src/lib/http.ts`) and are skipped in a plain browser. NetEase matching requires the same title, an overlapping artist and a length within 12 seconds of the file. Its word list sometimes runs words together, so spaces are restored from its plain lyric, and its bracketed ad-libs become backing vocals. Songs saved before this lookup existed are refreshed once if they have no word timing (`LYRICS_VERSION`).
 
 ## How it is put together
 
@@ -134,7 +141,7 @@ Lyrics saved before this feature are refreshed once (`LYRICS_VERSION` in `src/li
 
 ### Queue and button feel
 
-The queue (`src/components/QueuePanel.tsx`) shows the current song, the songs up next with cover, length and a remove button, and the songs already played. Every button, link and `[role=button]` springs in when pressed and overshoots when released (`src/lib/bounce.ts`, Web Animations on the `scale` property, skipped with reduced motion). Add `data-no-bounce` to opt an element out.
+The queue (`src/components/QueuePanel.tsx`) shows the current song, the songs up next with cover, length and a remove button, and the songs already played. Every button, link and `[role=button]` springs in when pressed and overshoots when released (`src/lib/bounce.ts`, Web Animations on the `scale` property, skipped with reduced motion). A press that turns into a scroll or drag eases back without the bounce. Add `data-no-bounce` to opt an element out.
 
 ### Keep the screen on for lyrics
 

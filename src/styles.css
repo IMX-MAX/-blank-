@@ -1317,3 +1317,6 @@ button.offline-note { cursor: pointer; color: var(--text, #fff); }
 @media (pointer: coarse) {
   .slider { --thumb: 22px; height: 36px; }
 }
+
+.source-ok { color: var(--muted); }
+.source-bad { color: #ff8a80; }

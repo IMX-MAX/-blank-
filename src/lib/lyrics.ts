@@ -1,6 +1,7 @@
 import { parse as parseYaml } from 'yaml';
 
 import { findAmll } from './amll';
+import { findApple } from './apple';
 import { findNcm } from './ncm';
 import { LYRICS_VERSION, type LyricLine, type LyricWord, type Lyrics, type LyricsQuery, type LyricsResult } from './lyric-types';
 import { clean, lookupCandidates } from './titles';
@@ -284,6 +285,42 @@ async function findLrclib(query: LyricsQuery, signal?: AbortSignal): Promise<Lyr
   return record ? lyricsFromRecord(record) : { status: 'none' };
 }
 
+type Found = { id: string; lyrics: Lyrics };
+
+/** Tried in this order; the first one that times every word wins. */
+export const WORD_SOURCES: Array<{
+  name: string;
+  find: (query: LyricsQuery, signal?: AbortSignal) => Promise<Found | null>;
+}> = [
+  { name: 'AMLL', find: (query, signal) => findAmll(query, signal) },
+  { name: 'Apple Music', find: (query, signal) => findApple(query, signal) },
+  { name: 'NetEase', find: (query, signal) => findNcm(query, signal) },
+];
+
+export type SourceCheck = { name: string; ok: boolean; detail: string };
+
+/** Looks one well known song up in every word-timed source, so a broken one shows what went wrong. */
+export async function checkSources(signal?: AbortSignal): Promise<SourceCheck[]> {
+  const query: LyricsQuery = { title: 'As It Was', artist: 'Harry Styles', duration: 167 };
+  const out: SourceCheck[] = [];
+  for (const source of WORD_SOURCES) {
+    const started = Date.now();
+    try {
+      const found = await source.find(query, signal);
+      const took = `${((Date.now() - started) / 1000).toFixed(1)}s`;
+      out.push(
+        found?.lyrics.mode === 'word'
+          ? { name: source.name, ok: true, detail: `Word timing, ${found.lyrics.lines.length} lines (${took})` }
+          : { name: source.name, ok: true, detail: `Reachable, no word timing for the test song (${took})` },
+      );
+    } catch (err) {
+      if (signal?.aborted) throw err;
+      out.push({ name: source.name, ok: false, detail: err instanceof Error && err.message ? err.message : 'Could not be reached' });
+    }
+  }
+  return out;
+}
+
 const MODE_RANK: Record<Lyrics['mode'], number> = { word: 3, line: 2, plain: 1 };
 
 /**
@@ -295,31 +332,27 @@ export async function findLyrics(query: LyricsQuery, signal?: AbortSignal): Prom
   const cached = readCache(key);
   if (cached) return cached;
 
-  let amll: Awaited<ReturnType<typeof findAmll>> = null;
-  let amllFailed = false;
-  try {
-    amll = await findAmll(query, signal);
-  } catch (err) {
-    if (signal?.aborted) throw err;
-    amllFailed = true;
-  }
-
-  let ncm: Awaited<ReturnType<typeof findNcm>> = null;
-  let ncmFailed = false;
-  if (amll?.lyrics.mode !== 'word') {
+  let timed: Found | null = null;
+  let fallback: Found | null = null;
+  let sourceFailed = false;
+  for (const source of WORD_SOURCES) {
     try {
-      ncm = await findNcm(query, signal);
+      const found = await source.find(query, signal);
+      if (found?.lyrics.mode === 'word') {
+        timed = found;
+        break;
+      }
+      if (found && !fallback) fallback = found;
     } catch (err) {
       if (signal?.aborted) throw err;
-      ncmFailed = true;
+      sourceFailed = true;
     }
   }
+  const amll = timed ?? fallback;
 
   let result: LyricsResult;
-  if (amll?.lyrics.mode === 'word') {
-    result = { status: 'found', id: amll.id, lyrics: amll.lyrics };
-  } else if (ncm) {
-    result = { status: 'found', id: ncm.id, lyrics: ncm.lyrics };
+  if (timed) {
+    result = { status: 'found', id: timed.id, lyrics: timed.lyrics };
   } else {
     let lrclib: LyricsResult | null = null;
     try {
@@ -336,13 +369,14 @@ export async function findLyrics(query: LyricsQuery, signal?: AbortSignal): Prom
     }
   }
 
-  if (result.status === 'found' && result.lyrics.v === undefined) {
-    result = { ...result, lyrics: { ...result.lyrics, v: LYRICS_VERSION } };
+  const gotWords = result.status === 'found' && result.lyrics.mode === 'word';
+  if (result.status === 'found') {
+    // A copy found while a word-timed source was down is marked old so the next open tries again.
+    const v = sourceFailed && !gotWords ? LYRICS_VERSION - 1 : (result.lyrics.v ?? LYRICS_VERSION);
+    result = { ...result, lyrics: { ...result.lyrics, v } };
   }
 
-  // A transient lookup failure should not pin a song to line timing for the cache lifetime.
-  const gotWords = result.status === 'found' && result.lyrics.mode === 'word';
-  if (gotWords || !(amllFailed || ncmFailed)) writeCache(key, result);
+  if (gotWords || !sourceFailed) writeCache(key, result);
   return result;
 }
 

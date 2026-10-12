@@ -30,7 +30,7 @@ export type LyricLine = {
   align?: 'right';
 };
 
-export type LyricSource = 'amll' | 'lrclib' | 'ncm';
+export type LyricSource = 'amll' | 'lrclib' | 'ncm' | 'apple';
 
 /**
  * Bumped when lookups improve enough that older saved copies are worth refreshing: 2 added backing vocals and

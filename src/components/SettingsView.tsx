@@ -9,6 +9,7 @@ import { useLibrary } from '../state/LibraryProvider';
 import { useOffline } from '../state/OfflineProvider';
 import { useSettings, type ThemeChoice } from '../state/SettingsProvider';
 import { formatBytes, plural } from '../lib/format';
+import { checkSources, type SourceCheck } from '../lib/lyrics';
 import { clearSavedLyrics, onSavedLyricsChange, saveLyricsFor, savedLyricsTrackIds, type CacheSummary } from '../lib/lyrics-store';
 
 function summaryText(summary: CacheSummary): string {
@@ -21,7 +22,8 @@ function summaryText(summary: CacheSummary): string {
 
 function LyricsSettings() {
   const library = useLibrary();
-  const { cacheLyrics, setCacheLyrics } = useSettings();
+  const { cacheLyrics, setCacheLyrics, estimateWords, setEstimateWords } = useSettings();
+  const [checks, setChecks] = useState<SourceCheck[] | 'running' | null>(null);
   const [saved, setSaved] = useState(0);
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
   const [result, setResult] = useState<string | null>(null);
@@ -64,9 +66,36 @@ function LyricsSettings() {
     setResult(null);
   };
 
+  const check = async () => {
+    setChecks('running');
+    try {
+      setChecks(await checkSources());
+    } catch {
+      setChecks(null);
+    }
+  };
+
   return (
     <section className="settings-group">
       <h2>Lyrics</h2>
+      <div className="settings-row">
+        <div>
+          <div className="settings-label">Estimated lyrics</div>
+          <div className="settings-hint">
+            For songs no source times word by word, spread the words across each line so they still light up one at a time. Turn off to highlight
+            whole lines instead.
+          </div>
+        </div>
+        <button
+          className={estimateWords ? 'switch on' : 'switch'}
+          role="switch"
+          aria-checked={estimateWords}
+          aria-label="Estimated lyrics"
+          onClick={() => setEstimateWords(!estimateWords)}
+        >
+          <span />
+        </button>
+      </div>
       <div className="settings-row">
         <div>
           <div className="settings-label">Save lyrics for offline</div>
@@ -112,6 +141,27 @@ function LyricsSettings() {
               </button>
             </>
           )}
+        </div>
+      </div>
+      <div className="settings-row">
+        <div>
+          <div className="settings-label">Word-synced sources</div>
+          <div className="settings-hint">
+            {checks === 'running'
+              ? 'Checking\u2026'
+              : Array.isArray(checks)
+                ? checks.map((item) => (
+                    <div key={item.name} className={item.ok ? 'source-ok' : 'source-bad'}>
+                      {item.name}: {item.detail}
+                    </div>
+                  ))
+                : 'Look a test song up in AMLL, Apple Music and NetEase to see which can be reached from this phone.'}
+          </div>
+        </div>
+        <div className="settings-actions">
+          <button className="pill-btn" disabled={checks === 'running'} onClick={() => void check()}>
+            Test
+          </button>
         </div>
       </div>
     </section>
@@ -205,8 +255,6 @@ export function SettingsView({
     setKeepAwake,
     pronunciation,
     setPronunciation,
-    estimateWords,
-    setEstimateWords,
   } = useSettings();
 
   return (
@@ -311,21 +359,6 @@ export function SettingsView({
             </button>
           </div>
         ) : null}
-        <div className="settings-row">
-          <div>
-            <div className="settings-label">Estimate word timing</div>
-            <div className="settings-hint">For songs only timed line by line, spread the words across each line so they still light up one by one.</div>
-          </div>
-          <button
-            className={estimateWords ? 'switch on' : 'switch'}
-            role="switch"
-            aria-checked={estimateWords}
-            aria-label="Estimate word timing"
-            onClick={() => setEstimateWords(!estimateWords)}
-          >
-            <span />
-          </button>
-        </div>
         <div className="settings-row">
           <div>
             <div className="settings-label">Show pronunciation</div>

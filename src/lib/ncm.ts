@@ -1,39 +1,12 @@
-import { Capacitor, CapacitorHttp } from '@capacitor/core';
-
 import { artistTokens, norm } from './amll';
+import { textFetcher, type TextFetch } from './http';
 import { LYRICS_VERSION, type BackingLine, type LyricLine, type LyricWord, type Lyrics, type LyricsQuery } from './lyric-types';
 import { lookupCandidates } from './titles';
 
 const SEARCH = 'https://music.163.com/api/search/get';
 const LYRIC = 'https://music.163.com/api/song/lyric';
 
-export type TextFetch = (url: string, signal?: AbortSignal) => Promise<string | null>;
-
-/** NetEase sends no CORS headers, so the app asks through the native HTTP client. A plain browser cannot reach it. */
-export const defaultFetch: TextFetch = async (url, signal) => {
-  if (Capacitor.isNativePlatform()) {
-    const response = await CapacitorHttp.get({
-      url,
-      headers: { Referer: 'https://music.163.com', Accept: 'application/json, text/plain, */*' },
-      responseType: 'text',
-      readTimeout: 12000,
-      connectTimeout: 8000,
-    });
-    if (response.status === 404) return null;
-    if (response.status >= 400) throw new Error(`NetEase lookup failed (${response.status})`);
-    return typeof response.data === 'string' ? response.data : JSON.stringify(response.data);
-  }
-  let response: Response;
-  try {
-    response = await fetch(url, { signal });
-  } catch (error) {
-    if (signal?.aborted) throw error;
-    return null;
-  }
-  if (response.status === 404) return null;
-  if (!response.ok) throw new Error(`NetEase lookup failed (${response.status})`);
-  return response.text();
-};
+export const defaultFetch: TextFetch = textFetcher({ Referer: 'https://music.163.com' });
 
 const WORD = /\((\d+),(\d+),-?\d+\)([^]*?)(?=\(\d+,\d+,-?\d+\)|$)/g;
 const CREDIT =
@@ -176,8 +149,8 @@ export function scoreSong(song: NcmSong, title: string, artist: string, duration
 
   if (duration > 0 && song.duration) {
     const gap = Math.abs(song.duration / 1000 - duration);
-    if (gap > 6) return -1;
-    score += gap <= 1.5 ? 4 : gap <= 3.5 ? 2 : 0;
+    if (gap > 12) return -1;
+    score += gap <= 1.5 ? 4 : gap <= 3.5 ? 2 : gap <= 6 ? 1 : 0;
   }
   const asked = artistTokens(artist);
   if (!asked.length) return score;

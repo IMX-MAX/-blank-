@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { withEstimatedWords } from './estimate';
-import { attachReadings, findNcm, parseReadings, parseYrc, restoreSpaces, scoreSong, type TextFetch } from './ncm';
+import type { TextFetch } from './http';
+import { attachReadings, findNcm, parseReadings, parseYrc, restoreSpaces, scoreSong } from './ncm';
 import { isStale } from './lyrics';
 import type { Lyrics } from './lyric-types';
 
