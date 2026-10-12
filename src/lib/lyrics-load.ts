@@ -1,5 +1,5 @@
 import type { Track } from '../types';
-import { findLyrics, type LyricsResult } from './lyrics';
+import { findLyrics, isStale, type LyricsResult } from './lyrics';
 import { getSavedLyrics, saveLyrics } from './lyrics-store';
 import { getOfflineLyrics, setOfflineLyrics } from './offline';
 
@@ -12,13 +12,20 @@ export async function loadLyrics(
 ): Promise<LyricsResult> {
   const identity = { id: track.id, title: track.title, artist: track.artist ?? '' };
   const saved = await getSavedLyrics(identity).catch(() => null);
-  if (saved) return saved;
-  const kept = await getOfflineLyrics(track.id).catch(() => null);
-  if (kept) return kept;
-  const found = await findLyrics({ title: track.title, artist: track.artist ?? '', album, duration: track.durationMs / 1000 }, signal);
+  const kept = saved ? null : await getOfflineLyrics(track.id).catch(() => null);
+  const have = saved ?? kept;
+  if (have && !isStale(have)) return have;
+  let found: LyricsResult;
+  try {
+    found = await findLyrics({ title: track.title, artist: track.artist ?? '', album, duration: track.durationMs / 1000 }, signal);
+  } catch (error) {
+    if (have) return have;
+    throw error;
+  }
+  if (found.status === 'none' && have) return have;
   if (found.status !== 'none') {
     void setOfflineLyrics(track.id, found).catch(() => undefined);
-    if (saveForOffline) void saveLyrics(identity, found).catch(() => undefined);
+    if (saveForOffline || saved) void saveLyrics(identity, found).catch(() => undefined);
   }
   return found;
 }

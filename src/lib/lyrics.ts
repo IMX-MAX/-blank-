@@ -1,7 +1,7 @@
 import { parse as parseYaml } from 'yaml';
 
 import { findAmll } from './amll';
-import type { LyricLine, LyricWord, Lyrics, LyricsQuery, LyricsResult } from './lyric-types';
+import { LYRICS_VERSION, type LyricLine, type LyricWord, type Lyrics, type LyricsQuery, type LyricsResult } from './lyric-types';
 import { clean, lookupCandidates } from './titles';
 
 export type { LyricLine, LyricSource, LyricWord, Lyrics, LyricsQuery, LyricsResult } from './lyric-types';
@@ -32,14 +32,20 @@ function cacheKey(q: LyricsQuery): string {
   return `${clean(q.artist).toLowerCase()}|${clean(q.title).toLowerCase()}|${Math.round(q.duration)}`;
 }
 
+/** An AMLL copy saved before backing vocals and pronunciation were read from the file. */
+export function isStale(result: LyricsResult): boolean {
+  return result.status === 'found' && result.lyrics.source === 'amll' && (result.lyrics.v ?? 0) < LYRICS_VERSION;
+}
+
 function readCache(key: string): LyricsResult | null {
   const hit = memory.get(key);
-  if (hit) return hit;
+  if (hit && !isStale(hit)) return hit;
   try {
     const raw = localStorage.getItem(CACHE_PREFIX + key);
     if (!raw) return null;
     const entry = JSON.parse(raw) as { at: number; result: LyricsResult };
     if (entry.result.status === 'none' && Date.now() - entry.at > MISS_TTL_MS) return null;
+    if (isStale(entry.result)) return null;
     memory.set(key, entry.result);
     return entry.result;
   } catch {

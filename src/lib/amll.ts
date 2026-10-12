@@ -1,4 +1,4 @@
-import type { LyricLine, LyricWord, Lyrics, LyricsQuery } from './lyric-types';
+import { LYRICS_VERSION, type LyricLine, type LyricWord, type Lyrics, type LyricsQuery } from './lyric-types';
 import { lookupCandidates } from './titles';
 
 const BASE = 'https://api.amll.dev/api/v1/lyrics';
@@ -31,9 +31,9 @@ const attr = (el: Element, local: string): string | null => {
 };
 
 const isElement = (node: Node): node is Element => node.nodeType === 1;
-const SKIPPED_ROLES = new Set(['x-translation', 'x-roman']);
+const SKIPPED_ROLES = new Set(['x-translation', 'x-roman', 'x-bg']);
 
-type RawWord = { text: string; start: number; end: number };
+type RawWord = { text: string; start: number; end: number; roman?: string };
 
 function collectWords(parent: Element, out: RawWord[], fallbackStart: number, fallbackEnd: number) {
   for (const node of Array.from(parent.childNodes)) {
@@ -53,18 +53,42 @@ function collectWords(parent: Element, out: RawWord[], fallbackStart: number, fa
     if (role && SKIPPED_ROLES.has(role)) continue;
     const begin = parseClock(attr(node, 'begin')) ?? fallbackStart;
     const end = parseClock(attr(node, 'end')) ?? fallbackEnd;
-    if (role === 'x-bg' || Array.from(node.childNodes).some(isElement)) {
-      const before = out.length;
+    if (Array.from(node.childNodes).some(isElement)) {
       collectWords(node, out, begin, end);
-      if (role === 'x-bg' && out.length > before) {
-        const previous = out[before - 1];
-        if (previous && !/\s$/.test(previous.text)) previous.text += ' ';
-      }
     } else if ((node.textContent ?? '').trim()) {
-      out.push({ text: node.textContent ?? '', start: begin, end });
+      out.push({ text: node.textContent ?? '', start: begin, end, roman: attr(node, 'roman')?.trim() || undefined });
     }
   }
 }
+
+const roleOf = (el: Element) => attr(el, 'role') ?? '';
+
+/** Whether a node sits inside a span with one of the roles, below the paragraph. */
+function insideRole(node: Element, paragraph: Element, roles: Set<string>): boolean {
+  for (let current: Node | null = node; current && current !== paragraph; current = current.parentNode) {
+    if (isElement(current) && roles.has(roleOf(current))) return true;
+  }
+  return false;
+}
+
+function clockWords(words: RawWord[]): LyricWord[] {
+  return words
+    .filter((word) => word.text.trim())
+    .map((word) => ({ text: word.text.replace(/\s+/g, ' '), start: word.start, end: Math.max(word.start, word.end) }));
+}
+
+/** Backing vocals come wrapped in brackets, which the design leaves out. */
+function unbracket(words: LyricWord[]): LyricWord[] {
+  const copy = words.map((word) => ({ ...word }));
+  if (copy.length) {
+    copy[0]!.text = copy[0]!.text.replace(/^\s*[(\uFF08]\s*/, '');
+    const last = copy[copy.length - 1]!;
+    last.text = last.text.replace(/\s*[)\uFF09]\s*$/, '');
+  }
+  return copy.filter((word) => word.text.trim());
+}
+
+const joinText = (words: Array<{ text: string }>) => words.map((word) => word.text).join('').replace(/\s+/g, ' ').trim();
 
 /** Parses an Apple/AMLL style TTML document. Word timing is kept only when the file actually has it. */
 export function parseTtml(source: string, parse: XmlParser = browserParser): Lyrics | null {
@@ -88,27 +112,59 @@ export function parseTtml(source: string, parse: XmlParser = browserParser): Lyr
     const words: RawWord[] = [];
     collectWords(p, words, begin ?? 0, end ?? begin ?? 0);
 
-    const hasTimedChild = Array.from(p.getElementsByTagName('span')).some(
-      (span) => !SKIPPED_ROLES.has(attr(span, 'role') ?? '') && attr(span, 'begin') !== null,
-    );
-    const text = words.map((word) => word.text).join('').replace(/\s+/g, ' ').trim();
-    if (!text) continue;
+    const spans = Array.from(p.getElementsByTagName('span'));
+    const hasTimedChild = spans.some((span) => !insideRole(span, p, SKIPPED_ROLES) && attr(span, 'begin') !== null);
 
-    const lineStart = begin ?? words[0]?.start;
+    const backWords: RawWord[] = [];
+    for (const span of spans.filter((item) => roleOf(item) === 'x-bg')) {
+      const from = parseClock(attr(span, 'begin')) ?? begin ?? 0;
+      const to = parseClock(attr(span, 'end')) ?? end ?? from;
+      collectWords(span, backWords, from, to);
+    }
+    let backing = unbracket(clockWords(backWords));
+    const roman = spans
+      .filter((span) => roleOf(span) === 'x-roman')
+      .map((span) => (span.textContent ?? '').trim())
+      .filter(Boolean)
+      .join(' ');
+
+    let text = joinText(words);
+    if (!text && !backing.length) continue;
+    let mainWords = words;
+    let backingOnly = false;
+    if (!text) {
+      backingOnly = true;
+      text = joinText(backing);
+      mainWords = backing.map((word) => ({ ...word }));
+      backing = [];
+    }
+
+    const lineStart = begin ?? mainWords[0]?.start;
     if (lineStart === undefined) continue;
-    const timed: LyricWord[] = hasTimedChild
-      ? words
-          .filter((word) => word.text.trim())
-          .map((word) => ({ text: word.text.replace(/\s+/g, ' '), start: word.start, end: Math.max(word.start, word.end) }))
-      : [];
+    const timed: LyricWord[] = hasTimedChild || backingOnly ? clockWords(mainWords) : [];
     if (timed.length) {
       anyWords = true;
       const last = timed[timed.length - 1]!;
       last.text = last.text.trimEnd();
     }
+    const kept = mainWords.filter((word) => word.text.trim());
+    const romanGroups =
+      timed.length && !backingOnly && kept.some((word) => word.roman)
+        ? kept.map((word, index) => ({ from: index, to: index + 1, text: word.roman ?? '' }))
+        : undefined;
     const lineEnd = Math.max(lineStart + 0.1, end ?? 0, ...timed.map((word) => word.end));
     if (agent && !agents.includes(agent)) agents.push(agent);
-    raw.push({ text, start: lineStart, end: lineEnd, words: timed, agent });
+    const line: LyricLine & { agent: string | null } = { text, start: lineStart, end: lineEnd, words: timed, agent };
+    if (backingOnly) line.backing = true;
+    if (backing.length) {
+      anyWords = true;
+      const backEnd = Math.max(...backing.map((word) => word.end));
+      line.bg = { text: joinText(backing), start: backing[0]!.start, end: Math.max(backing[0]!.start + 0.1, backEnd), words: backing };
+      if (line.bg.words.length) line.bg.words[line.bg.words.length - 1]!.text = line.bg.words[line.bg.words.length - 1]!.text.trimEnd();
+    }
+    if (roman && !romanGroups) line.roman = roman;
+    if (romanGroups) line.romanGroups = romanGroups;
+    raw.push(line);
   }
 
   if (!raw.length) return null;
@@ -118,7 +174,7 @@ export function parseTtml(source: string, parse: XmlParser = browserParser): Lyr
     ...line,
     ...(duet && agent && agent !== agents[0] ? { align: 'right' as const } : {}),
   }));
-  return { mode: anyWords ? 'word' : 'line', source: 'amll', lines };
+  return { v: LYRICS_VERSION, mode: anyWords ? 'word' : 'line', source: 'amll', lines };
 }
 
 type SearchItem = {

@@ -84,7 +84,7 @@ test('ttml clock values', () => {
   assert.equal(parseClock('nope'), null);
 });
 
-test('ttml keeps real word timings, drops translations, folds in backing vocals and detects duets', () => {
+test('ttml keeps real word timings, drops translations, keeps backing vocals apart and detects duets', () => {
   const lyrics = parseTtml(TTML, xml)!;
   assert.equal(lyrics.mode, 'word');
   assert.equal(lyrics.source, 'amll');
@@ -99,9 +99,40 @@ test('ttml keeps real word timings, drops translations, folds in backing vocals 
   assert.equal(first!.align, undefined);
   assert.equal(second!.align, 'right');
   assert.equal(second!.words[1]!.start, 60.326);
-  assert.equal(third!.text, 'Sin city (Oh)');
-  assert.equal(third!.words.at(-1)!.text, '(Oh)');
-  assert.equal(third!.words.at(-1)!.start, 64);
+  assert.equal(third!.text, 'Sin city');
+  assert.equal(third!.words.length, 2);
+  assert.deepEqual(third!.bg && [third!.bg.text, third!.bg.start, third!.bg.end], ['Oh', 64, 65]);
+  assert.equal(lyrics.v, 2);
+});
+
+test('ttml pronunciation: line-level x-roman and per-word amll:roman', () => {
+  const lyrics = parseTtml(
+    `<tt xmlns="http://www.w3.org/ns/ttml" xmlns:ttm="http://www.w3.org/ns/ttml#metadata" xmlns:amll="http://www.example.com/ns/amll"><body><div>
+<p begin="1.0" end="3.0"><span begin="1.0" end="2.0">二人</span><span begin="2.0" end="3.0">だ</span><span ttm:role="x-roman">fu ta ri da</span></p>
+<p begin="4.0" end="6.0"><span begin="4.0" end="5.0" amll:roman="seol">설</span><span begin="5.0" end="6.0" amll:roman="myeong">명</span></p>
+</div></body></tt>`,
+    xml,
+  )!;
+  assert.equal(lyrics.lines[0]!.roman, 'fu ta ri da');
+  assert.equal(lyrics.lines[0]!.romanGroups, undefined);
+  assert.deepEqual(lyrics.lines[1]!.romanGroups, [
+    { from: 0, to: 1, text: 'seol' },
+    { from: 1, to: 2, text: 'myeong' },
+  ]);
+});
+
+test('ttml paragraphs that are only backing vocals become small ad-lib lines', () => {
+  const lyrics = parseTtml(
+    `<tt xmlns="http://www.w3.org/ns/ttml" xmlns:ttm="http://www.w3.org/ns/ttml#metadata"><body><div>
+<p begin="1.0" end="3.0"><span begin="1.0" end="2.0">Hey</span></p>
+<p begin="3.0" end="4.0"><span ttm:role="x-bg" begin="3.0" end="4.0"><span begin="3.0" end="4.0">(ooh)</span></span></p>
+</div></body></tt>`,
+    xml,
+  )!;
+  assert.equal(lyrics.lines.length, 2);
+  assert.equal(lyrics.lines[1]!.backing, true);
+  assert.equal(lyrics.lines[1]!.text, 'ooh');
+  assert.equal(lyrics.lines[1]!.bg, undefined);
 });
 
 test('ttml without word spans is line-synced, and broken xml is rejected', () => {
