@@ -1,6 +1,5 @@
 import {
   AlignJustify,
-  AudioLines,
   FastForward,
   MicVocal,
   Pause,
@@ -25,6 +24,7 @@ import { Slider } from './Slider';
 import { LyricsView } from './LyricsView';
 import { NowPlaying } from './NowPlaying';
 import { Presence } from './Presence';
+import { QueuePanel } from './QueuePanel';
 import { Waveform } from './Waveform';
 
 export function PlayerBar() {
@@ -51,24 +51,7 @@ export function PlayerBar() {
         <NowPlaying />
       </Presence>
       <Presence show={player.queueOpen}>
-        <div className="queue-panel" data-overlay>
-          <div className="queue-head">Queue</div>
-          <div className="queue-list">
-            {player.queue.map((item, itemIndex) => (
-              <button
-                key={`${item.id}-${itemIndex}`}
-                className={itemIndex === player.index ? 'queue-row active' : 'queue-row'}
-                onClick={() => player.jumpTo(itemIndex)}
-              >
-                <span className="queue-index">
-                  {itemIndex === player.index ? <AudioLines size={14} /> : itemIndex + 1}
-                </span>
-                <span className="queue-title">{item.title}</span>
-                <span className="queue-artist">{item.artist}</span>
-              </button>
-            ))}
-          </div>
-        </div>
+        <QueuePanel />
       </Presence>
       <footer
         ref={barRef}

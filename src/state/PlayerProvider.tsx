@@ -41,6 +41,7 @@ type PlayerContextValue = {
   setExpandedOpen: (open: boolean) => void;
   clearQueue: () => void;
   playNext: (track: Track) => void;
+  removeFromQueue: (index: number) => void;
   jumpTo: (index: number) => void;
 };
 
@@ -537,6 +538,23 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     setQueue(list);
   }, [go]);
 
+  const removeFromQueue = useCallback((at: number) => {
+    const list = queueRef.current;
+    const removed = list[at];
+    if (!removed || at === indexRef.current) return;
+    const nextList = list.filter((_, position) => position !== at);
+    const ordered = [...orderedRef.current];
+    const orderedAt = ordered.findIndex((item) => item.id === removed.id);
+    if (orderedAt >= 0) ordered.splice(orderedAt, 1);
+    orderedRef.current = ordered;
+    queueRef.current = nextList;
+    if (at < indexRef.current) {
+      indexRef.current -= 1;
+      setIndex(indexRef.current);
+    }
+    setQueue(nextList);
+  }, []);
+
   const jumpTo = useCallback(
     (nextIndex: number) => {
       go(nextIndex);
@@ -578,6 +596,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       setExpandedOpen,
       clearQueue,
       playNext,
+      removeFromQueue,
       jumpTo,
     }),
     [
@@ -608,6 +627,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       cycleRepeat,
       clearQueue,
       playNext,
+      removeFromQueue,
       jumpTo,
     ],
   );
