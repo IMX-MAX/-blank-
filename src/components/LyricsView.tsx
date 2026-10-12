@@ -1,6 +1,7 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { ChevronDown, Music2, RotateCw } from 'lucide-react';
 import { activeLineIndex, type LyricLine, type LyricWord, type Lyrics, type LyricsResult } from '../lib/lyrics';
+import { withEstimatedWords } from '../lib/estimate';
 import { addPronunciation } from '../lib/romanize';
 import { loadLyrics } from '../lib/lyrics-load';
 import { useLibrary } from '../state/LibraryProvider';
@@ -148,10 +149,11 @@ export function LyricsView() {
   const player = usePlayer();
   const { albums } = useLibrary();
   const track = player.track;
-  const { songCovers, keepAwake, pronunciation } = useSettings();
+  const { songCovers, keepAwake, pronunciation, estimateWords } = useSettings();
   const album = albums.find((item) => item.id === track?.albumId);
   const { state, retry } = useLyrics(track, album?.name);
-  const base = state.status === 'found' ? state.lyrics : null;
+  const found = state.status === 'found' ? state.lyrics : null;
+  const base = useMemo(() => (found && estimateWords ? withEstimatedWords(found) : found), [found, estimateWords]);
 
   const [enriched, setEnriched] = useState<{ source: Lyrics; lyrics: Lyrics } | null>(null);
   useEffect(() => {
@@ -367,7 +369,9 @@ export function LyricsView() {
           <div className="lyrics-title">{track.title}</div>
           <div className="lyrics-artist">{track.artist}</div>
         </div>
-        {lyrics && lyrics.mode !== 'line' ? <span className={`lyrics-chip ${lyrics.mode}`}>{MODE_LABEL[lyrics.mode]}</span> : null}
+        {lyrics && lyrics.mode !== 'line' ? (
+          <span className={`lyrics-chip ${lyrics.estimated ? 'estimated' : lyrics.mode}`}>{lyrics.estimated ? 'Estimated' : MODE_LABEL[lyrics.mode]}</span>
+        ) : null}
       </header>
 
       <div

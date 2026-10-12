@@ -9,7 +9,9 @@
 
 A desktop music library for the records you already own. Upload a collection, keep it in the cloud, and play it back. The layout follows the quiet dark player in the reference shots: a library of covers, an album page, and a pill-shaped waveform bar along the bottom.
 
-Lyrics are looked up in the [AMLL TTML database](https://github.com/amll-dev/amll-ttml-db) first, which carries real per-word timing, then in [LRCLIB](https://lrclib.net). Word timing is only ever shown when a source provides it: those songs highlight word by word, songs with line timing highlight the whole line, and unsynced lyrics are shown as plain text.
+Lyrics are looked up in the [AMLL TTML database](https://github.com/amll-dev/amll-ttml-db) first, which carries real per-word timing, then on NetEase Cloud Music (`src/lib/ncm.ts`, word timing for most popular songs), then in [LRCLIB](https://lrclib.net). Songs that only have line timing are given estimated word timing (`src/lib/estimate.ts`, **Settings > Playback > Estimate word timing**), shown with an "Estimated" tag instead of "Word-synced". Unsynced lyrics are shown as plain text.
+
+NetEase has no public API and sends no CORS headers, so it is only queried in the Android app (through the native HTTP client) and is skipped in a plain browser. The matching requires the same title, an overlapping artist and a length within 6 seconds of the file. Its word list sometimes runs words together, so spaces are restored from its plain lyric, and its bracketed ad-libs become backing vocals. Songs saved before this lookup existed are refreshed once if they have no word timing (`LYRICS_VERSION`).
 
 ## How it is put together
 

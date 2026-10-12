@@ -3,6 +3,7 @@ import { test } from 'node:test';
 import { DOMParser } from '@xmldom/xmldom';
 import { parseClock, parseTtml, scoreItem } from './amll';
 import { activeLineIndex, lookupCandidates, lyricsFromRecord, parseLrc, parseLyricsfile } from './lyrics';
+import { LYRICS_VERSION } from './lyric-types';
 
 const xml = (source: string) => new DOMParser().parseFromString(source, 'application/xml') as unknown as Document;
 
@@ -102,7 +103,7 @@ test('ttml keeps real word timings, drops translations, keeps backing vocals apa
   assert.equal(third!.text, 'Sin city');
   assert.equal(third!.words.length, 2);
   assert.deepEqual(third!.bg && [third!.bg.text, third!.bg.start, third!.bg.end], ['Oh', 64, 65]);
-  assert.equal(lyrics.v, 2);
+  assert.equal(lyrics.v, LYRICS_VERSION);
 });
 
 test('ttml pronunciation: line-level x-roman and per-word amll:roman', () => {

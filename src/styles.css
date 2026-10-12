@@ -802,6 +802,7 @@ button { cursor: pointer; }
   white-space: nowrap;
 }
 .lyrics-chip.word { background: rgba(230, 200, 74, 0.18); color: var(--gold); }
+.lyrics-chip.estimated { background: rgba(255, 255, 255, 0.1); color: rgba(255, 255, 255, 0.78); }
 .lyrics-scroll {
   position: relative;
   z-index: 1;

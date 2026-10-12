@@ -205,6 +205,8 @@ export function SettingsView({
     setKeepAwake,
     pronunciation,
     setPronunciation,
+    estimateWords,
+    setEstimateWords,
   } = useSettings();
 
   return (
@@ -309,6 +311,21 @@ export function SettingsView({
             </button>
           </div>
         ) : null}
+        <div className="settings-row">
+          <div>
+            <div className="settings-label">Estimate word timing</div>
+            <div className="settings-hint">For songs only timed line by line, spread the words across each line so they still light up one by one.</div>
+          </div>
+          <button
+            className={estimateWords ? 'switch on' : 'switch'}
+            role="switch"
+            aria-checked={estimateWords}
+            aria-label="Estimate word timing"
+            onClick={() => setEstimateWords(!estimateWords)}
+          >
+            <span />
+          </button>
+        </div>
         <div className="settings-row">
           <div>
             <div className="settings-label">Show pronunciation</div>

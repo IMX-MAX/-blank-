@@ -183,14 +183,14 @@ type SearchItem = {
   artistNames?: string[];
 };
 
-const norm = (value: string) =>
+export const norm = (value: string) =>
   value
     .normalize('NFKC')
     .toLowerCase()
     .replace(/[^\p{L}\p{N}]+/gu, ' ')
     .trim();
 
-function artistTokens(value: string): string[] {
+export function artistTokens(value: string): string[] {
   return value
     .split(/\s*(?:,|&|\/|;|\bfeat\.?|\bft\.?|\bx\b|\band\b|\bwith\b)\s*/i)
     .map(norm)

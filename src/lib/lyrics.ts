@@ -1,6 +1,7 @@
 import { parse as parseYaml } from 'yaml';
 
 import { findAmll } from './amll';
+import { findNcm } from './ncm';
 import { LYRICS_VERSION, type LyricLine, type LyricWord, type Lyrics, type LyricsQuery, type LyricsResult } from './lyric-types';
 import { clean, lookupCandidates } from './titles';
 
@@ -32,9 +33,12 @@ function cacheKey(q: LyricsQuery): string {
   return `${clean(q.artist).toLowerCase()}|${clean(q.title).toLowerCase()}|${Math.round(q.duration)}`;
 }
 
-/** An AMLL copy saved before backing vocals and pronunciation were read from the file. */
+/** A copy saved before a better lookup existed: AMLL files without backing vocals, and anything without word timing. */
 export function isStale(result: LyricsResult): boolean {
-  return result.status === 'found' && result.lyrics.source === 'amll' && (result.lyrics.v ?? 0) < LYRICS_VERSION;
+  if (result.status !== 'found') return false;
+  const { lyrics } = result;
+  const v = lyrics.v ?? 0;
+  return (lyrics.source === 'amll' && v < 2) || (lyrics.mode !== 'word' && v < LYRICS_VERSION);
 }
 
 function readCache(key: string): LyricsResult | null {
@@ -300,9 +304,22 @@ export async function findLyrics(query: LyricsQuery, signal?: AbortSignal): Prom
     amllFailed = true;
   }
 
+  let ncm: Awaited<ReturnType<typeof findNcm>> = null;
+  let ncmFailed = false;
+  if (amll?.lyrics.mode !== 'word') {
+    try {
+      ncm = await findNcm(query, signal);
+    } catch (err) {
+      if (signal?.aborted) throw err;
+      ncmFailed = true;
+    }
+  }
+
   let result: LyricsResult;
   if (amll?.lyrics.mode === 'word') {
     result = { status: 'found', id: amll.id, lyrics: amll.lyrics };
+  } else if (ncm) {
+    result = { status: 'found', id: ncm.id, lyrics: ncm.lyrics };
   } else {
     let lrclib: LyricsResult | null = null;
     try {
@@ -319,8 +336,13 @@ export async function findLyrics(query: LyricsQuery, signal?: AbortSignal): Prom
     }
   }
 
-  // A transient AMLL failure should not pin a song to line timing for the cache lifetime.
-  if (!(amllFailed && !(result.status === 'found' && result.lyrics.mode === 'word'))) writeCache(key, result);
+  if (result.status === 'found' && result.lyrics.v === undefined) {
+    result = { ...result, lyrics: { ...result.lyrics, v: LYRICS_VERSION } };
+  }
+
+  // A transient lookup failure should not pin a song to line timing for the cache lifetime.
+  const gotWords = result.status === 'found' && result.lyrics.mode === 'word';
+  if (gotWords || !(amllFailed || ncmFailed)) writeCache(key, result);
   return result;
 }
 

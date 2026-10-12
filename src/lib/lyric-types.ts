@@ -30,16 +30,21 @@ export type LyricLine = {
   align?: 'right';
 };
 
-export type LyricSource = 'amll' | 'lrclib';
+export type LyricSource = 'amll' | 'lrclib' | 'ncm';
 
-/** Bumped when the parsed shape gains something older saved copies lack (backing vocals, pronunciation). */
-export const LYRICS_VERSION = 2;
+/**
+ * Bumped when lookups improve enough that older saved copies are worth refreshing: 2 added backing vocals and
+ * pronunciation to AMLL files, 3 added word timing from NetEase for songs AMLL does not have.
+ */
+export const LYRICS_VERSION = 3;
 
 export type Lyrics = {
   /** Parser version of the file this came from. */
   v?: number;
   /** word: the source timed every word; line: whole-line timing only; plain: unsynced text */
   mode: 'word' | 'line' | 'plain';
+  /** Word timings were spread across a line-timed source rather than read from it. */
+  estimated?: boolean;
   source: LyricSource;
   lines: LyricLine[];
 };
