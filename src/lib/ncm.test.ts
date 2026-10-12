@@ -97,7 +97,8 @@ test('estimated words fill each line in order and are marked as estimated', () =
 test('saved copies without word timing are refreshed once', () => {
   const line: Lyrics = { mode: 'line', source: 'lrclib', lines: [] };
   assert.equal(isStale({ status: 'found', id: 1, lyrics: line }), true);
-  assert.equal(isStale({ status: 'found', id: 1, lyrics: { ...line, v: 3 } }), false);
+  assert.equal(isStale({ status: 'found', id: 1, lyrics: { ...line, v: 4 } }), false);
+  assert.equal(isStale({ status: 'found', id: 1, lyrics: { ...line, v: 3 } }), true);
   assert.equal(isStale({ status: 'found', id: 1, lyrics: { ...line, mode: 'word' } }), false);
   assert.equal(isStale({ status: 'found', id: 1, lyrics: { ...line, mode: 'word', source: 'amll', v: 1 } }), true);
 });
