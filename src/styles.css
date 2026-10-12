@@ -443,6 +443,7 @@ button { cursor: pointer; }
   padding: 0 34px 0 6px;
 }
 .player-id { cursor: pointer; display: flex; align-items: center; gap: 12px; min-width: 0; flex: 0 1 230px; }
+.player-art, .player-art img { corner-shape: round; }
 .player-art { width: 54px; height: 54px; flex: none; }
 .player-names { min-width: 0; }
 .player-title, .player-sub {
