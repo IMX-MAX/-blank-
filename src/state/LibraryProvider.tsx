@@ -40,6 +40,8 @@ type LibraryContextValue = {
   deleteAlbum: (id: string) => Promise<void>;
   deleteFolder: (id: string) => Promise<void>;
   deleteTrack: (id: string) => Promise<void>;
+  renameTrack: (id: string, title: string) => Promise<void>;
+  moveTrack: (id: string, albumId: string) => Promise<void>;
   addTracksToPlaylist: (playlistId: string, trackIds: string[]) => Promise<void>;
   removeFromPlaylist: (playlistId: string, trackId: string) => Promise<void>;
   tracksFor: (album: Album) => Track[];
@@ -189,6 +191,16 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
     setAlbums((current) => current.map((album) => (album.id === id ? next : album)));
   }, []);
 
+  const renameTrack = useCallback(async (id: string, title: string) => {
+    const next = await api.updateTrack(id, { title: title.trim() });
+    setTracks((current) => current.map((item) => (item.id === id ? next : item)));
+  }, []);
+
+  const moveTrack = useCallback(async (id: string, albumId: string) => {
+    const next = await api.updateTrack(id, { albumId });
+    setTracks((current) => current.map((item) => (item.id === id ? next : item)));
+  }, []);
+
   const deleteTrack = useCallback(async (id: string) => {
     await api.deleteTrack(id);
     setTracks((current) => current.filter((item) => item.id !== id));
@@ -334,6 +346,8 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
       deleteAlbum,
       deleteFolder,
       deleteTrack,
+      renameTrack,
+      moveTrack,
       addTracksToPlaylist,
       removeFromPlaylist,
       tracksFor,
@@ -357,6 +371,8 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
       deleteAlbum,
       deleteFolder,
       deleteTrack,
+      renameTrack,
+      moveTrack,
       addTracksToPlaylist,
       removeFromPlaylist,
       tracksFor,
