@@ -39,6 +39,9 @@ type Dialog =
   | { kind: 'delete-track'; track: Track }
   | { kind: 'move'; album: Album }
   | { kind: 'add-playlist'; track: Track }
+  | { kind: 'rename-track'; track: Track }
+  | { kind: 'move-track'; track: Track }
+  | { kind: 'project-for-track'; track: Track }
   | { kind: 'pick-tracks'; playlist: Album };
 
 export function Shell() {
@@ -218,6 +221,8 @@ export function Shell() {
       { id: 'play', label: 'Play', onClick: () => player.playTracks(from ? library.tracksFor(from) : [track], from ? Math.max(0, library.tracksFor(from).findIndex((item) => item.id === track.id)) : 0) },
       { id: 'next', label: 'Play next', onClick: () => player.playNext(track) },
       { id: 'add', label: 'Add to playlist', onClick: () => setDialog({ kind: 'add-playlist', track }) },
+      { id: 'rename', label: 'Rename', onClick: () => setDialog({ kind: 'rename-track', track }) },
+      { id: 'move', label: 'Move to project', onClick: () => setDialog({ kind: 'move-track', track }) },
     ];
     if (from?.kind === 'playlist') {
       items.push({
@@ -650,6 +655,55 @@ export function Shell() {
             const playlistId = ids[0];
             setDialog(null);
             if (playlistId) void run(() => library.addTracksToPlaylist(playlistId, [trackId]), 'Added to playlist');
+          }}
+        />
+      ) : null}
+      {dialog?.kind === 'rename-track' ? (
+        <NameDialog
+          title="Rename song"
+          placeholder="Song name"
+          confirm="Save"
+          initial={dialog.track.title}
+          onCancel={() => setDialog(null)}
+          onConfirm={(name) => {
+            const id = dialog.track.id;
+            setDialog(null);
+            void run(() => library.renameTrack(id, name), 'Song renamed');
+          }}
+        />
+      ) : null}
+      {dialog?.kind === 'move-track' ? (
+        <PickerDialog
+          title="Move to project"
+          confirm="Move"
+          empty="No other projects"
+          createLabel="New project"
+          choices={library.albums
+            .filter((item) => item.kind === 'album' && item.id !== dialog.track.albumId)
+            .map((item) => ({ id: item.id, label: item.name, detail: item.artist }))}
+          onClose={() => setDialog(null)}
+          onCreate={() => setDialog({ kind: 'project-for-track', track: dialog.track })}
+          onConfirm={(ids) => {
+            const trackId = dialog.track.id;
+            const albumId = ids[0];
+            setDialog(null);
+            if (albumId) void run(() => library.moveTrack(trackId, albumId), 'Moved to project');
+          }}
+        />
+      ) : null}
+      {dialog?.kind === 'project-for-track' ? (
+        <NameDialog
+          title="New project"
+          placeholder="untitled project"
+          confirm="Create and move"
+          onCancel={() => setDialog(null)}
+          onConfirm={(name) => {
+            const trackId = dialog.track.id;
+            setDialog(null);
+            void run(async () => {
+              const created = await library.createProject(name, null);
+              await library.moveTrack(trackId, created.id);
+            }, 'Moved to project');
           }}
         />
       ) : null}

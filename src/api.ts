@@ -20,6 +20,7 @@ export const api = {
   setTrackCover: local.localSetTrackCover,
   uploadAudio: local.localStoreAudio,
   createTrack: local.localCreateTrack,
+  updateTrack: local.localUpdateTrack,
   deleteTrack: local.localDeleteTrack,
   addToPlaylist: local.localAddToPlaylist,
   removeFromPlaylist: local.localRemoveFromPlaylist,

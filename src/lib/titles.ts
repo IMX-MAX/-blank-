@@ -9,7 +9,8 @@ export function clean(value: string): string {
 
 const VIDEO_TAG = /\s*[([【][^)\]】]*\b(official|m\/?v|video|lyrics?|audio|visualizer|performance|teaser|hd|4k)\b[^)\]】]*[)\]】]/gi;
 const VIDEO_TAIL = /\s*[-–|:]?\s*(official\s+)?(music\s+)?(m\/?v|video|lyric video|lyrics|audio|visualizer)\s*$/i;
-const QUOTED = /['‘’"“”«]([^'‘’"“”»]{2,}?)['‘’"“”»]/;
+// A quote opens at the start of a word and closes at the end of one, so the apostrophe in `It's` is not a quote.
+const QUOTED = /(?:^|[\s(\[【:–-])['‘“"«](.{2,}?)(?<=\S)['’”"»](?![\p{L}\p{N}])/u;
 
 function tidyArtist(value: string): string {
   return value

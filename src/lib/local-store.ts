@@ -187,6 +187,22 @@ export async function localDeleteAlbum(id: string): Promise<void> {
   });
 }
 
+export async function localUpdateTrack(id: string, patch: { title?: string; albumId?: string }): Promise<Track> {
+  return transact(['albums', 'tracks'], 'readwrite', async (tx) => {
+    const track = await get<Track>(tx, 'tracks', id);
+    if (!track) throw new Error('Track not found');
+    const next = { ...track };
+    if (patch.title !== undefined) next.title = required(patch.title, 'Title', 512);
+    if (patch.albumId !== undefined) {
+      const album = await get<Album>(tx, 'albums', patch.albumId);
+      if (!album || album.kind !== 'album') throw new Error('Project not found');
+      next.albumId = album.id;
+    }
+    await put(tx, 'tracks', next);
+    return next;
+  });
+}
+
 export async function localSetTrackCover(trackId: string, file: Blob): Promise<Track> {
   return transact(['tracks', 'files'], 'readwrite', async (tx) => {
     const track = await get<Track>(tx, 'tracks', trackId);
