@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useState, type ReactNode } from 'react';
 
 import { clampBand, EQ_FLAT, type EqBands } from '../lib/audio-engine';
+import { discordPresence } from '../lib/discord';
 import { glyphMatrix, type GlyphMode } from '../lib/glyph';
 
 export type ThemeChoice = 'dark' | 'light' | 'system';
@@ -28,6 +29,13 @@ type SettingsValue = {
   /** Vibrate to the beat of the song. */
   vibrate: boolean;
   setVibrate: (on: boolean) => void;
+  /** The app can show what is playing in the Discord app on this phone. */
+  discordSupported: boolean;
+  /** this build has the Discord SDK in it */
+  discordAvailable: boolean;
+  /** Show what is playing as a Discord activity. */
+  discord: boolean;
+  setDiscord: (on: boolean) => void;
   /** Show a reading under Korean, Japanese and Chinese lyrics. */
   pronunciation: boolean;
   estimateWords: boolean;
@@ -51,6 +59,7 @@ const COVERS_KEY = 'blank.songCovers';
 const LYRICS_KEY = 'blank.cacheLyrics';
 const GLYPH_KEY = 'blank.glyphWaveform';
 const GLYPH_MODE_KEY = 'blank.glyphMode';
+const DISCORD_KEY = 'blank.discord';
 const VIBRATE_KEY = 'blank.vibrate';
 const AWAKE_KEY = 'blank.keepAwake';
 const ROMAN_KEY = 'blank.pronunciation';
@@ -92,6 +101,8 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
   const [glyphMode, setGlyphModeState] = useState<GlyphMode>(readGlyphMode);
   const [vibrate, setVibrateState] = useState(() => localStorage.getItem(VIBRATE_KEY) === '1');
   const [vibrateSupported, setVibrateSupported] = useState(false);
+  const [discord, setDiscordState] = useState(() => localStorage.getItem(DISCORD_KEY) === '1');
+  const [discordAvailable, setDiscordAvailable] = useState(false);
   const [pronunciation, setPronunciationState] = useState(() => localStorage.getItem(ROMAN_KEY) !== '0');
   const [estimateWords, setEstimateWordsState] = useState(() => localStorage.getItem(ESTIMATE_KEY) !== '0');
   const [keepAwake, setKeepAwakeState] = useState(() => localStorage.getItem(AWAKE_KEY) === '1');
@@ -142,6 +153,11 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
   const setVibrate = useCallback((on: boolean) => {
     localStorage.setItem(VIBRATE_KEY, on ? '1' : '0');
     setVibrateState(on);
+  }, []);
+
+  const setDiscord = useCallback((on: boolean) => {
+    localStorage.setItem(DISCORD_KEY, on ? '1' : '0');
+    setDiscordState(on);
   }, []);
 
   const setPronunciation = useCallback((on: boolean) => {
@@ -202,6 +218,23 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     void glyphMatrix.setVibrate({ enabled: vibrate }).catch(() => undefined);
   }, [vibrateSupported, vibrate]);
 
+  useEffect(() => {
+    if (!discordPresence) return;
+    let live = true;
+    discordPresence
+      .isAvailable()
+      .then((result) => live && setDiscordAvailable(result.available))
+      .catch(() => undefined);
+    return () => {
+      live = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!discordPresence) return;
+    void discordPresence.setEnabled({ enabled: discord }).catch(() => undefined);
+  }, [discord]);
+
   const value = useMemo(
     () => ({
       theme,
@@ -219,6 +252,10 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
       vibrateSupported,
       vibrate,
       setVibrate,
+      discordSupported: discordPresence !== null,
+      discordAvailable,
+      discord,
+      setDiscord,
       pronunciation,
       setPronunciation,
       estimateWords,
@@ -246,6 +283,9 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
       vibrateSupported,
       vibrate,
       setVibrate,
+      discordAvailable,
+      discord,
+      setDiscord,
       pronunciation,
       setPronunciation,
       estimateWords,

@@ -244,6 +244,10 @@ export function SettingsView({
     vibrateSupported,
     vibrate,
     setVibrate,
+    discordSupported,
+    discordAvailable,
+    discord,
+    setDiscord,
     keepAwake,
     setKeepAwake,
     pronunciation,
@@ -347,6 +351,28 @@ export function SettingsView({
               aria-checked={vibrate}
               aria-label="Vibrate to the beat"
               onClick={() => setVibrate(!vibrate)}
+            >
+              <span />
+            </button>
+          </div>
+        ) : null}
+        {discordSupported ? (
+          <div className="settings-row">
+            <div>
+              <div className="settings-label">Show on Discord</div>
+              <div className="settings-hint">
+                {discordAvailable
+                  ? 'Shows “Listening to [blank]” with the song, artist and progress in the Discord app on this phone, while a song plays.'
+                  : 'This build was made without the Discord SDK, so there is nothing to show yet. Add discord_partner_sdk.aar to android/app/libs and rebuild.'}
+              </div>
+            </div>
+            <button
+              className={discord ? 'switch on' : 'switch'}
+              role="switch"
+              aria-checked={discord}
+              aria-label="Show on Discord"
+              disabled={!discordAvailable}
+              onClick={() => setDiscord(!discord)}
             >
               <span />
             </button>

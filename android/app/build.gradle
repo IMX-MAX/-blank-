@@ -1,5 +1,9 @@
 apply plugin: 'com.android.application'
 
+// Discord does not allow redistributing its Social SDK either. Download discord_partner_sdk.aar from the
+// Discord developer portal (your app > Social SDK) into app/libs and the Rich Presence code is built in.
+def discordSdk = file('libs/discord_partner_sdk.aar')
+
 android {
     namespace = "app.blank.player"
     compileSdk = rootProject.ext.compileSdkVersion
@@ -14,6 +18,23 @@ android {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
              // Default: https://android.googlesource.com/platform/frameworks/base/+/282e181b58cf72b6ca770dc7ca5f91f135444502/tools/aapt/AaptAssets.cpp#61
             ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
+        }
+    }
+    if (discordSdk.exists()) {
+        buildFeatures {
+            prefab true
+        }
+        defaultConfig {
+            externalNativeBuild {
+                cmake {
+                    arguments '-DANDROID_STL=c++_shared'
+                }
+            }
+        }
+        externalNativeBuild {
+            cmake {
+                path 'src/main/cpp/CMakeLists.txt'
+            }
         }
     }
     buildTypes {
@@ -47,6 +68,7 @@ preBuild.dependsOn 'fetchGlyphSdk'
 
 dependencies {
     implementation files('libs/glyph-matrix-sdk-2.0.aar')
+    if (discordSdk.exists()) implementation files(discordSdk)
     implementation fileTree(include: ['*.jar'], dir: 'libs')
     implementation "androidx.appcompat:appcompat:$androidxAppCompatVersion"
     implementation "androidx.coordinatorlayout:coordinatorlayout:$androidxCoordinatorLayoutVersion"

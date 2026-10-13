@@ -204,6 +204,7 @@ public class PlaybackService extends Service {
 
         holdWakeLock(state.playing);
         NowPlayingWidget.onState(getApplicationContext(), state);
+        DiscordPresence.onState(state);
         MAIN.removeCallbacks(widgetTick);
         if (state.playing) MAIN.postDelayed(widgetTick, WIDGET_TICK_MS);
         LiveVisuals.onState(this, state.trackId, state.peaks, state.durationMs, state.positionMs, state.playing);
@@ -309,6 +310,7 @@ public class PlaybackService extends Service {
         MAIN.removeCallbacks(widgetTick);
         instance = null;
         NowPlayingWidget.onStopped(getApplicationContext());
+        DiscordPresence.onStopped();
         LiveVisuals.onStop();
         holdWakeLock(false);
         foreground = false;
