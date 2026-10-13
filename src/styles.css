@@ -1904,6 +1904,7 @@ html[data-nav="back"]::view-transition-new(root) { animation-name: page-in-back;
 .switch span { width: 26px; height: 26px; border-radius: 13px; background: #fff; box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3); transition: transform 0.22s var(--ease-out); }
 .switch.on { background: var(--gold); }
 .switch.on span { transform: translateX(20px); }
+.switch:disabled { opacity: 0.4; }
 .settings-actions { display: flex; gap: 8px; flex: none; }
 .pill-btn:disabled { opacity: 0.4; }
 .pill-btn { flex: none; border: 0; height: 38px; padding: 0 16px; border-radius: 999px; background: var(--btn-bg); color: var(--btn-fg); font-weight: 600; font-size: 14px; }

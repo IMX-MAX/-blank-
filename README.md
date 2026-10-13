@@ -98,6 +98,12 @@ The queue (`src/components/QueuePanel.tsx`) shows the current song, the songs up
 
 **Settings > Playback > Keep the screen on for lyrics** holds the screen awake while the lyrics view is open (the window's keep-screen-on flag in the app, the Screen Wake Lock API in a browser).
 
+### Discord activity
+
+**Settings > Playback > Show on Discord** shows "Listening to [blank]" on your Discord profile while a song plays: the title, the artist, the album on the image's hover text and a progress bar. It clears when you pause or stop. It uses the Discord Social SDK's Rich Presence without signing in, so it talks to the Discord app installed and signed in on the same phone (application id `1559359875199533116`, in `DiscordPresence.java`).
+
+Discord does not allow redistributing the SDK, so it is not in the repo. Download `discord_partner_sdk.aar` from the [Discord developer portal](https://discord.com/developers/applications) (your app > Discord Social SDK, Android) into `android/app/libs/` and rebuild: Gradle then enables Prefab and builds `src/main/cpp/discord_presence.cpp` with CMake (needs the NDK and CMake from the SDK manager). Without the file the app builds as before and the switch is disabled. For an album image, upload an art asset named `blank` under the app's Rich Presence page. The Java side (`DiscordPresence.java`) debounces updates and only resends when the song changes or you seek, because Discord rate-limits presence.
+
 ### Equalizer and crossfade
 
 **Settings > Sound** has a three-point equalizer (bass, mid, treble, -12 to +12 dB) you drag on a graph, and a crossfade switch with a 1 to 12 second slider. Both run on the Web Audio API (`src/lib/audio-engine.ts`): each song plays through its own gain into a low shelf, a peaking filter and a high shelf. Crossfading uses two audio elements that swap roles, with an equal-power fade, so the next song starts under the end of the current one. The audio graph is only built once the equalizer is not flat or crossfade is on.
