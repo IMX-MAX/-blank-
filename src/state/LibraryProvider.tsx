@@ -2,6 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { api, forgetCover, type Library } from '../api';
 import { LOCAL_ONLY } from '../config';
 import { hueFromName } from '../lib/format';
+import { forgetTrackLyrics } from '../lib/lyrics-cache';
 import { loadLibrarySnapshot, saveLibrarySnapshot } from '../lib/offline';
 import { coverFileFromPicture, isAudioFile, readMetadata } from '../lib/metadata';
 import { peaksForUpload } from '../lib/peaks';
@@ -212,11 +213,17 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
     setAlbums((current) => current.map((album) => (album.id === id ? next : album)));
   }, []);
 
-  const deleteTrack = useCallback(async (id: string) => {
-    await api.deleteTrack(id);
-    setTracks((current) => current.filter((item) => item.id !== id));
-    setPlaylistTracks((current) => current.filter((link) => link.trackId !== id));
-  }, []);
+  const deleteTrack = useCallback(
+    async (id: string) => {
+      const track = tracks.find((item) => item.id === id);
+      await api.deleteTrack(id);
+      setTracks((current) => current.filter((item) => item.id !== id));
+      setPlaylistTracks((current) => current.filter((link) => link.trackId !== id));
+      // The song is gone, so is every lyric kept for it.
+      if (track) void forgetTrackLyrics([track]).catch(() => undefined);
+    },
+    [tracks],
+  );
 
   const deleteAlbum = useCallback(
     async (id: string) => {
@@ -227,7 +234,9 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
       if (album.kind === 'playlist') {
         setPlaylistTracks((current) => current.filter((link) => link.playlistId !== id));
       } else {
-        const gone = new Set(tracks.filter((track) => track.albumId === id).map((track) => track.id));
+        const removed = tracks.filter((track) => track.albumId === id);
+        const gone = new Set(removed.map((track) => track.id));
+        void forgetTrackLyrics(removed).catch(() => undefined);
         setTracks((current) => current.filter((track) => track.albumId !== id));
         setPlaylistTracks((current) => current.filter((link) => !gone.has(link.trackId)));
       }

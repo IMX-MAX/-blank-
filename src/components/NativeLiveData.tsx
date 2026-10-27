@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 
 import { beatsForTrack } from '../lib/beats';
 import { glyphMatrix } from '../lib/glyph';
@@ -6,6 +6,7 @@ import { loadLyrics } from '../lib/lyrics-load';
 import { useLibrary } from '../state/LibraryProvider';
 import { usePlayer } from '../state/PlayerProvider';
 import { useSettings } from '../state/SettingsProvider';
+import { useLyricsVersion } from '../state/useLyricsVersion';
 
 /**
  * Hands the playback service what it needs to draw lyrics or pulse to the beat for the song that is
@@ -19,6 +20,8 @@ export function NativeLiveData() {
   const glyphOn = glyphSupported && glyphWaveform;
   const wantLyrics = glyphOn && glyphMode === 'lyrics';
   const wantBeats = (glyphOn && glyphMode === 'pulse') || (vibrateSupported && vibrate);
+  const version = useLyricsVersion();
+  const seenVersion = useRef(version);
   const trackId = track?.id;
   const title = track?.title;
   const artist = track?.artist;
@@ -29,6 +32,11 @@ export function NativeLiveData() {
   useEffect(() => {
     if (!glyphMatrix || !trackId || !title || !wantLyrics) return;
     const controller = new AbortController();
+    if (seenVersion.current !== version) {
+      // Lyrics were cleared or replaced: stop drawing the old lines while the new ones load.
+      seenVersion.current = version;
+      void glyphMatrix.setTrackData({ trackId, lines: [] }).catch(() => undefined);
+    }
     loadLyrics({ id: trackId, title, artist: artist ?? '', durationMs }, albumName, controller.signal, cacheLyrics)
       .then((result) => {
         if (controller.signal.aborted) return;
@@ -40,7 +48,7 @@ export function NativeLiveData() {
       })
       .catch(() => undefined);
     return () => controller.abort();
-  }, [trackId, title, artist, durationMs, albumName, wantLyrics, cacheLyrics]);
+  }, [trackId, title, artist, durationMs, albumName, wantLyrics, cacheLyrics, version]);
 
   useEffect(() => {
     if (!glyphMatrix || !trackId || !audioFileId || !wantBeats) return;

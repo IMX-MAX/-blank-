@@ -111,6 +111,22 @@ export async function setOfflineLyrics(trackId: string, lyrics: LyricsResult): P
   if (saved) changed();
 }
 
+/** Drops the lyrics kept with downloaded songs (all of them, or just these). The audio stays. */
+export async function clearOfflineLyrics(trackIds?: string[]): Promise<void> {
+  const cleared = await run(TRACKS, 'readwrite', async (tx) => {
+    const store = tx.objectStore(TRACKS);
+    const entries = trackIds ? await Promise.all(trackIds.map((id) => wrap(store.get(id)))) : await wrap(store.getAll());
+    let any = false;
+    for (const entry of entries as Array<OfflineEntry | undefined>) {
+      if (!entry || entry.lyrics === null) continue;
+      await wrap(store.put({ ...entry, lyrics: null }));
+      any = true;
+    }
+    return any;
+  });
+  if (cleared) changed();
+}
+
 export async function saveOffline(entry: OfflineEntry, covers: Array<{ fileId: string; blob: Blob }>): Promise<void> {
   await run([TRACKS, COVERS], 'readwrite', async (tx) => {
     await wrap(tx.objectStore(TRACKS).put(entry));

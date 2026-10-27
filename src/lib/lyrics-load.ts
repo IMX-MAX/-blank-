@@ -1,5 +1,6 @@
 import type { Track } from '../types';
 import { findLyrics, isStale, type LyricsResult } from './lyrics';
+import { lyricsGeneration } from './lyrics-epoch';
 import { getSavedLyrics, saveLyrics } from './lyrics-store';
 import { getOfflineLyrics, setOfflineLyrics } from './offline';
 
@@ -10,6 +11,7 @@ export async function loadLyrics(
   signal: AbortSignal,
   saveForOffline: boolean,
 ): Promise<LyricsResult> {
+  const started = lyricsGeneration();
   const identity = { id: track.id, title: track.title, artist: track.artist ?? '' };
   const saved = await getSavedLyrics(identity).catch(() => null);
   const kept = saved ? null : await getOfflineLyrics(track.id).catch(() => null);
@@ -23,7 +25,8 @@ export async function loadLyrics(
     throw error;
   }
   if (found.status === 'none' && have) return have;
-  if (found.status !== 'none') {
+  // Lyrics cleared or replaced while this lookup was running must not be put back by it.
+  if (found.status !== 'none' && lyricsGeneration() === started) {
     void setOfflineLyrics(track.id, found).catch(() => undefined);
     if (saveForOffline || saved) void saveLyrics(identity, found).catch(() => undefined);
   }

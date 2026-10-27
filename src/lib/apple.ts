@@ -1,6 +1,6 @@
 import { parseTtml, type XmlParser } from './amll';
 import { HttpError, textFetcher, type TextFetch } from './http';
-import type { Lyrics, LyricsQuery } from './lyric-types';
+import type { LyricsHit, LyricsQuery } from './lyric-types';
 import { lookupCandidates } from './titles';
 
 const ENDPOINT = 'https://lyrics-api.boidu.dev/getLyrics';
@@ -26,7 +26,7 @@ export async function findApple(
   signal?: AbortSignal,
   get: TextFetch = defaultFetch,
   parse?: XmlParser,
-): Promise<{ id: string; lyrics: Lyrics } | null> {
+): Promise<LyricsHit | null> {
   if (applePaused()) throw new HttpError(429, 'Apple Music lookups are paused for a moment');
   const candidates = lookupCandidates(query.title, query.artist)
     .filter((item) => item.artist)
@@ -69,7 +69,7 @@ export async function findApple(
     if (!lyrics || lyrics.mode !== 'word') continue;
     const lastEnd = lyrics.lines[lyrics.lines.length - 1]!.end;
     if (query.duration > 0 && lastEnd > query.duration + 8) continue;
-    return { id: `apple:${key}`, lyrics: { ...lyrics, source: 'apple' } };
+    return { id: `apple:${key}`, lyrics: { ...lyrics, source: 'apple' }, meta: { title: candidate.title, artist: candidate.artist } };
   }
   return null;
 }

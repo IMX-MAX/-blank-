@@ -1337,3 +1337,16 @@ button.lyrics-chip { border: 0; font: inherit; font-size: 12px; cursor: pointer;
   line-height: 1.5;
 }
 .lyrics-why-title { font-weight: 600; color: #fff; margin-bottom: 4px; }
+
+/* Re-search lyrics picker */
+.dialog.research { max-height: calc(100dvh - 48px); }
+.research-list { max-height: min(420px, 56dvh); }
+.research-hit { cursor: pointer; }
+.research-hit:disabled { opacity: 0.6; cursor: default; }
+.research-head { display: flex; align-items: center; gap: 8px; font-weight: 600; }
+.research-chip { font-size: 11.5px; font-weight: 600; padding: 3px 9px; border-radius: 999px; background: var(--hover); color: var(--muted-2); }
+.research-chip.word { background: rgba(230, 200, 74, 0.18); color: var(--gold); }
+.research-preview { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; line-height: 1.35; }
+.research-none { opacity: 0.75; }
+.research-none span { font-weight: 600; }
+.research-none:hover { background: transparent; }

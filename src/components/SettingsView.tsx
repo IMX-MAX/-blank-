@@ -10,7 +10,8 @@ import { useOffline } from '../state/OfflineProvider';
 import { useSettings, type ThemeChoice } from '../state/SettingsProvider';
 import { formatBytes, plural } from '../lib/format';
 import { checkSources, type SourceCheck } from '../lib/lyrics';
-import { clearSavedLyrics, onSavedLyricsChange, saveLyricsFor, savedLyricsTrackIds, type CacheSummary } from '../lib/lyrics-store';
+import { clearAllLyricsCaches } from '../lib/lyrics-cache';
+import { onSavedLyricsChange, saveLyricsFor, savedLyricsTrackIds, type CacheSummary } from '../lib/lyrics-store';
 
 function summaryText(summary: CacheSummary): string {
   if (summary.offline) return `Stopped: couldn\u2019t reach the lyrics services. Saved ${summary.saved}.`;
@@ -62,8 +63,9 @@ function LyricsSettings() {
   };
 
   const clear = async () => {
-    await clearSavedLyrics().catch(() => undefined);
-    setResult(null);
+    const { failed } = await clearAllLyricsCaches();
+    setResult(failed.length ? `Cleared, but couldn\u2019t empty: ${failed.join(', ')}.` : 'Cleared. Lyrics will be looked up again.');
+    refresh();
   };
 
   const check = async () => {
@@ -131,11 +133,9 @@ function LyricsSettings() {
             </button>
           ) : (
             <>
-              {saved ? (
-                <button className="pill-btn" onClick={() => void clear()}>
-                  Clear
-                </button>
-              ) : null}
+              <button className="pill-btn" onClick={() => void clear()}>
+                Clear
+              </button>
               <button className="pill-btn" disabled={!tracks.length || saved >= tracks.length} onClick={() => void download()}>
                 Save all
               </button>

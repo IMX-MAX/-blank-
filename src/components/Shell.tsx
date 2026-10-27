@@ -10,6 +10,7 @@ import { useOffline, useOnline } from '../state/OfflineProvider';
 import { usePlayer } from '../state/PlayerProvider';
 import type { Album, Folder, Track } from '../types';
 import { AlbumView } from './AlbumView';
+import { LyricsResearchDialog } from './LyricsResearch';
 import { LibraryView } from './LibraryView';
 import { navigateWithTransition } from '../lib/transition';
 import { NativeLiveData } from './NativeLiveData';
@@ -39,6 +40,7 @@ type Dialog =
   | { kind: 'delete-album'; album: Album }
   | { kind: 'delete-folder'; folder: Folder }
   | { kind: 'delete-track'; track: Track }
+  | { kind: 'research-lyrics'; track: Track }
   | { kind: 'move'; album: Album }
   | { kind: 'add-playlist'; track: Track }
   | { kind: 'pick-tracks'; playlist: Album };
@@ -255,6 +257,7 @@ export function Shell() {
       { id: 'next', label: 'Play next', onClick: () => player.playNext(track) },
       ...offlineItem([track], track.title),
       { id: 'add', label: 'Add to playlist', onClick: () => setDialog({ kind: 'add-playlist', track }) },
+      { id: 'research-lyrics', label: 'Re-search lyrics', onClick: () => setDialog({ kind: 'research-lyrics', track }) },
     ];
     if (from?.kind === 'playlist') {
       items.push({
@@ -662,6 +665,17 @@ export function Shell() {
             const id = dialog.track.id;
             setDialog(null);
             void run(() => library.deleteTrack(id));
+          }}
+        />
+      ) : null}
+      {dialog?.kind === 'research-lyrics' ? (
+        <LyricsResearchDialog
+          track={dialog.track}
+          album={library.albums.find((item) => item.id === dialog.track.albumId)?.name}
+          onClose={() => setDialog(null)}
+          onSaved={() => {
+            setDialog(null);
+            notify('Lyrics updated');
           }}
         />
       ) : null}

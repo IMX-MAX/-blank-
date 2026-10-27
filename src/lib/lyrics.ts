@@ -3,10 +3,11 @@ import { parse as parseYaml } from 'yaml';
 import { findAmll } from './amll';
 import { findApple } from './apple';
 import { findNcm } from './ncm';
-import { LYRICS_VERSION, type LyricLine, type LyricWord, type Lyrics, type LyricsQuery, type LyricsResult } from './lyric-types';
+import { LYRICS_VERSION, type LyricLine, type LyricsHit, type LyricWord, type Lyrics, type LyricsQuery, type LyricsResult } from './lyric-types';
+import { invalidateLyricsWrites, lyricsFetchInit, lyricsGeneration } from './lyrics-epoch';
 import { clean, lookupCandidates } from './titles';
 
-export type { LyricLine, LyricSource, LyricWord, Lyrics, LyricsQuery, LyricsResult } from './lyric-types';
+export type { LyricLine, LyricSource, LyricWord, Lyrics, LyricsHit, LyricsQuery, LyricsResult, MatchInfo } from './lyric-types';
 export { lookupCandidates };
 
 type LrclibRecord = {
@@ -38,9 +39,60 @@ function cacheKey(q: LyricsQuery): string {
 export function isStale(result: LyricsResult): boolean {
   if (result.status !== 'found') return false;
   const { lyrics } = result;
+  if (lyrics.chosen) return false;
   const v = lyrics.v ?? 0;
   return (lyrics.source === 'amll' && v < 2) || (lyrics.mode !== 'word' && v < LYRICS_VERSION);
 }
+
+/** Every key this file ever wrote to localStorage starts with this, whichever version wrote it. */
+const CACHE_FAMILY = 'blank.lyrics';
+
+function localKeys(): string[] {
+  const keys: string[] = [];
+  for (let index = 0; index < localStorage.length; index += 1) {
+    const key = localStorage.key(index);
+    if (key) keys.push(key);
+  }
+  return keys;
+}
+
+/** Forgets every lookup this app remembers: the in-memory copies and everything in localStorage. */
+export function clearLyricsLookupCache(): void {
+  invalidateLyricsWrites();
+  memory.clear();
+  try {
+    for (const key of localKeys()) if (key.startsWith(CACHE_FAMILY)) localStorage.removeItem(key);
+  } catch {
+    /* storage unavailable: nothing was kept there */
+  }
+}
+
+const trackPrefix = (track: Pick<LyricsQuery, 'title' | 'artist'>) => `${clean(track.artist).toLowerCase()}|${clean(track.title).toLowerCase()}|`;
+
+/** Forgets the remembered lookups of one song (whatever length it was looked up with). */
+export function forgetCachedLyrics(track: Pick<LyricsQuery, 'title' | 'artist'>): void {
+  invalidateLyricsWrites();
+  const prefix = trackPrefix(track);
+  for (const key of [...memory.keys()]) if (key.startsWith(prefix)) memory.delete(key);
+  try {
+    const wanted = CACHE_PREFIX + prefix;
+    for (const key of localKeys()) if (key.startsWith(wanted)) localStorage.removeItem(key);
+    const index: string[] = JSON.parse(localStorage.getItem(CACHE_INDEX) ?? '[]');
+    const kept = index.filter((key) => !key.startsWith(prefix));
+    if (kept.length !== index.length) localStorage.setItem(CACHE_INDEX, JSON.stringify(kept));
+  } catch {
+    /* storage unavailable: nothing was kept there */
+  }
+}
+
+/** Remembers `result` as the answer for this song, replacing whatever was remembered. */
+export function setCachedLyrics(query: LyricsQuery, result: LyricsResult): void {
+  forgetCachedLyrics(query);
+  writeCache(cacheKey(query), result);
+}
+
+/** What is remembered for this song, if anything. */
+export const peekCachedLyrics = (query: LyricsQuery): LyricsResult | null => readCache(cacheKey(query));
 
 function readCache(key: string): LyricsResult | null {
   const hit = memory.get(key);
@@ -207,7 +259,7 @@ class LookupError extends Error {}
 
 async function getJson<T>(url: string, signal?: AbortSignal): Promise<T | null> {
   for (let attempt = 0; ; attempt += 1) {
-    const response = await fetch(url, { signal, headers: { accept: 'application/json' } });
+    const response = await fetch(url, { signal, headers: { accept: 'application/json' }, ...lyricsFetchInit() });
     if (response.status === 404) return null;
     if (response.ok) return (await response.json()) as T;
     if (response.status >= 500 && attempt === 0) {
@@ -285,7 +337,55 @@ async function findLrclib(query: LyricsQuery, signal?: AbortSignal): Promise<Lyr
   return record ? lyricsFromRecord(record) : { status: 'none' };
 }
 
-type Found = { id: string; lyrics: Lyrics };
+export type LrclibHit = LyricsHit | { instrumental: true; id: string };
+
+/** Every usable LRCLIB record for a song, best first, for the re-search picker. Throws when LRCLIB could not be reached. */
+export async function findLrclibAll(query: LyricsQuery, signal?: AbortSignal, limit = 3): Promise<LrclibHit[]> {
+  const usable = (item: LrclibRecord | null): item is LrclibRecord =>
+    !!item && !!(item.instrumental || item.syncedLyrics || item.lyricsfile || item.plainLyrics);
+  const records = new Map<number, LrclibRecord>();
+  let failed = 0;
+  let asked = 0;
+  const attempt = async (work: () => Promise<LrclibRecord[]>) => {
+    asked += 1;
+    try {
+      for (const record of await work()) if (usable(record) && !records.has(record.id)) records.set(record.id, record);
+    } catch (err) {
+      if (signal?.aborted) throw err;
+      failed += 1;
+    }
+  };
+
+  const candidates = lookupCandidates(query.title, query.artist).slice(0, 3);
+  for (const candidate of candidates) {
+    const params = new URLSearchParams({ track_name: candidate.title });
+    if (candidate.artist) params.set('artist_name', candidate.artist);
+    await attempt(async () => (await getJson<LrclibRecord[]>(`${BASE}/search?${params}`, signal)) ?? []);
+  }
+  const free = candidates[0]?.title;
+  if (free) await attempt(async () => (await getJson<LrclibRecord[]>(`${BASE}/search?${new URLSearchParams({ q: free })}`, signal)) ?? []);
+
+  if (!records.size && failed === asked && asked > 0) throw new LookupError('LRCLIB is not responding');
+  const ranked = [...records.values()]
+    .sort((a, b) => rank(b, query.duration) - rank(a, query.duration))
+    .filter((record) => rank(record, query.duration) > -40)
+    .slice(0, limit);
+  const out: LrclibHit[] = [];
+  for (const record of ranked) {
+    const result = lyricsFromRecord(record);
+    if (result.status === 'instrumental') out.push({ instrumental: true, id: String(record.id) });
+    else if (result.status === 'found') {
+      out.push({
+        id: String(record.id),
+        lyrics: result.lyrics,
+        meta: { title: record.trackName, artist: record.artistName, duration: record.duration },
+      });
+    }
+  }
+  return out;
+}
+
+type Found = LyricsHit;
 
 /** Tried in this order; the first one that times every word wins. */
 export const WORD_SOURCES: Array<{
@@ -332,6 +432,7 @@ export async function findLyrics(query: LyricsQuery, signal?: AbortSignal): Prom
   const key = cacheKey(query);
   const cached = readCache(key);
   if (cached) return cached;
+  const started = lyricsGeneration();
 
   let timed: Found | null = null;
   let fallback: Found | null = null;
@@ -377,7 +478,8 @@ export async function findLyrics(query: LyricsQuery, signal?: AbortSignal): Prom
     result = { ...result, lyrics: { ...result.lyrics, v } };
   }
 
-  if (gotWords || !sourceFailed) writeCache(key, result);
+  // Lyrics cleared or replaced while this lookup was running must not be put back by it.
+  if ((gotWords || !sourceFailed) && lyricsGeneration() === started) writeCache(key, result);
   return result;
 }
 

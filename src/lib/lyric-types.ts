@@ -46,6 +46,8 @@ export type Lyrics = {
   mode: 'word' | 'line' | 'plain';
   /** Word timings were spread across a line-timed source rather than read from it. */
   estimated?: boolean;
+  /** Picked by hand from the re-search list, so a newer lookup never replaces it on its own. */
+  chosen?: boolean;
   source: LyricSource;
   lines: LyricLine[];
 };
@@ -61,3 +63,9 @@ export type LyricsQuery = {
   album?: string;
   duration: number;
 };
+
+/** What a source says it matched, when it says anything. Duration is in seconds. */
+export type MatchInfo = { title?: string; artist?: string; duration?: number };
+
+/** One lyrics file found by one source. */
+export type LyricsHit = { id: string; lyrics: Lyrics; meta?: MatchInfo };

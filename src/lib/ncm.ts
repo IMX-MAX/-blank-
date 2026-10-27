@@ -1,6 +1,6 @@
 import { artistTokens, norm } from './amll';
 import { textFetcher, type TextFetch } from './http';
-import { LYRICS_VERSION, type BackingLine, type LyricLine, type LyricWord, type Lyrics, type LyricsQuery } from './lyric-types';
+import { LYRICS_VERSION, type BackingLine, type LyricLine, type LyricsHit, type LyricWord, type Lyrics, type LyricsQuery } from './lyric-types';
 import { lookupCandidates } from './titles';
 
 const SEARCH = 'https://music.163.com/api/search/get';
@@ -176,7 +176,7 @@ export async function findNcm(
   query: LyricsQuery,
   signal?: AbortSignal,
   get: TextFetch = defaultFetch,
-): Promise<{ id: string; lyrics: Lyrics } | null> {
+): Promise<LyricsHit | null> {
   const candidates = lookupCandidates(query.title, query.artist).slice(0, 2);
   const tried = new Set<number>();
   for (const candidate of candidates) {
@@ -200,7 +200,15 @@ export async function findNcm(
       const lastEnd = parsed.lines[parsed.lines.length - 1]!.end;
       if (query.duration > 0 && lastEnd > query.duration + 8) continue;
       const spaced = restoreSpaces(parsed, parseReadings(entry?.lrc?.lyric));
-      return { id: `ncm:${song.id}`, lyrics: attachReadings(spaced, parseReadings(entry?.romalrc?.lyric)) };
+      return {
+        id: `ncm:${song.id}`,
+        lyrics: attachReadings(spaced, parseReadings(entry?.romalrc?.lyric)),
+        meta: {
+          title: song.name,
+          artist: (song.artists ?? []).map((item) => item.name).filter(Boolean).join(', ') || undefined,
+          duration: song.duration ? song.duration / 1000 : undefined,
+        },
+      };
     }
   }
   return null;

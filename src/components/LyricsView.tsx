@@ -6,6 +6,7 @@ import { addPronunciation } from '../lib/romanize';
 import { loadLyrics } from '../lib/lyrics-load';
 import { useLibrary } from '../state/LibraryProvider';
 import { usePlayer } from '../state/PlayerProvider';
+import { useLyricsVersion } from '../state/useLyricsVersion';
 import type { Track } from '../types';
 import { coverFor } from '../lib/covers';
 import { setKeepAwake } from '../lib/keep-awake';
@@ -17,6 +18,8 @@ type State = { status: 'loading' } | { status: 'error' } | LyricsResult;
 function useLyrics(track: Track | null, album: string | undefined) {
   const [state, setState] = useState<State>({ status: 'loading' });
   const [attempt, setAttempt] = useState(0);
+  // Goes up when cached lyrics are cleared or a different lyric is picked: load them again.
+  const version = useLyricsVersion();
   const { cacheLyrics } = useSettings();
   const cacheRef = useRef(cacheLyrics);
   cacheRef.current = cacheLyrics;
@@ -37,7 +40,7 @@ function useLyrics(track: Track | null, album: string | undefined) {
         if (!controller.signal.aborted) setState({ status: 'error' });
       });
     return () => controller.abort();
-  }, [trackId, title, artist, album, durationMs, attempt]);
+  }, [trackId, title, artist, album, durationMs, attempt, version]);
 
   return { state, retry: () => setAttempt((n) => n + 1) };
 }

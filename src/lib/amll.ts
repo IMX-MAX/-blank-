@@ -1,4 +1,5 @@
-import { LYRICS_VERSION, type LyricLine, type LyricWord, type Lyrics, type LyricsQuery } from './lyric-types';
+import { LYRICS_VERSION, type LyricLine, type LyricsHit, type LyricWord, type Lyrics, type LyricsQuery } from './lyric-types';
+import { lyricsFetchInit } from './lyrics-epoch';
 import { lookupCandidates } from './titles';
 
 const BASE = 'https://api.amll.dev/api/v1/lyrics';
@@ -274,7 +275,7 @@ export function scoreItem(item: SearchItem, title: string, artist: string): numb
 }
 
 async function getJson<T>(url: string, signal?: AbortSignal): Promise<T | null> {
-  const response = await fetch(url, { signal, headers: { accept: 'application/json' } });
+  const response = await fetch(url, { signal, headers: { accept: 'application/json' }, ...lyricsFetchInit() });
   if (response.status === 404) return null;
   if (!response.ok) throw new Error(`AMLL lookup failed (${response.status})`);
   return ((await response.json()) as { data?: T }).data ?? null;
@@ -288,7 +289,7 @@ export async function findAmll(
   query: LyricsQuery,
   signal?: AbortSignal,
   parse: XmlParser = browserParser,
-): Promise<{ id: string; lyrics: Lyrics } | null> {
+): Promise<LyricsHit | null> {
   const candidates = lookupCandidates(query.title, query.artist).slice(0, 3);
   const tried = new Set<string>();
   for (const candidate of candidates) {
@@ -314,7 +315,11 @@ export async function findAmll(
       const lastEnd = lyrics.lines[lyrics.lines.length - 1]!.end;
       // A transcription that runs well past the file is a different recording.
       if (query.duration > 0 && lastEnd > query.duration + 8) continue;
-      return { id: String(item.id), lyrics };
+      return {
+        id: String(item.id),
+        lyrics,
+        meta: { title: item.musicNames?.[0], artist: item.artistNames?.join(', ') || undefined },
+      };
     }
   }
   return null;

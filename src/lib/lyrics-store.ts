@@ -81,6 +81,15 @@ export async function clearSavedLyrics(): Promise<void> {
   changed();
 }
 
+/** Forgets the saved lyrics of these songs. */
+export async function deleteSavedLyrics(trackIds: string[]): Promise<void> {
+  if (!trackIds.length) return;
+  await run('readwrite', async (store) => {
+    for (const id of trackIds) await wrap(store.delete(id));
+  });
+  changed();
+}
+
 export type CacheSummary = {
   saved: number;
   missing: number;
