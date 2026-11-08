@@ -117,17 +117,45 @@ export function restoreSpaces(lyrics: Lyrics, plain: Array<{ start: number; text
   return { ...lyrics, lines };
 }
 
+/** The row that starts closest to `start`, when it is close enough to belong to the same line. */
+function nearest(rows: Array<{ start: number; text: string }>, start: number): { start: number; text: string } | null {
+  let best: { start: number; text: string } | null = null;
+  for (const row of rows) {
+    if (Math.abs(row.start - start) <= 0.8 && (!best || Math.abs(row.start - start) < Math.abs(best.start - start))) best = row;
+  }
+  return best;
+}
+
 /** Attaches a reading to the line that starts closest to it, when it is close enough to be the same line. */
 export function attachReadings(lyrics: Lyrics, readings: Array<{ start: number; text: string }>): Lyrics {
   if (!readings.length) return lyrics;
   const lines = lyrics.lines.map((line) => {
-    let best: { start: number; text: string } | null = null;
-    for (const reading of readings) {
-      if (Math.abs(reading.start - line.start) <= 0.8 && (!best || Math.abs(reading.start - line.start) < Math.abs(best.start - line.start))) best = reading;
-    }
+    const best = nearest(readings, line.start);
     return best ? { ...line, roman: best.text } : line;
   });
   return { ...lyrics, lines };
+}
+
+/** NetEase leaves `//` (or a lone slash) where a line has no translation. */
+const EMPTY_TRANSLATION = /^[/\s]*$/;
+
+/**
+ * Attaches NetEase's `tlyric` (a line-timed Chinese translation) to the line that starts at the same time. The
+ * translation of a line whose ad-lib was split off covers both, so it stays with the main line. Lines that already
+ * have a translation keep it, so a second, less exact list can fill the gaps of the first.
+ */
+export function attachTranslations(lyrics: Lyrics, rows: Array<{ start: number; text: string }>, lang = 'zh-CN'): Lyrics {
+  const usable = rows.filter((row) => !EMPTY_TRANSLATION.test(row.text));
+  if (!usable.length) return lyrics;
+  let any = false;
+  const lines = lyrics.lines.map((line) => {
+    if (line.translation) return line;
+    const best = nearest(usable, line.start);
+    if (!best) return line;
+    any = true;
+    return { ...line, translation: best.text };
+  });
+  return any ? { ...lyrics, lines, translation: { lang, by: 'source' } } : lyrics;
 }
 
 type NcmSong = {
@@ -192,8 +220,8 @@ export async function findNcm(
     for (const { song } of ranked) {
       if (tried.has(song.id)) continue;
       tried.add(song.id);
-      const entry = json<{ yrc?: { lyric?: string }; lrc?: { lyric?: string }; romalrc?: { lyric?: string } }>(
-        await get(`${LYRIC}?${new URLSearchParams({ id: String(song.id), lv: '1', yv: '1', rv: '1' })}`, signal),
+      const entry = json<{ yrc?: { lyric?: string }; lrc?: { lyric?: string }; romalrc?: { lyric?: string }; tlyric?: { lyric?: string }; ytlrc?: { lyric?: string } }>(
+        await get(`${LYRIC}?${new URLSearchParams({ id: String(song.id), lv: '1', yv: '1', rv: '1', tv: '-1' })}`, signal),
       );
       const parsed = entry?.yrc?.lyric ? parseYrc(entry.yrc.lyric) : null;
       if (!parsed) continue;
@@ -202,7 +230,11 @@ export async function findNcm(
       const spaced = restoreSpaces(parsed, parseReadings(entry?.lrc?.lyric));
       return {
         id: `ncm:${song.id}`,
-        lyrics: attachReadings(spaced, parseReadings(entry?.romalrc?.lyric)),
+        // `ytlrc` is timed like the word lyric but can skip lines; `tlyric` is timed like the plain lyric.
+        lyrics: attachTranslations(
+          attachTranslations(attachReadings(spaced, parseReadings(entry?.romalrc?.lyric)), parseReadings(entry?.ytlrc?.lyric)),
+          parseReadings(entry?.tlyric?.lyric),
+        ),
         meta: {
           title: song.name,
           artist: (song.artists ?? []).map((item) => item.name).filter(Boolean).join(', ') || undefined,

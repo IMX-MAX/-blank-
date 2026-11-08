@@ -4,6 +4,9 @@ import { activeLineIndex, checkSources, type SourceCheck, type LyricLine, type L
 import { withEstimatedWords } from '../lib/estimate';
 import { addPronunciation } from '../lib/romanize';
 import { loadLyrics } from '../lib/lyrics-load';
+import { saveTranslatedLyrics } from '../lib/lyrics-cache';
+import { lyricsGeneration } from '../lib/lyrics-epoch';
+import { deviceLanguage, hasTranslationFor, machineTranslate, needsMachineTranslation } from '../lib/translate';
 import { useLibrary } from '../state/LibraryProvider';
 import { usePlayer } from '../state/PlayerProvider';
 import { useLyricsVersion } from '../state/useLyricsVersion';
@@ -98,6 +101,21 @@ function wordSpans(
   ));
 }
 
+/** Puts the translations of `from` on the same lines of `onto` (the same lyrics, with readings or estimated words added). */
+function withTranslations(onto: Lyrics, from: Lyrics): Lyrics {
+  if (onto === from || onto.lines.length !== from.lines.length) return onto === from ? onto : { ...onto, translation: undefined };
+  return {
+    ...onto,
+    translation: from.translation,
+    lines: onto.lines.map((line, index) => {
+      const source = from.lines[index]!;
+      const next: LyricLine = { ...line, translation: source.translation };
+      if (next.bg) next.bg = { ...next.bg, translation: source.bg?.translation };
+      return next;
+    }),
+  };
+}
+
 type RowProps = {
   line: LyricLine;
   index: number;
@@ -105,11 +123,13 @@ type RowProps = {
   status: 'hot' | 'past' | 'future' | 'plain';
   distance: number;
   synced: boolean;
+  /** Draw the translation under the line. */
+  translated: boolean;
   seek: (time: number) => void;
   register: (item: number, element: HTMLElement | null) => void;
 };
 
-const Row = memo(function Row({ line, index, item, status, distance, synced, seek, register }: RowProps) {
+const Row = memo(function Row({ line, index, item, status, distance, synced, translated, seek, register }: RowProps) {
   const classes = ['ly', status];
   if (line.align) classes.push(line.align);
   if (line.backing) classes.push('backing');
@@ -127,10 +147,12 @@ const Row = memo(function Row({ line, index, item, status, distance, synced, see
       <div className="ly-in">
         <div className="ly-main">{words ? wordSpans(words, line.romanGroups) : line.text}</div>
         {line.roman ? <div className="ly-roman">{line.roman}</div> : null}
+        {translated && line.translation ? <div className="ly-tr">{line.translation}</div> : null}
         {bg ? (
           <div className="ly-bg">
             <div className="ly-main">{bg.words.length ? wordSpans(bg.words, undefined) : bg.text}</div>
             {bg.roman ? <div className="ly-roman">{bg.roman}</div> : null}
+            {translated && bg.translation ? <div className="ly-tr">{bg.translation}</div> : null}
           </div>
         ) : null}
       </div>
@@ -152,7 +174,7 @@ export function LyricsView() {
   const player = usePlayer();
   const { albums } = useLibrary();
   const track = player.track;
-  const { songCovers, keepAwake, pronunciation, estimateWords } = useSettings();
+  const { songCovers, keepAwake, pronunciation, estimateWords, translation: translationOn } = useSettings();
   const album = albums.find((item) => item.id === track?.albumId);
   const { state, retry } = useLyrics(track, album?.name);
   const found = state.status === 'found' ? state.lyrics : null;
@@ -169,6 +191,31 @@ export function LyricsView() {
       .catch(() => setWhy(null));
   };
   useEffect(() => setWhy(null), [track?.id]);
+
+  // Lyrics with no translation in the phone's language get one from Google Translate, which is then saved in the
+  // same cache entries as the lyrics, so it opens offline with them and is cleared with them.
+  const target = useMemo(() => deviceLanguage(), []);
+  const [machine, setMachine] = useState<{ source: Lyrics; lyrics: Lyrics } | null>(null);
+  const foundResult = state.status === 'found' ? state : null;
+  useEffect(() => {
+    setMachine(null);
+    if (!foundResult || !track || !translationOn || !needsMachineTranslation(foundResult.lyrics, target)) return;
+    if (typeof navigator !== 'undefined' && navigator.onLine === false) return;
+    const controller = new AbortController();
+    const started = lyricsGeneration();
+    const song = { id: track.id, title: track.title, artist: track.artist ?? '' };
+    machineTranslate(foundResult.lyrics, target, undefined, controller.signal)
+      .then((lyrics) => {
+        if (controller.signal.aborted) return;
+        setMachine({ source: foundResult.lyrics, lyrics });
+        void saveTranslatedLyrics(song, { ...foundResult, lyrics }, started).catch(() => undefined);
+      })
+      .catch(() => undefined);
+    return () => controller.abort();
+    // The track is read for its tags only; a new track always brings new lyrics.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [foundResult, translationOn, target]);
+  const withMachine = found && machine && machine.source === found ? machine.lyrics : found;
   const base = useMemo(() => (found && estimateWords ? withEstimatedWords(found) : found), [found, estimateWords]);
 
   const [enriched, setEnriched] = useState<{ source: Lyrics; lyrics: Lyrics } | null>(null);
@@ -185,7 +232,9 @@ export function LyricsView() {
       cancelled = true;
     };
   }, [base, pronunciation]);
-  const lyrics = enriched && enriched.source === base ? enriched.lyrics : base;
+  const shown = enriched && enriched.source === base ? enriched.lyrics : base;
+  const lyrics = useMemo(() => (shown && withMachine ? withTranslations(shown, withMachine) : shown), [shown, withMachine]);
+  const translated = translationOn && lyrics !== null && hasTranslationFor(lyrics, target);
   const synced = lyrics !== null && lyrics.mode !== 'plain';
 
   useEffect(() => {
@@ -355,8 +404,8 @@ export function LyricsView() {
   useEffect(() => {
     if (!synced || !aligned.current) return;
     alignTo(viewRef.current.dots >= 0 ? viewRef.current.dots : (itemOfLine.get(viewRef.current.anchor) ?? 0), 'instant');
-    // A reading appearing under the words makes the rows taller.
-  }, [enriched, synced, itemOfLine, alignTo]);
+    // A reading or a translation appearing under the words makes the rows taller.
+  }, [enriched, machine, translated, synced, itemOfLine, alignTo]);
 
   const holdAutoScroll = useCallback(() => {
     holdScrollUntil.current = Date.now() + 2800;
@@ -463,11 +512,13 @@ export function LyricsView() {
                   status={status}
                   distance={status === 'hot' ? 0 : Math.min(Math.abs(item.index - view.anchor), 6)}
                   synced={synced}
+                  translated={translated}
                   seek={seek}
                   register={register}
                 />
               );
             })}
+            {translated && lyrics.translation?.by === 'machine' ? <div className="lyrics-credit">Translated by Google</div> : null}
           </div>
         ) : null}
       </div>

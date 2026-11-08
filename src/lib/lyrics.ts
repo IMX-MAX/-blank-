@@ -35,13 +35,26 @@ function cacheKey(q: LyricsQuery): string {
   return `${clean(q.artist).toLowerCase()}|${clean(q.title).toLowerCase()}|${Math.round(q.duration)}`;
 }
 
-/** A copy saved before a better lookup existed: AMLL files without backing vocals, and anything without word timing. */
+/** Version 4 is when lookups started finding word timing for most songs. */
+const WORD_LOOKUP_VERSION = 4;
+/** Version 5 is when translations started being read from the sources that write them. */
+const TRANSLATION_VERSION = 5;
+const TRANSLATING_SOURCES = new Set(['amll', 'apple', 'ncm']);
+
+/**
+ * A copy saved before a better lookup existed: AMLL files without backing vocals, anything without word timing,
+ * and copies from a source that writes translations, saved before those were read.
+ */
 export function isStale(result: LyricsResult): boolean {
   if (result.status !== 'found') return false;
   const { lyrics } = result;
   if (lyrics.chosen) return false;
   const v = lyrics.v ?? 0;
-  return (lyrics.source === 'amll' && v < 2) || (lyrics.mode !== 'word' && v < LYRICS_VERSION);
+  return (
+    (lyrics.source === 'amll' && v < 2) ||
+    (lyrics.mode !== 'word' && v < WORD_LOOKUP_VERSION) ||
+    (TRANSLATING_SOURCES.has(lyrics.source) && v < TRANSLATION_VERSION)
+  );
 }
 
 /** Every key this file ever wrote to localStorage starts with this, whichever version wrote it. */
@@ -89,6 +102,35 @@ export function forgetCachedLyrics(track: Pick<LyricsQuery, 'title' | 'artist'>)
 export function setCachedLyrics(query: LyricsQuery, result: LyricsResult): void {
   forgetCachedLyrics(query);
   writeCache(cacheKey(query), result);
+}
+
+/**
+ * Puts a newer copy of the same lyrics (the same file, with a translation added) in place of the remembered one,
+ * wherever this song is remembered, without remembering it anew. Returns whether anything was replaced.
+ */
+export function replaceCachedLyrics(track: Pick<LyricsQuery, 'title' | 'artist'>, result: Extract<LyricsResult, { status: 'found' }>): boolean {
+  const prefix = trackPrefix(track);
+  const same = (old: LyricsResult | undefined) => old?.status === 'found' && String(old.id) === String(result.id);
+  let replaced = false;
+  for (const [key, old] of memory) {
+    if (key.startsWith(prefix) && same(old)) {
+      memory.set(key, result);
+      replaced = true;
+    }
+  }
+  try {
+    const wanted = CACHE_PREFIX + prefix;
+    for (const key of localKeys()) {
+      if (!key.startsWith(wanted)) continue;
+      const entry = JSON.parse(localStorage.getItem(key) ?? 'null') as { at: number; result: LyricsResult } | null;
+      if (!entry || !same(entry.result)) continue;
+      localStorage.setItem(key, JSON.stringify({ at: entry.at, result }));
+      replaced = true;
+    }
+  } catch {
+    /* storage full or unavailable: the in-memory copy still has it */
+  }
+  return replaced;
 }
 
 /** What is remembered for this song, if anything. */
@@ -474,7 +516,7 @@ export async function findLyrics(query: LyricsQuery, signal?: AbortSignal): Prom
   const gotWords = result.status === 'found' && result.lyrics.mode === 'word';
   if (result.status === 'found') {
     // A copy found while a word-timed source was down is marked old so the next open tries again.
-    const v = sourceFailed && !gotWords ? LYRICS_VERSION - 1 : (result.lyrics.v ?? LYRICS_VERSION);
+    const v = sourceFailed && !gotWords ? WORD_LOOKUP_VERSION - 1 : (result.lyrics.v ?? LYRICS_VERSION);
     result = { ...result, lyrics: { ...result.lyrics, v } };
   }
 

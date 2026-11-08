@@ -1,9 +1,9 @@
 import type { Track } from '../types';
 import { LYRICS_VERSION, type Lyrics, type LyricsResult } from './lyric-types';
-import { clearLyricsLookupCache, forgetCachedLyrics, setCachedLyrics } from './lyrics';
-import { announceLyricsChange, invalidateLyricsWrites, markLyricsHttpStale } from './lyrics-epoch';
-import { clearSavedLyrics, deleteSavedLyrics, saveLyrics } from './lyrics-store';
-import { clearOfflineLyrics, removeOffline, setOfflineLyrics } from './offline';
+import { clearLyricsLookupCache, forgetCachedLyrics, replaceCachedLyrics, setCachedLyrics } from './lyrics';
+import { announceLyricsChange, invalidateLyricsWrites, lyricsGeneration, markLyricsHttpStale } from './lyrics-epoch';
+import { clearSavedLyrics, deleteSavedLyrics, getSavedLyrics, saveLyrics } from './lyrics-store';
+import { clearOfflineLyrics, getOfflineLyrics, removeOffline, setOfflineLyrics } from './offline';
 
 /**
  * Every place a lyric can be kept, and the one way to empty each of them:
@@ -12,6 +12,9 @@ import { clearOfflineLyrics, removeOffline, setOfflineLyrics } from './offline';
  *   2. IndexedDB `blank-lyrics`                        (lyrics-store.ts, "save for offline" / pinned copies)
  *   3. IndexedDB `blank-offline` tracks[].lyrics       (offline.ts, lyrics stored with a downloaded song)
  *   4. service-worker / Cache Storage entries of the lyrics services (nothing is put there today)
+ *   Translations live on the lines of the lyrics themselves (`LyricLine.translation`), so every layer keeps them in
+ *   the same entry as the lyrics and empties them with it.
+ *
  *   5. what the screens hold: LyricsView state and the lines handed to the Glyph Matrix service; both load
  *      again when `announceLyricsChange` fires.
  */
@@ -80,4 +83,25 @@ export async function saveChosenLyrics(
   const settled = await Promise.allSettled([saveLyrics({ id: track.id, title: track.title, artist }, chosen), setOfflineLyrics(track.id, chosen)]);
   announceLyricsChange();
   if (settled[0].status === 'rejected') throw settled[0].reason;
+}
+
+type Found = Extract<LyricsResult, { status: 'found' }>;
+
+/**
+ * Stores lyrics that gained a translation in every layer that already holds this song's lyrics (the same file),
+ * so the translation opens offline with them and goes when they are cleared. Layers without the song stay empty,
+ * and nothing is written when the lyrics were cleared or replaced after `started` (a `lyricsGeneration()` value).
+ */
+export async function saveTranslatedLyrics(track: Pick<Track, 'id' | 'title' | 'artist'>, result: Found, started: number): Promise<void> {
+  if (lyricsGeneration() !== started) return;
+  const artist = track.artist ?? '';
+  const identity = { id: track.id, title: track.title, artist };
+  const same = (old: LyricsResult | null) => old?.status === 'found' && String(old.id) === String(result.id);
+  replaceCachedLyrics({ title: track.title, artist }, result);
+  const [saved, kept] = await Promise.all([getSavedLyrics(identity).catch(() => null), getOfflineLyrics(track.id).catch(() => null)]);
+  if (lyricsGeneration() !== started) return;
+  await Promise.allSettled([
+    same(saved) ? saveLyrics(identity, result) : null,
+    same(kept) ? setOfflineLyrics(track.id, result) : null,
+  ]);
 }

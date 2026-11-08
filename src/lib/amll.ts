@@ -1,6 +1,7 @@
 import { LYRICS_VERSION, type LyricLine, type LyricsHit, type LyricWord, type Lyrics, type LyricsQuery } from './lyric-types';
 import { lyricsFetchInit } from './lyrics-epoch';
 import { lookupCandidates } from './titles';
+import { deviceLanguage, sameLanguage } from './translate';
 
 const BASE = 'https://api.amll.dev/api/v1/lyrics';
 
@@ -145,8 +146,69 @@ function readingGroups(line: LyricLine, spans: Reading[] | undefined) {
   return groups;
 }
 
+type Translated = { lang: string; text: string; bg?: string };
+
+const BG_ROLE = new Set(['x-bg']);
+
+/** Text of an element, leaving out what sits inside spans with the roles. */
+function textWithout(el: Element, roles: Set<string>): string {
+  let out = '';
+  for (const node of Array.from(el.childNodes)) {
+    if (node.nodeType === 3) out += node.textContent ?? '';
+    else if (isElement(node) && !roles.has(roleOf(node))) out += textWithout(node, roles);
+  }
+  return out.replace(/\s+/g, ' ').trim();
+}
+
+const stripBrackets = (text: string) => text.replace(/^\s*[(\uFF08]\s*/, '').replace(/\s*[)\uFF09]\s*$/, '').trim();
+
+/** AMLL writes translations inline: `<span ttm:role="x-translation" xml:lang="zh-CN">`, also inside backing vocals. */
+function inlineTranslations(p: Element, docLang: string): Translated[] {
+  const out = new Map<string, Translated>();
+  for (const span of Array.from(p.getElementsByTagName('span'))) {
+    if (roleOf(span) !== 'x-translation') continue;
+    const text = (span.textContent ?? '').replace(/\s+/g, ' ').trim();
+    if (!text) continue;
+    const lang = attr(span, 'lang') ?? docLang;
+    const entry = out.get(lang) ?? { lang, text: '' };
+    if (insideRole(span, p, BG_ROLE)) entry.bg = [entry.bg, stripBrackets(text)].filter(Boolean).join(' ');
+    else entry.text = [entry.text, text].filter(Boolean).join(' ');
+    out.set(lang, entry);
+  }
+  return [...out.values()];
+}
+
+/** Apple's `<translations>`: one `<translation xml:lang>` per language, a `<text for="L1">` per line key. */
+function translationBlocks(doc: Document): Array<{ lang: string; lines: Map<string, Omit<Translated, 'lang'>> }> {
+  const out: Array<{ lang: string; lines: Map<string, Omit<Translated, 'lang'>> }> = [];
+  for (const block of Array.from(doc.getElementsByTagName('translation'))) {
+    const lang = attr(block, 'lang') ?? '';
+    const lines = new Map<string, Omit<Translated, 'lang'>>();
+    for (const entry of Array.from(block.getElementsByTagName('text'))) {
+      const key = attr(entry, 'for');
+      if (!key) continue;
+      const text = textWithout(entry, BG_ROLE);
+      const bg = Array.from(entry.getElementsByTagName('span'))
+        .filter((span) => roleOf(span) === 'x-bg')
+        .map((span) => stripBrackets((span.textContent ?? '').replace(/\s+/g, ' ')))
+        .filter(Boolean)
+        .join(' ');
+      if (text || bg) lines.set(key, { text, ...(bg ? { bg } : {}) });
+    }
+    if (lines.size) out.push({ lang, lines });
+  }
+  return out;
+}
+
+/** Of the languages a file has translations in, the reader's own, or else the one most lines have. */
+function pickLanguage(counts: Map<string, number>, preferred: string): string | null {
+  const langs = [...counts.keys()];
+  if (!langs.length) return null;
+  return langs.find((lang) => sameLanguage(lang, preferred)) ?? langs.sort((a, b) => counts.get(b)! - counts.get(a)!)[0]!;
+}
+
 /** Parses an Apple/AMLL style TTML document. Word timing is kept only when the file actually has it. */
-export function parseTtml(source: string, parse: XmlParser = browserParser): Lyrics | null {
+export function parseTtml(source: string, parse: XmlParser = browserParser, preferred: string = deviceLanguage()): Lyrics | null {
   let doc: Document;
   try {
     doc = parse(source);
@@ -157,8 +219,9 @@ export function parseTtml(source: string, parse: XmlParser = browserParser): Lyr
 
   const paragraphs = Array.from(doc.getElementsByTagName('p'));
   const agents: string[] = [];
-  const raw: Array<LyricLine & { agent: string | null; key: string | null }> = [];
+  const raw: Array<LyricLine & { agent: string | null; key: string | null; inline: Translated[] }> = [];
   let anyWords = false;
+  const docLang = attr(doc.documentElement, 'lang') ?? '';
 
   for (const p of paragraphs) {
     const begin = parseClock(attr(p, 'begin'));
@@ -210,7 +273,15 @@ export function parseTtml(source: string, parse: XmlParser = browserParser): Lyr
         : undefined;
     const lineEnd = Math.max(lineStart + 0.1, end ?? 0, ...timed.map((word) => word.end));
     if (agent && !agents.includes(agent)) agents.push(agent);
-    const line: LyricLine & { agent: string | null; key: string | null } = { text, start: lineStart, end: lineEnd, words: timed, agent, key };
+    const line: LyricLine & { agent: string | null; key: string | null; inline: Translated[] } = {
+      text,
+      start: lineStart,
+      end: lineEnd,
+      words: timed,
+      agent,
+      key,
+      inline: inlineTranslations(p, docLang),
+    };
     if (backingOnly) line.backing = true;
     if (backing.length) {
       anyWords = true;
@@ -227,15 +298,35 @@ export function parseTtml(source: string, parse: XmlParser = browserParser): Lyr
   raw.sort((a, b) => a.start - b.start);
   const duet = agents.length > 1;
   const readings = transliterations(doc);
-  const lines: LyricLine[] = raw.map(({ agent, key, ...line }) => {
+  const inlineCounts = new Map<string, number>();
+  for (const line of raw) for (const item of line.inline) inlineCounts.set(item.lang, (inlineCounts.get(item.lang) ?? 0) + 1);
+  const blocks = translationBlocks(doc);
+  const blockCounts = new Map(blocks.map((block) => [block.lang, block.lines.size]));
+  // A block in the reader's language wins over inline ones in another; otherwise inline ones come first.
+  const inlineLang = pickLanguage(inlineCounts, preferred);
+  const blockLang = pickLanguage(blockCounts, preferred);
+  const useBlock = blockLang !== null && (inlineLang === null || (sameLanguage(blockLang, preferred) && !sameLanguage(inlineLang, preferred)));
+  const translationLang = useBlock ? blockLang : inlineLang;
+  const block = useBlock ? blocks.find((item) => item.lang === blockLang) : undefined;
+
+  const lines: LyricLine[] = raw.map(({ agent, key, inline, ...line }) => {
     const groups = key && !line.romanGroups ? readingGroups(line, readings.get(key)) : null;
-    return {
+    const translated = block ? (key ? block.lines.get(key) : undefined) : inline.find((item) => item.lang === translationLang);
+    const next: LyricLine = {
       ...line,
       ...(groups ? { romanGroups: groups, roman: undefined } : {}),
       ...(duet && agent && agent !== agents[0] ? { align: 'right' as const } : {}),
     };
+    if (translated?.text) next.translation = translated.text;
+    if (translated?.bg && next.bg) next.bg = { ...next.bg, translation: translated.bg };
+    else if (translated?.bg && next.backing && !next.translation) next.translation = translated.bg;
+    return next;
   });
-  return { v: LYRICS_VERSION, mode: anyWords ? 'word' : 'line', source: 'amll', lines };
+  const lyrics: Lyrics = { v: LYRICS_VERSION, mode: anyWords ? 'word' : 'line', source: 'amll', lines };
+  if (translationLang !== null && lines.some((line) => line.translation || line.bg?.translation)) {
+    lyrics.translation = { lang: translationLang || docLang || 'und', by: 'source' };
+  }
+  return lyrics;
 }
 
 type SearchItem = {

@@ -255,6 +255,8 @@ export function SettingsView({
     setKeepAwake,
     pronunciation,
     setPronunciation,
+    translation,
+    setTranslation,
   } = useSettings();
 
   return (
@@ -370,6 +372,24 @@ export function SettingsView({
             aria-checked={pronunciation}
             aria-label="Show pronunciation"
             onClick={() => setPronunciation(!pronunciation)}
+          >
+            <span />
+          </button>
+        </div>
+        <div className="settings-row">
+          <div>
+            <div className="settings-label">Show translation</div>
+            <div className="settings-hint">
+              A translation under lyrics in another language, from the lyrics source or, failing that, Google Translate. It is
+              saved with the song&rsquo;s lyrics.
+            </div>
+          </div>
+          <button
+            className={translation ? 'switch on' : 'switch'}
+            role="switch"
+            aria-checked={translation}
+            aria-label="Show translation"
+            onClick={() => setTranslation(!translation)}
           >
             <span />
           </button>

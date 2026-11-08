@@ -10,6 +10,8 @@ export type BackingLine = {
   end: number;
   words: LyricWord[];
   roman?: string;
+  /** Translation of the backing vocals, in `Lyrics.translation.lang`. */
+  translation?: string;
 };
 
 export type LyricLine = {
@@ -22,6 +24,8 @@ export type LyricLine = {
   roman?: string;
   /** Pronunciation under each group of words. Covers every word when present. */
   romanGroups?: RomanGroup[];
+  /** The line in another language, in `Lyrics.translation.lang`. Shown under the pronunciation. */
+  translation?: string;
   /** Backing vocals sung with this line. */
   bg?: BackingLine;
   /** The whole line is an ad-lib, so it is drawn small. */
@@ -33,11 +37,18 @@ export type LyricLine = {
 export type LyricSource = 'amll' | 'lrclib' | 'ncm' | 'apple';
 
 /**
+ * What the `translation` of the lines is. `source`: written by the lyrics service; `machine`: Google Translate;
+ * `none`: Google Translate was asked and the lyrics are already in `lang`, so there is nothing to translate.
+ */
+export type TranslationInfo = { lang: string; by: 'source' | 'machine' | 'none' };
+
+/**
  * Bumped when lookups improve enough that older saved copies are worth refreshing: 2 added backing vocals and
  * pronunciation to AMLL files, 3 added word timing from NetEase for songs AMLL does not have, 4 fixed the
- * Apple Music lookup, which missed songs whose album tag differs from the one it knows.
+ * Apple Music lookup, which missed songs whose album tag differs from the one it knows, 5 added the translations
+ * that AMLL, Apple Music and NetEase write.
  */
-export const LYRICS_VERSION = 4;
+export const LYRICS_VERSION = 5;
 
 export type Lyrics = {
   /** Parser version of the file this came from. */
@@ -50,6 +61,8 @@ export type Lyrics = {
   chosen?: boolean;
   source: LyricSource;
   lines: LyricLine[];
+  /** Set when lines carry a `translation`, or when the lyrics were found to need none. */
+  translation?: TranslationInfo;
 };
 
 export type LyricsResult =

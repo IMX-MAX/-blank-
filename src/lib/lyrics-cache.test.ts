@@ -178,3 +178,59 @@ test('a lyric picked by hand replaces every cached copy and is not refreshed by 
   await clearAllLyricsCaches();
   assert.equal(await getSavedLyrics(songA), null, 'clearing removes picked lyrics too');
 });
+
+const { saveTranslatedLyrics } = await import('./lyrics-cache');
+const { lyricsGeneration } = await import('./lyrics-epoch');
+
+const translatedOf = (text: string): Extract<LyricsResult, { status: 'found' }> => {
+  const base = lyricsOf(text);
+  return {
+    ...base,
+    lyrics: {
+      ...base.lyrics,
+      translation: { lang: 'en-GB', by: 'machine' },
+      lines: base.lyrics.lines.map((line) => ({ ...line, translation: `${text} (en)` })),
+    },
+  };
+};
+const translationOf = (result: LyricsResult | null) => (result?.status === 'found' ? result.lyrics.lines[0]!.translation : undefined);
+
+test('a translation is saved in the same entry as the lyrics, in every layer that has them', async () => {
+  await seed(songA);
+  await saveTranslatedLyrics(songA, translatedOf('old lyrics'), lyricsGeneration());
+  assert.equal(translationOf(peekCachedLyrics(queryOf(songA))), 'old lyrics (en)');
+  assert.equal(translationOf(await getSavedLyrics(songA)), 'old lyrics (en)');
+  assert.equal(translationOf(await getOfflineLyrics(songA.id)), 'old lyrics (en)');
+  // Layers without this song stay without it.
+  assert.equal(peekCachedLyrics(queryOf(songB)), null);
+  assert.equal(await getSavedLyrics(songB), null);
+});
+
+test('a translation of other lyrics, or one that finishes after a clear, is not saved', async () => {
+  await seed(songA);
+  await saveTranslatedLyrics(songA, translatedOf('different lyrics'), lyricsGeneration());
+  assert.equal(translationOf(peekCachedLyrics(queryOf(songA))), undefined);
+  assert.equal(translationOf(await getSavedLyrics(songA)), undefined);
+
+  const started = lyricsGeneration();
+  await clearAllLyricsCaches();
+  await seed(songA);
+  await saveTranslatedLyrics(songA, translatedOf('old lyrics'), started);
+  assert.equal(translationOf(peekCachedLyrics(queryOf(songA))), undefined);
+  assert.equal(translationOf(await getOfflineLyrics(songA.id)), undefined);
+});
+
+test('clearing the cache and removing a song take the translations with the lyrics', async () => {
+  await seed(songA);
+  await seed(songB);
+  await saveTranslatedLyrics(songA, translatedOf('old lyrics'), lyricsGeneration());
+  await saveTranslatedLyrics(songB, translatedOf('old lyrics'), lyricsGeneration());
+  await forgetTrackLyrics([songA]);
+  assert.equal(peekCachedLyrics(queryOf(songA)), null);
+  assert.equal(await getSavedLyrics(songA), null);
+  assert.equal(translationOf(peekCachedLyrics(queryOf(songB))), 'old lyrics (en)');
+  await clearAllLyricsCaches();
+  assert.equal(peekCachedLyrics(queryOf(songB)), null);
+  assert.equal(await getSavedLyrics(songB), null);
+  assert.equal(await getOfflineLyrics(songB.id), null);
+});

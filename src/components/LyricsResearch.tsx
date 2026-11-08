@@ -100,6 +100,7 @@ export function LyricsResearchDialog({
                     <span className="research-head">
                       <span>{row.name}</span>
                       <span className={`research-chip ${lyrics.mode}`}>{SYNC_LABEL[lyrics.mode]}</span>
+                      {lyrics.translation?.by === 'source' ? <span className="research-chip">Translation</span> : null}
                       {saving === row.key ? <Check size={14} /> : null}
                     </span>
                     {matched ? <small>{matched}</small> : null}

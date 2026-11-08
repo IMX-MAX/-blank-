@@ -33,6 +33,9 @@ type SettingsValue = {
   estimateWords: boolean;
   setEstimateWords: (on: boolean) => void;
   setPronunciation: (on: boolean) => void;
+  /** Show a translation under lyrics in another language, like Apple Music. */
+  translation: boolean;
+  setTranslation: (on: boolean) => void;
   /** Keep the screen on while the lyrics are open. */
   keepAwake: boolean;
   setKeepAwake: (on: boolean) => void;
@@ -54,6 +57,7 @@ const GLYPH_MODE_KEY = 'blank.glyphMode';
 const VIBRATE_KEY = 'blank.vibrate';
 const AWAKE_KEY = 'blank.keepAwake';
 const ROMAN_KEY = 'blank.pronunciation';
+const TRANSLATION_KEY = 'blank.translation';
 const ESTIMATE_KEY = 'blank.estimateWords';
 const EQ_KEY = 'blank.eq';
 const CROSSFADE_KEY = 'blank.crossfade';
@@ -93,6 +97,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
   const [vibrate, setVibrateState] = useState(() => localStorage.getItem(VIBRATE_KEY) === '1');
   const [vibrateSupported, setVibrateSupported] = useState(false);
   const [pronunciation, setPronunciationState] = useState(() => localStorage.getItem(ROMAN_KEY) !== '0');
+  const [translation, setTranslationState] = useState(() => localStorage.getItem(TRANSLATION_KEY) !== '0');
   const [estimateWords, setEstimateWordsState] = useState(() => localStorage.getItem(ESTIMATE_KEY) !== '0');
   const [keepAwake, setKeepAwakeState] = useState(() => localStorage.getItem(AWAKE_KEY) === '1');
   const [eq, setEqState] = useState<EqBands>(readEq);
@@ -147,6 +152,11 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
   const setPronunciation = useCallback((on: boolean) => {
     localStorage.setItem(ROMAN_KEY, on ? '1' : '0');
     setPronunciationState(on);
+  }, []);
+
+  const setTranslation = useCallback((on: boolean) => {
+    localStorage.setItem(TRANSLATION_KEY, on ? '1' : '0');
+    setTranslationState(on);
   }, []);
 
   const setEstimateWords = useCallback((on: boolean) => {
@@ -221,6 +231,8 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
       setVibrate,
       pronunciation,
       setPronunciation,
+      translation,
+      setTranslation,
       estimateWords,
       setEstimateWords,
       keepAwake,
@@ -248,6 +260,8 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
       setVibrate,
       pronunciation,
       setPronunciation,
+      translation,
+      setTranslation,
       estimateWords,
       setEstimateWords,
       keepAwake,
