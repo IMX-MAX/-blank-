@@ -837,19 +837,15 @@ button { cursor: pointer; }
 }
 .ly.right { text-align: right; }
 /*
- * On phones the blur of every row changes with each new line; animating it repaints every row each frame while
- * they glide, which stutters in the Android WebView. There the blur steps (by under a pixel) and only the scale
- * and colour animate.
+ * The blur is never switched off (`blur(0px)` rather than `none`): adding and removing a filter makes the WebView
+ * create and drop a compositing layer for the row, which can flicker. Blur values in between animate.
  */
-@media (pointer: coarse) {
-  .ly-in { transition: transform 0.6s var(--spring), --on 0.5s ease, --off 0.5s ease; }
-}
 .ly.right .ly-in { transform-origin: right center; }
 .ly[role="button"] { cursor: pointer; }
 @media (hover: hover) {
-  .ly[role="button"]:not(.hot):hover .ly-in { filter: none; --on: rgba(255, 255, 255, 0.62); --off: rgba(255, 255, 255, 0.62); }
+  .ly[role="button"]:not(.hot):hover .ly-in { filter: blur(0px); --on: rgba(255, 255, 255, 0.62); --off: rgba(255, 255, 255, 0.62); }
 }
-.ly.hot .ly-in { --on: #fff; --off: rgba(255, 255, 255, 0.36); transform: scale(1); filter: none; }
+.ly.hot .ly-in { --on: #fff; --off: rgba(255, 255, 255, 0.36); transform: scale(1); filter: blur(0px); }
 .ly.plain .ly-in { --on: rgba(255, 255, 255, 0.86); --off: rgba(255, 255, 255, 0.86); transform: none; filter: none; font-size: clamp(20px, 2.2vw, 28px); font-weight: 600; }
 .ly.plain { padding: 0.18em 0; }
 .ly-main { display: flex; flex-wrap: wrap; align-items: flex-start; white-space: pre-wrap; }
@@ -872,6 +868,8 @@ button { cursor: pointer; }
 }
 .ly.past .lw, .ly.plain .lw { --p: 1; }
 .ly.hot .lw { transform: translateY(calc(var(--p) * -0.07em)); }
+/* Long words always carry the (empty) glow filter, so lighting them does not add a filter layer mid-line. */
+.lw.long { filter: drop-shadow(0 0 0 rgba(255, 255, 255, 0)); }
 .ly.hot .lw.long { filter: drop-shadow(0 0 calc(var(--p) * 0.32em) rgba(255, 255, 255, calc(var(--p) * 0.55))); }
 .rg { display: inline-flex; flex-direction: column; align-items: flex-start; }
 .ly.right .rg { align-items: flex-end; }
@@ -921,7 +919,7 @@ button { cursor: pointer; }
   transition: opacity 0.45s ease, transform 0.55s var(--spring), filter 0.45s ease;
 }
 .ly.right .ly-bg { transform-origin: right center; }
-.ly-bg.on { opacity: 0.86; transform: none; filter: none; }
+.ly-bg.on { opacity: 0.86; transform: none; filter: blur(0px); }
 .ly-bg .ly-roman { font-size: 0.55em; }
 .ly.backing .ly-in { font-size: 0.66em; }
 .ly-dots {

@@ -280,6 +280,8 @@ export function LyricsView() {
     if (!root) return;
     let frame = 0;
     let litLines: number[] = [];
+    /** Lines left filled after they were sung. */
+    const filled = new Set<number>();
     const cache = new Map<number, { words: HTMLElement[]; back: HTMLElement[]; bg: HTMLElement | null }>();
 
     const lookup = (index: number) => {
@@ -318,10 +320,22 @@ export function LyricsView() {
         setView(next);
       }
 
+      // A line that stops being sung keeps its words filled. Its class only changes from `hot` to `past` when React
+      // renders, after this frame is painted, so clearing the fill here drew the whole line unlit (and without its
+      // glow) for a frame just before it settled: the flash before each line change. The fill is cleared only once
+      // the line is back ahead of the playhead (a seek backwards), where the `future` class wants it empty anyway.
       for (const gone of litLines.filter((index) => !hot.includes(index))) {
         const found = lookup(gone);
-        [...found.words, ...found.back].forEach((span) => span.style.removeProperty('--p'));
+        const sung = time >= lines[gone]!.start;
+        [...found.words, ...found.back].forEach((span) => (sung ? span.style.setProperty('--p', '1') : span.style.removeProperty('--p')));
+        if (sung) filled.add(gone);
         found.bg?.classList.remove('on');
+      }
+      for (const index of filled) {
+        if (hot.includes(index) || time >= lines[index]!.start) continue;
+        const found = lookup(index);
+        [...found.words, ...found.back].forEach((span) => span.style.removeProperty('--p'));
+        filled.delete(index);
       }
       litLines = hot;
       for (const index of hot) {
