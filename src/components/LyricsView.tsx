@@ -1,4 +1,4 @@
-import { memo, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
+import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { ChevronDown, Music2, RotateCw } from 'lucide-react';
 import { activeLineIndex, checkSources, type SourceCheck, type LyricLine, type LyricWord, type Lyrics, type LyricsResult } from '../lib/lyrics';
 import { withEstimatedWords } from '../lib/estimate';
@@ -6,6 +6,7 @@ import { addPronunciation } from '../lib/romanize';
 import { loadLyrics } from '../lib/lyrics-load';
 import { saveTranslatedLyrics } from '../lib/lyrics-cache';
 import { lyricsGeneration } from '../lib/lyrics-epoch';
+import { RowGlide, staggerFor } from '../lib/lyric-spring';
 import { deviceLanguage, hasTranslationFor, machineTranslate, needsMachineTranslation } from '../lib/translate';
 import { useLibrary } from '../state/LibraryProvider';
 import { usePlayer } from '../state/PlayerProvider';
@@ -359,42 +360,68 @@ export function LyricsView() {
     return 0;
   }, [view.dots, view.anchor, itemOfLine]);
 
-  const alignTo = useCallback((item: number, mode: 'instant' | 'spring' | 'smooth') => {
-    const root = scrollRef.current;
-    const row = rows.current[item];
-    if (!root || !row) return;
-    const target = Math.max(0, row.offsetTop - root.clientHeight * ANCHOR);
-    const before = root.scrollTop;
-    if (mode === 'smooth') {
-      root.scrollTo({ top: target, behavior: 'smooth' });
-      return;
-    }
-    root.scrollTop = target;
-    const delta = root.scrollTop - before;
-    const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    if (mode === 'instant' || reduced || Math.abs(delta) < 2 || Math.abs(delta) > root.clientHeight * 1.5) return;
+  const glideRef = useRef(new RowGlide<HTMLElement>());
+  const glideFrame = useRef(0);
 
-    // The rows jump to their new place at once, then glide there from where they were, the ones further
-    // down starting a little later so the lyrics unroll like a spring.
-    const near = rows.current
-      .map((element, index) => ({ element, index }))
-      .filter(({ element }) => element && element.offsetTop > before - root.clientHeight && element.offsetTop < before + root.clientHeight * 2);
-    for (const { element } of near) {
-      element!.style.transition = 'none';
-      element!.style.transform = `translate3d(0, ${delta}px, 0)`;
-    }
-    void root.offsetHeight;
-    for (const { element, index } of near) {
-      const delay = Math.min(Math.max(0, index - item), 7) * 55;
-      element!.style.transition = `transform 760ms cubic-bezier(0.25, 1.1, 0.4, 1) ${delay}ms`;
-      element!.style.transform = '';
-    }
-    window.setTimeout(() => {
-      for (const { element } of near) element!.style.transition = '';
-    }, 1300);
+  const stopGlide = useCallback(() => {
+    cancelAnimationFrame(glideFrame.current);
+    glideFrame.current = 0;
+    for (const element of glideRef.current.clear()) element.style.transform = '';
   }, []);
 
-  useEffect(() => {
+  const pumpGlide = useCallback(() => {
+    if (glideFrame.current) return;
+    const step = (now: number) => {
+      for (const [element, y] of glideRef.current.frame(now)) {
+        element.style.transform = y === 0 ? '' : `translate3d(0, ${y.toFixed(2)}px, 0)`;
+      }
+      glideFrame.current = glideRef.current.active ? requestAnimationFrame(step) : 0;
+    };
+    glideFrame.current = requestAnimationFrame(step);
+  }, []);
+
+  useEffect(() => stopGlide, [stopGlide]);
+
+  const alignTo = useCallback(
+    (item: number, mode: 'instant' | 'spring' | 'smooth') => {
+      const root = scrollRef.current;
+      const row = rows.current[item];
+      if (!root || !row) return;
+      // offsetTop ignores transforms, so rows that are still gliding measure where they will end up.
+      const target = Math.max(0, row.offsetTop - root.clientHeight * ANCHOR);
+      const before = root.scrollTop;
+      if (mode === 'smooth') {
+        stopGlide();
+        root.scrollTo({ top: target, behavior: 'smooth' });
+        return;
+      }
+      root.scrollTop = target;
+      const delta = root.scrollTop - before;
+      const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      if (mode === 'instant' || reduced || Math.abs(delta) > root.clientHeight * 1.5) {
+        stopGlide();
+        return;
+      }
+      if (Math.abs(delta) < 0.5) return;
+
+      // Every row on screen before or after the jump is drawn where it was and glides to its new place.
+      const top = before - root.clientHeight;
+      const bottom = before + root.clientHeight * 2 + Math.abs(delta);
+      const moving: Array<{ key: HTMLElement; delay: number }> = [];
+      rows.current.forEach((element, index) => {
+        if (element && element.offsetTop > top && element.offsetTop < bottom) moving.push({ key: element, delay: staggerFor(index - item) });
+      });
+      const now = performance.now();
+      glideRef.current.shift(moving, delta, now);
+      // Draw the starting offsets in this same frame, before the browser paints the new scroll position.
+      for (const { key } of moving) key.style.transform = `translate3d(0, ${glideRef.current.offset(key, now).toFixed(2)}px, 0)`;
+      pumpGlide();
+    },
+    [pumpGlide, stopGlide],
+  );
+
+  // A layout effect, so the new line's highlight and the scroll that brings it into place are painted together.
+  useLayoutEffect(() => {
     if (!synced || !lines.length) return;
     if (Date.now() < holdScrollUntil.current) return;
     alignTo(anchorItem, aligned.current ? 'spring' : 'instant');
@@ -408,6 +435,7 @@ export function LyricsView() {
   }, [enriched, machine, translated, synced, itemOfLine, alignTo]);
 
   const holdAutoScroll = useCallback(() => {
+    // Rows still gliding finish on their own: a transform adds to the finger's scroll, so neither jumps.
     holdScrollUntil.current = Date.now() + 2800;
     window.clearTimeout(realign.current);
     realign.current = window.setTimeout(() => {
@@ -417,6 +445,16 @@ export function LyricsView() {
   }, [alignTo, itemOfLine]);
 
   useEffect(() => () => window.clearTimeout(realign.current), []);
+
+  // Tapping a line to jump there is not a manual scroll: the list follows straight away.
+  const seekLine = useCallback(
+    (time: number) => {
+      holdScrollUntil.current = 0;
+      window.clearTimeout(realign.current);
+      seek(time);
+    },
+    [seek],
+  );
 
   if (!track) return null;
 
@@ -513,7 +551,7 @@ export function LyricsView() {
                   distance={status === 'hot' ? 0 : Math.min(Math.abs(item.index - view.anchor), 6)}
                   synced={synced}
                   translated={translated}
-                  seek={seek}
+                  seek={seekLine}
                   register={register}
                 />
               );

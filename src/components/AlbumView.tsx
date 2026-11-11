@@ -35,7 +35,8 @@ export function AlbumView({
     .map((track, index) => ({ track, index }))
     .filter(({ track }) => matchesQuery(query, track.title, track.artist));
   const totalMs = tracks.reduce((sum, track) => sum + track.durationMs, 0);
-  const playingAlbum = tracks.some((track) => track.id === player.track?.id) && player.playing;
+  const inQueue = tracks.some((track) => track.id === player.track?.id);
+  const playingAlbum = inQueue && player.playing;
 
   return (
     <main className="album">
@@ -73,7 +74,9 @@ export function AlbumView({
             <button
               className={player.shuffle ? 'shuffle-btn on' : 'shuffle-btn'}
               aria-label="Shuffle"
-              onClick={player.toggleShuffle}
+              aria-pressed={player.shuffle}
+              // Shuffle on an album that is not playing plays it shuffled; on the one playing it switches shuffle.
+              onClick={() => (inQueue ? player.toggleShuffle() : player.shuffleTracks(tracks))}
             >
               <Shuffle size={18} />
             </button>

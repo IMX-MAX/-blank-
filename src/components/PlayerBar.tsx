@@ -159,6 +159,7 @@ export function PlayerBar() {
           <button
             className={player.shuffle ? 'ctrl is-on' : 'ctrl'}
             aria-label="Shuffle"
+            aria-pressed={player.shuffle}
             onClick={player.toggleShuffle}
           >
             <Shuffle size={19} />

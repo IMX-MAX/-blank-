@@ -836,6 +836,14 @@ button { cursor: pointer; }
   transition: transform 0.6s var(--spring), filter 0.5s ease, --on 0.5s ease, --off 0.5s ease;
 }
 .ly.right { text-align: right; }
+/*
+ * On phones the blur of every row changes with each new line; animating it repaints every row each frame while
+ * they glide, which stutters in the Android WebView. There the blur steps (by under a pixel) and only the scale
+ * and colour animate.
+ */
+@media (pointer: coarse) {
+  .ly-in { transition: transform 0.6s var(--spring), --on 0.5s ease, --off 0.5s ease; }
+}
 .ly.right .ly-in { transform-origin: right center; }
 .ly[role="button"] { cursor: pointer; }
 @media (hover: hover) {

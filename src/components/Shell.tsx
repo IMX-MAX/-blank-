@@ -201,7 +201,8 @@ export function Shell() {
       return;
     }
     if (list.some((track) => track.id === player.track?.id)) player.toggle();
-    else player.playTracks(list, 0);
+    // No start: with shuffle on the first song is random too.
+    else player.playTracks(list);
   }
 
   function offlineItem(tracks: Track[], noun: string): MenuItem[] {
