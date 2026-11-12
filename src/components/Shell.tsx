@@ -16,6 +16,8 @@ import { navigateWithTransition } from '../lib/transition';
 import { NativeLiveData } from './NativeLiveData';
 import { PlayerBar } from './PlayerBar';
 import { SettingsView } from './SettingsView';
+import { StatsView } from './StatsView';
+import { useListeningRecorder } from '../state/useListeningRecorder';
 import { Presence } from './Presence';
 import {
   AddMenu,
@@ -28,7 +30,7 @@ import {
   type Point,
 } from './overlays';
 
-type Route = { name: 'library' } | { name: 'settings' } | { name: 'folder'; folderId: string } | { name: 'album'; albumId: string };
+type Route = { name: 'library' } | { name: 'settings' } | { name: 'stats' } | { name: 'folder'; folderId: string } | { name: 'album'; albumId: string };
 
 type Dialog =
   | { kind: 'folder' }
@@ -64,6 +66,7 @@ export function Shell() {
   const dragDepth = useRef(0);
   const toastId = useRef(0);
   const route = stack[stack.length - 1] ?? { name: 'library' as const };
+  useListeningRecorder();
 
   const album = route.name === 'album' ? library.albums.find((item) => item.id === route.albumId) : undefined;
   const folder = route.name === 'folder' ? library.folders.find((item) => item.id === route.folderId) : undefined;
@@ -433,8 +436,11 @@ export function Shell() {
         <main className="stage">
           <p className="empty-note">Opening your library</p>
         </main>
+      ) : route.name === 'stats' ? (
+        <StatsView notify={notify} />
       ) : route.name === 'settings' ? (
         <SettingsView
+          onOpenStats={() => push({ name: 'stats' })}
           onNewPlaylist={() => setDialog({ kind: 'playlist' })}
           onRemoveDownloads={() => void run(() => offline.removeAll(), 'Removed all downloads')}
           onSignOut={() => void run(() => signOut())}
@@ -487,7 +493,7 @@ export function Shell() {
         />
       )}
 
-      {route.name !== 'album' && route.name !== 'settings' ? (
+      {route.name !== 'album' && route.name !== 'settings' && route.name !== 'stats' ? (
         <button className="add-btn" onClick={() => setAddOpen(true)}>
           <Plus size={18} /> Add
         </button>

@@ -7,6 +7,9 @@ import { useSettings } from './SettingsProvider';
 import { artworkFor, nativeControls, type ControlAction } from '../lib/media-controls';
 import type { Track } from '../types';
 import { useLibrary } from './LibraryProvider';
+import { App } from '@capacitor/app';
+import { Capacitor } from '@capacitor/core';
+import { historyTracks, pushHistory, readHistory, readSavedQueue, restoreQueue, serialiseQueue, writeHistory, writeSavedQueue } from '../lib/queue-persist';
 import {
   advance,
   emptyQueue,
@@ -26,6 +29,8 @@ export type RepeatMode = 'off' | 'all' | 'one';
 type PlayerContextValue = {
   queue: Track[];
   index: number;
+  /** Songs played recently, oldest first (still in the library), kept across new queues and launches. */
+  history: Track[];
   track: Track | null;
   playing: boolean;
   loading: boolean;
@@ -72,7 +77,7 @@ function readRepeat(): RepeatMode {
 }
 
 export function PlayerProvider({ children }: { children: ReactNode }) {
-  const { tracks, albums } = useLibrary();
+  const { tracks, albums, ready: libraryReady } = useLibrary();
   const { songCovers, glyphSupported, glyphWaveform, eq, crossfade, pauseOnDisconnect } = useSettings();
   const pauseOnDisconnectRef = useRef(pauseOnDisconnect);
   pauseOnDisconnectRef.current = pauseOnDisconnect;
@@ -116,16 +121,59 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   shuffleRef.current = shuffle;
   repeatRef.current = repeat;
 
-  /** Makes `state` the queue. `load` starts the song now at its position (a different song, or the same one again). */
-  const apply = useCallback((state: QueueState<Track>, load: boolean) => {
-    const list = playOrder(state);
-    stateRef.current = state;
-    queueRef.current = list;
-    indexRef.current = state.index;
-    setQueue(list);
-    setIndex(state.index);
-    if (load) setGeneration((value) => value + 1);
+  /** Set once the queue saved at the last launch has been put back (or there was none), so it is not overwritten first. */
+  const restoredRef = useRef(false);
+  const lastSaved = useRef(0);
+
+  /**
+   * Remembers the queue, both orders, the shuffle and the position for the next launch. An empty queue is only
+   * forgotten when it was cleared on purpose (`clear`), not because the library has not loaded yet.
+   */
+  const persistQueue = useCallback((position?: number, clear = false) => {
+    if (!restoredRef.current) return;
+    const saved = serialiseQueue(stateRef.current, shuffleRef.current, position ?? audioRef.current?.currentTime ?? 0);
+    if (!saved && !clear) return;
+    lastSaved.current = Date.now();
+    writeSavedQueue(saved);
   }, []);
+  const [historyIds, setHistoryIds] = useState<string[]>(() => readHistory());
+  const historyRef = useRef(historyIds);
+  const recordHistory = useCallback((id: string) => {
+    const next = pushHistory(historyRef.current, id);
+    if (next === historyRef.current) return;
+    historyRef.current = next;
+    setHistoryIds(next);
+    writeHistory(next);
+  }, []);
+  const persistRef = useRef(persistQueue);
+  persistRef.current = persistQueue;
+
+  /** Play. A queue put back at launch whose file could not be opened yet loads the song first. */
+  const resumeRef = useRef(() => {
+    const audio = audioRef.current;
+    if (!audio || !queueRef.current.length) return;
+    if (!audio.getAttribute('src')) setGeneration((value) => value + 1);
+    else void audio.play();
+  });
+
+  /** Makes `state` the queue. `load` starts the song now at its position (a different song, or the same one again). */
+  const apply = useCallback(
+    (state: QueueState<Track>, load: boolean) => {
+      const list = playOrder(state);
+      stateRef.current = state;
+      queueRef.current = list;
+      indexRef.current = state.index;
+      setQueue(list);
+      setIndex(state.index);
+      if (load) {
+        setGeneration((value) => value + 1);
+        const playingNow = list[state.index];
+        if (playingNow) recordHistory(playingNow.id);
+      }
+      persistQueue(load ? 0 : undefined);
+    },
+    [persistQueue, recordHistory],
+  );
 
   /** Where a skip goes. Repeat-one only repeats a song that finishes on its own, so a skip still moves on. */
   const following = useCallback(
@@ -227,6 +275,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       const onTime = () => {
         if (!active()) return;
         setCurrentTime(audio.currentTime || 0);
+        if (!audio.paused && Date.now() - lastSaved.current > 5000) persistRef.current();
         const seconds = crossfadeRef.current;
         if (!seconds || fading.current || fadeStarting.current || audio.paused || !audioEngine.connected) return;
         if (!Number.isFinite(audio.duration) || audio.duration < seconds * 2 + 2) return;
@@ -247,6 +296,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
         if (!active()) return;
         if (fading.current) cancelFadeRef.current();
         setPlaying(false);
+        persistRef.current();
       };
       const onEnded = () => {
         if (active()) finishedRef.current();
@@ -340,7 +390,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (!('mediaSession' in navigator)) return;
-    navigator.mediaSession.setActionHandler('play', () => void audioRef.current?.play());
+    navigator.mediaSession.setActionHandler('play', () => resumeRef.current());
     navigator.mediaSession.setActionHandler('pause', () => audioRef.current?.pause());
     navigator.mediaSession.setActionHandler('nexttrack', () => next());
     navigator.mediaSession.setActionHandler('previoustrack', () => previous());
@@ -356,7 +406,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   const controlsRef = useRef<(action: ControlAction) => void>(() => undefined);
   controlsRef.current = (control) => {
     const audio = audioRef.current;
-    if (control.action === 'play') void audio?.play();
+    if (control.action === 'play') resumeRef.current();
     else if (control.action === 'pause') audio?.pause();
     else if (control.action === 'next') next();
     else if (control.action === 'previous') previous();
@@ -459,7 +509,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       if (current?.id === track.id) {
         const audio = audioRef.current;
         if (!audio) return;
-        if (audio.paused) void audio.play();
+        if (audio.paused) resumeRef.current();
         else audio.pause();
         return;
       }
@@ -472,7 +522,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   const toggle = useCallback(() => {
     const audio = audioRef.current;
     if (!audio || !queueRef.current.length) return;
-    if (audio.paused) void audio.play();
+    if (audio.paused) resumeRef.current();
     else audio.pause();
   }, []);
 
@@ -518,7 +568,63 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     setExpandedOpen(false);
     setGeneration((value) => value + 1);
     if ('mediaSession' in navigator) navigator.mediaSession.metadata = null;
-  }, [cancelFade]);
+    persistQueue(0, true);
+  }, [cancelFade, persistQueue]);
+
+  // Put back the queue from the last launch, paused where it was, once the library is there to find the songs in.
+  useEffect(() => {
+    if (!libraryReady || restoredRef.current) return;
+    restoredRef.current = true;
+    if (!tracks.length || stateRef.current.slots.length) return;
+    const restored = restoreQueue(readSavedQueue(), tracks);
+    if (!restored) return;
+    shuffleRef.current = restored.shuffle;
+    setShuffle(restored.shuffle);
+    localStorage.setItem('blank.shuffle', restored.shuffle ? '1' : '0');
+    apply(restored.state, false);
+    const track = playOrder(restored.state)[restored.state.index];
+    const audio = audioRef.current;
+    if (!track || !audio) return;
+    const position = restored.position;
+    setCurrentTime(position);
+    void (async () => {
+      try {
+        const url = await audioObjectUrl(track.audioFileId);
+        // Something else was played in the meantime.
+        if (audioRef.current !== audio || queueRef.current[indexRef.current] !== track || audio.src) return;
+        audio.preload = 'auto';
+        audio.src = url;
+        const seekTo = () => {
+          if (position > 0 && position < (audio.duration || Infinity) - 1) audio.currentTime = position;
+          setCurrentTime(audio.currentTime || 0);
+        };
+        if (audio.readyState >= 1) seekTo();
+        else audio.addEventListener('loadedmetadata', seekTo, { once: true });
+      } catch {
+        /* the file is not available right now; pressing play loads it as usual */
+      }
+    })();
+  }, [libraryReady, tracks, apply]);
+
+  // Leaving the app (switching away, screen off, closing) saves the exact position.
+  useEffect(() => {
+    const save = () => persistRef.current();
+    const onVisibility = () => {
+      if (document.visibilityState === 'hidden') save();
+    };
+    document.addEventListener('visibilitychange', onVisibility);
+    window.addEventListener('pagehide', save);
+    const handle = Capacitor.isNativePlatform()
+      ? App.addListener('appStateChange', (state) => {
+          if (!state.isActive) save();
+        })
+      : null;
+    return () => {
+      document.removeEventListener('visibilitychange', onVisibility);
+      window.removeEventListener('pagehide', save);
+      void handle?.then((listener) => listener.remove());
+    };
+  }, []);
 
   const toggleShuffle = useCallback(() => {
     const on = !shuffleRef.current;
@@ -559,11 +665,13 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   );
 
   const track = queue[index] ?? null;
+  const history = useMemo(() => historyTracks(historyIds, new Map(tracks.map((item) => [item.id, item]))), [historyIds, tracks]);
 
   const value = useMemo<PlayerContextValue>(
     () => ({
       queue,
       index,
+      history,
       track,
       playing,
       loading,
@@ -599,6 +707,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     [
       queue,
       index,
+      history,
       track,
       playing,
       loading,

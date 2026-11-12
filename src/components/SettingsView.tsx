@@ -225,11 +225,13 @@ const THEMES: Array<{ id: ThemeChoice; label: string }> = [
 ];
 
 export function SettingsView({
+  onOpenStats,
   onNewPlaylist,
   onRemoveDownloads,
   onSignOut,
   onChangeName,
 }: {
+  onOpenStats: () => void;
   onNewPlaylist: () => void;
   onRemoveDownloads: () => void;
   onSignOut: () => void;
@@ -264,6 +266,19 @@ export function SettingsView({
   return (
     <main className="stage settings-page">
       <h1 className="settings-title">Settings</h1>
+
+      <section className="settings-group">
+        <h2>Listening</h2>
+        <div className="settings-row">
+          <div>
+            <div className="settings-label">Listening stats</div>
+            <div className="settings-hint">Your top songs, artists and albums, listening time and streak. Kept on this device.</div>
+          </div>
+          <button className="pill-btn" onClick={onOpenStats}>
+            View stats
+          </button>
+        </div>
+      </section>
 
       <section className="settings-group">
         <h2>Appearance</h2>

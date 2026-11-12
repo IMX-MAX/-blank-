@@ -1377,3 +1377,43 @@ button.lyrics-chip { border: 0; font: inherit; font-size: 12px; cursor: pointer;
 .research-none { opacity: 0.75; }
 .research-none span { font-weight: 600; }
 .research-none:hover { background: transparent; }
+
+/* ---------- Listening stats ---------- */
+.stats-period { align-self: flex-start; margin: -8px 0 20px; }
+.stats-cards { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; width: 100%; margin-bottom: 26px; }
+.stats-card { padding: 16px 16px 14px; background: var(--surface); border-radius: 20px; color: var(--muted); min-width: 0; }
+.stats-card svg { color: var(--gold); }
+.stats-value { margin-top: 10px; font-size: 24px; font-weight: 700; letter-spacing: -0.04em; color: var(--text-strong); font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.stats-label { margin-top: 2px; font-size: 13px; font-weight: 500; }
+.stats-chart-card { position: relative; padding: 18px 18px 14px; background: var(--surface); border-radius: 20px; }
+.stats-chart { display: flex; align-items: flex-end; gap: 6px; height: 140px; }
+.stats-chart.dense { gap: 2px; }
+.stats-bar { flex: 1 1 0; height: 100%; display: flex; align-items: flex-end; min-width: 0; }
+.stats-bar span { display: block; width: 100%; border-radius: 6px 6px 3px 3px; background: var(--gold); transition: height 0.4s cubic-bezier(0.3, 1.2, 0.5, 1); }
+.stats-chart.dense .stats-bar span { border-radius: 3px 3px 1px 1px; }
+.stats-bar:last-child span { background: var(--text-strong); }
+.stats-axis { display: flex; justify-content: space-between; gap: 6px; margin-top: 8px; font-size: 12px; font-weight: 600; color: var(--muted); }
+.stats-axis span { flex: 1 1 0; text-align: center; }
+.stats-axis span:first-child:nth-last-child(2) { text-align: left; }
+.stats-axis span:last-child:nth-child(2) { text-align: right; }
+.stats-foot { margin-top: 12px; font-size: 13px; color: var(--muted); }
+.stats-list { display: flex; flex-direction: column; gap: 2px; padding: 6px; background: var(--surface); border-radius: 20px; }
+.stats-item { display: flex; align-items: center; gap: 12px; width: 100%; padding: 8px 10px; border: 0; border-radius: 14px; background: transparent; color: inherit; text-align: left; font: inherit; }
+button.stats-item:hover { background: var(--hover); }
+.stats-item.removed { opacity: 0.45; }
+.stats-rank { width: 20px; flex: none; text-align: center; font-weight: 700; color: var(--muted); font-variant-numeric: tabular-nums; }
+.stats-art { flex: none; width: 40px; height: 40px; border-radius: 8px; overflow: hidden; }
+.stats-art.removed { background: var(--surface-2); }
+.stats-names { display: flex; flex-direction: column; flex: 1; min-width: 0; }
+.stats-name { font-size: 15px; font-weight: 600; letter-spacing: -0.01em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.stats-sub { margin-top: 1px; font-size: 12.5px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.stats-count { flex: none; font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.stats-none { display: flex; align-items: center; gap: 8px; padding: 14px 12px; font-size: 14px; color: var(--muted); }
+.stats-chart-card .stats-none { padding: 0 0 12px; }
+@media (max-width: 520px) {
+  .stats-cards { gap: 8px; }
+  .stats-card { padding: 14px 12px 12px; border-radius: 18px; }
+  .stats-value { font-size: 19px; }
+}
+.settings-row > .danger-btn { flex: none; height: 38px; padding: 0 16px; font-size: 14px; }
+.danger-btn:disabled { opacity: 0.4; }
