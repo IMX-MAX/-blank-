@@ -112,3 +112,50 @@ export function removeAt<T>(state: QueueState<T>, position: number): QueueState<
 export function mapQueue<T>(state: QueueState<T>, update: (item: T) => T): QueueState<T> {
   return { ...state, ordered: state.ordered.map(update) };
 }
+
+const isIdentity = (slots: readonly number[]) => slots.every((slot, at) => slot === at);
+
+/**
+ * Drags a song that is coming up from one play-order position to another (both after the song playing). Without
+ * shuffle the given order changes too, so it stays the order played; with shuffle only the play order changes, and
+ * turning shuffle off goes back to the order the queue was given.
+ */
+export function moveUpcoming<T>(state: QueueState<T>, from: number, to: number): QueueState<T> {
+  const length = state.slots.length;
+  if (from === to || from <= state.index || to <= state.index || from >= length || to >= length) return state;
+  if (isIdentity(state.slots)) {
+    const ordered = [...state.ordered];
+    const [item] = ordered.splice(from, 1);
+    ordered.splice(to, 0, item!);
+    return { ...state, ordered };
+  }
+  const slots = [...state.slots];
+  const [slot] = slots.splice(from, 1);
+  slots.splice(to, 0, slot!);
+  return { ...state, slots };
+}
+
+/** What `removeWithUndo` took out, enough to put it back where it was. */
+export type Removed<T> = { item: T; position: number; slot: number };
+
+/** `removeAt`, also returning what it takes out so `reinsert` can undo it. Null when nothing could be removed. */
+export function removeWithUndo<T>(state: QueueState<T>, position: number): { state: QueueState<T>; removed: Removed<T> } | null {
+  if (position < 0 || position >= state.slots.length || position === state.index) return null;
+  const slot = state.slots[position]!;
+  return { state: removeAt(state, position), removed: { item: state.ordered[slot]!, position, slot } };
+}
+
+/**
+ * Puts a removed song back at the same place in both orders. If playback has since moved past that place, it goes
+ * straight after the song playing instead, so an undo never puts a song in what has already played.
+ */
+export function reinsert<T>(state: QueueState<T>, removed: Removed<T>): QueueState<T> {
+  if (!state.slots.length) return { ordered: [removed.item], slots: [0], index: 0 };
+  const slot = Math.min(Math.max(removed.slot, 0), state.ordered.length);
+  const ordered = [...state.ordered.slice(0, slot), removed.item, ...state.ordered.slice(slot)];
+  const slots = state.slots.map((value) => (value >= slot ? value + 1 : value));
+  const wasPlayed = removed.position < state.index;
+  const position = wasPlayed ? removed.position : Math.min(Math.max(removed.position, state.index + 1), slots.length);
+  slots.splice(position, 0, slot);
+  return { ordered, slots, index: wasPlayed ? state.index + 1 : state.index };
+}

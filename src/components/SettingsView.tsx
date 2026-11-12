@@ -1,8 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { LOCAL_ONLY } from '../config';
-import { EQ_FLAT, isFlat } from '../lib/audio-engine';
+import { BUILT_IN_PRESETS } from '../lib/equaliser';
 import type { GlyphMode } from '../lib/glyph';
-import { EqualizerGraph } from './EqualizerGraph';
 import { Slider } from './Slider';
 import { useAuth } from '../state/AuthProvider';
 import { useLibrary } from '../state/LibraryProvider';
@@ -174,24 +173,25 @@ const GLYPH_MODES: Array<{ id: GlyphMode; label: string; hint: string }> = [
   { id: 'pulse', label: 'Pulse', hint: 'Flashes and pulses to the beat. Falls back to the waveform while the song is being analysed.' },
 ];
 
-function SoundSettings() {
-  const { eq, setEq, crossfade, setCrossfade } = useSettings();
+function SoundSettings({ onOpenEqualiser }: { onOpenEqualiser: () => void }) {
+  const { eq, eqPresets, crossfade, setCrossfade } = useSettings();
   const lastFade = useRef(6);
   if (crossfade > 0) lastFade.current = crossfade;
   return (
     <section className="settings-group">
       <h2>Sound</h2>
-      <div className="settings-row settings-eq">
+      <div className="settings-row">
         <div>
-          <div className="settings-label">Equalizer</div>
-          <div className="settings-hint">Drag the three points to shape the sound of everything you play.</div>
+          <div className="settings-label">Equaliser</div>
+          <div className="settings-hint">
+            {eq.enabled
+              ? `${[...BUILT_IN_PRESETS, ...eqPresets].find((preset) => preset.id === eq.preset)?.name ?? 'Custom'} · ten bands, presets and your own`
+              : 'Off'}
+          </div>
         </div>
-        {!isFlat(eq) ? (
-          <button className="pill-btn" onClick={() => setEq(EQ_FLAT)}>
-            Reset
-          </button>
-        ) : null}
-        <EqualizerGraph value={eq} onChange={setEq} />
+        <button className="pill-btn" onClick={onOpenEqualiser}>
+          Open
+        </button>
       </div>
       <div className="settings-row">
         <div>
@@ -226,12 +226,14 @@ const THEMES: Array<{ id: ThemeChoice; label: string }> = [
 
 export function SettingsView({
   onOpenStats,
+  onOpenEqualiser,
   onNewPlaylist,
   onRemoveDownloads,
   onSignOut,
   onChangeName,
 }: {
   onOpenStats: () => void;
+  onOpenEqualiser: () => void;
   onNewPlaylist: () => void;
   onRemoveDownloads: () => void;
   onSignOut: () => void;
@@ -443,7 +445,7 @@ export function SettingsView({
         </div>
       </section>
 
-      <SoundSettings />
+      <SoundSettings onOpenEqualiser={onOpenEqualiser} />
 
       {LOCAL_ONLY ? <LyricsSettings /> : null}
 

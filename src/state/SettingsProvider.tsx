@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useState, type ReactNode } from 'react';
 
-import { clampBand, EQ_FLAT, type EqBands } from '../lib/audio-engine';
+import { normaliseEq, normalisePresets, type EqPreset, type EqState } from '../lib/equaliser';
 import { glyphMatrix, type GlyphMode } from '../lib/glyph';
 
 export type ThemeChoice = 'dark' | 'light' | 'system';
@@ -42,9 +42,12 @@ type SettingsValue = {
   /** Keep the screen on while the lyrics are open. */
   keepAwake: boolean;
   setKeepAwake: (on: boolean) => void;
-  /** Three-band equaliser, in dB. */
-  eq: EqBands;
-  setEq: (eq: EqBands) => void;
+  /** Ten-band equaliser with preamp, on/off and the preset picked. */
+  eq: EqState;
+  setEq: (eq: EqState) => void;
+  /** Equaliser presets saved by the user. */
+  eqPresets: EqPreset[];
+  setEqPresets: (presets: EqPreset[]) => void;
   /** Seconds of overlap between songs, 0 for none. */
   crossfade: number;
   setCrossfade: (seconds: number) => void;
@@ -64,15 +67,25 @@ const TRANSLATION_KEY = 'blank.translation';
 const NOISY_KEY = 'blank.pauseOnDisconnect';
 const ESTIMATE_KEY = 'blank.estimateWords';
 const EQ_KEY = 'blank.eq';
+const EQ2_KEY = 'blank.eq2';
+const EQ_PRESETS_KEY = 'blank.eqPresets';
 const CROSSFADE_KEY = 'blank.crossfade';
 
-function readEq(): EqBands {
+/** The ten-band equaliser, or the old three-band one carried over the first time. */
+function readEq(): EqState {
   try {
-    const parsed = JSON.parse(localStorage.getItem(EQ_KEY) ?? 'null') as Partial<EqBands> | null;
-    if (!parsed) return EQ_FLAT;
-    return { bass: clampBand(Number(parsed.bass) || 0), mid: clampBand(Number(parsed.mid) || 0), treble: clampBand(Number(parsed.treble) || 0) };
+    const saved = localStorage.getItem(EQ2_KEY);
+    return normaliseEq(JSON.parse(saved ?? localStorage.getItem(EQ_KEY) ?? 'null'));
   } catch {
-    return EQ_FLAT;
+    return normaliseEq(null);
+  }
+}
+
+function readEqPresets(): EqPreset[] {
+  try {
+    return normalisePresets(JSON.parse(localStorage.getItem(EQ_PRESETS_KEY) ?? '[]'));
+  } catch {
+    return [];
   }
 }
 
@@ -105,7 +118,8 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
   const [pauseOnDisconnect, setPauseOnDisconnectState] = useState(() => localStorage.getItem(NOISY_KEY) !== '0');
   const [estimateWords, setEstimateWordsState] = useState(() => localStorage.getItem(ESTIMATE_KEY) !== '0');
   const [keepAwake, setKeepAwakeState] = useState(() => localStorage.getItem(AWAKE_KEY) === '1');
-  const [eq, setEqState] = useState<EqBands>(readEq);
+  const [eq, setEqState] = useState<EqState>(readEq);
+  const [eqPresets, setEqPresetsState] = useState<EqPreset[]>(readEqPresets);
   const [crossfade, setCrossfadeState] = useState(() => {
     const seconds = Number(localStorage.getItem(CROSSFADE_KEY));
     return Number.isFinite(seconds) ? Math.min(12, Math.max(0, Math.round(seconds))) : 0;
@@ -179,10 +193,16 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     setKeepAwakeState(on);
   }, []);
 
-  const setEq = useCallback((next: EqBands) => {
-    const clean = { bass: clampBand(next.bass), mid: clampBand(next.mid), treble: clampBand(next.treble) };
-    localStorage.setItem(EQ_KEY, JSON.stringify(clean));
+  const setEq = useCallback((next: EqState) => {
+    const clean = normaliseEq(next);
+    localStorage.setItem(EQ2_KEY, JSON.stringify(clean));
     setEqState(clean);
+  }, []);
+
+  const setEqPresets = useCallback((next: EqPreset[]) => {
+    const clean = normalisePresets(next);
+    localStorage.setItem(EQ_PRESETS_KEY, JSON.stringify(clean));
+    setEqPresetsState(clean);
   }, []);
 
   const setCrossfade = useCallback((seconds: number) => {
@@ -251,6 +271,8 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
       setKeepAwake,
       eq,
       setEq,
+      eqPresets,
+      setEqPresets,
       crossfade,
       setCrossfade,
     }),
@@ -282,6 +304,8 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
       setKeepAwake,
       eq,
       setEq,
+      eqPresets,
+      setEqPresets,
       crossfade,
       setCrossfade,
     ],

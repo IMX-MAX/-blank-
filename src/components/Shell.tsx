@@ -17,6 +17,10 @@ import { NativeLiveData } from './NativeLiveData';
 import { PlayerBar } from './PlayerBar';
 import { SettingsView } from './SettingsView';
 import { StatsView } from './StatsView';
+import { EqualiserView } from './EqualiserView';
+import { SmartPlaylistView, SmartShelf } from './SmartPlaylists';
+import type { SmartId } from '../lib/smart-playlists';
+import { OPEN_EQUALISER_EVENT } from '../lib/navigation';
 import { useListeningRecorder } from '../state/useListeningRecorder';
 import { Presence } from './Presence';
 import {
@@ -30,7 +34,13 @@ import {
   type Point,
 } from './overlays';
 
-type Route = { name: 'library' } | { name: 'settings' } | { name: 'stats' } | { name: 'folder'; folderId: string } | { name: 'album'; albumId: string };
+type Route =
+  | { name: 'library' }
+  | { name: 'settings' }
+  | { name: 'stats' }
+  | { name: 'equaliser' }
+  | { name: 'smart'; id: SmartId }
+  | { name: 'folder'; folderId: string } | { name: 'album'; albumId: string };
 
 type Dialog =
   | { kind: 'folder' }
@@ -113,6 +123,20 @@ export function Shell() {
     else return false;
     return true;
   }
+
+  // The player's "Equaliser" button opens the equaliser screen from wherever you are.
+  const openEqualiser = useRef(() => undefined as void);
+  openEqualiser.current = () => {
+    player.setExpandedOpen(false);
+    player.setQueueOpen(false);
+    player.setLyricsOpen(false);
+    if (route.name !== 'equaliser') push({ name: 'equaliser' });
+  };
+  useEffect(() => {
+    const open = () => openEqualiser.current();
+    window.addEventListener(OPEN_EQUALISER_EVENT, open);
+    return () => window.removeEventListener(OPEN_EQUALISER_EVENT, open);
+  }, []);
 
   const backButton = useRef<() => void>(() => undefined);
   backButton.current = () => {
@@ -255,9 +279,10 @@ export function Shell() {
     setMenu({ ...at, items });
   }
 
-  function trackMenu(track: Track, at: Point, from?: Album) {
+  function trackMenu(track: Track, at: Point, from?: Album, list?: Track[]) {
+    const source = list ?? (from ? library.tracksFor(from) : [track]);
     const items: MenuItem[] = [
-      { id: 'play', label: 'Play', onClick: () => player.playTracks(from ? library.tracksFor(from) : [track], from ? Math.max(0, library.tracksFor(from).findIndex((item) => item.id === track.id)) : 0) },
+      { id: 'play', label: 'Play', onClick: () => player.playTracks(source, Math.max(0, source.findIndex((item) => item.id === track.id))) },
       { id: 'next', label: 'Play next', onClick: () => player.playNext(track) },
       ...offlineItem([track], track.title),
       { id: 'add', label: 'Add to playlist', onClick: () => setDialog({ kind: 'add-playlist', track }) },
@@ -406,7 +431,7 @@ export function Shell() {
               <MoreHorizontal size={18} />
             </button>
           ) : null}
-          {route.name !== 'album' && route.name !== 'settings' ? (
+          {route.name === 'library' || route.name === 'folder' || route.name === 'smart' ? (
             <button
               className="icon-btn"
               aria-label="Settings"
@@ -438,9 +463,14 @@ export function Shell() {
         </main>
       ) : route.name === 'stats' ? (
         <StatsView notify={notify} />
+      ) : route.name === 'equaliser' ? (
+        <EqualiserView notify={notify} />
+      ) : route.name === 'smart' ? (
+        <SmartPlaylistView id={route.id} onTrackMenu={(track, at, list) => trackMenu(track, at, undefined, list)} />
       ) : route.name === 'settings' ? (
         <SettingsView
           onOpenStats={() => push({ name: 'stats' })}
+          onOpenEqualiser={() => push({ name: 'equaliser' })}
           onNewPlaylist={() => setDialog({ kind: 'playlist' })}
           onRemoveDownloads={() => void run(() => offline.removeAll(), 'Removed all downloads')}
           onSignOut={() => void run(() => signOut())}
@@ -465,6 +495,7 @@ export function Shell() {
         />
       ) : (
         <LibraryView
+          header={route.name === 'library' && !activeQuery ? <SmartShelf onOpen={(id) => push({ name: 'smart', id })} /> : null}
           folders={libraryFolders}
           albums={libraryAlbums}
           tracks={library.tracks}
@@ -493,7 +524,7 @@ export function Shell() {
         />
       )}
 
-      {route.name !== 'album' && route.name !== 'settings' && route.name !== 'stats' ? (
+      {route.name === 'library' || route.name === 'folder' ? (
         <button className="add-btn" onClick={() => setAddOpen(true)}>
           <Plus size={18} /> Add
         </button>

@@ -9,12 +9,15 @@ import {
   Repeat1,
   Rewind,
   Shuffle,
+  SlidersHorizontal,
   Volume2,
   VolumeX,
 } from 'lucide-react';
 import { useEffect, useLayoutEffect, useRef } from 'react';
 import { coverFor } from '../lib/covers';
 import { formatClock } from '../lib/format';
+import { openEqualiser } from '../lib/navigation';
+import { eqActive } from '../lib/equaliser';
 import { readPeaks } from '../lib/peaks';
 import { useLibrary } from '../state/LibraryProvider';
 import { usePlayer } from '../state/PlayerProvider';
@@ -54,7 +57,8 @@ function flyCover(wrap: HTMLElement | null, direction: 'open' | 'close') {
 export function NowPlaying() {
   const player = usePlayer();
   const { albums } = useLibrary();
-  const { songCovers } = useSettings();
+  const { songCovers, eq } = useSettings();
+  const eqOn = eqActive(eq);
   const wrapRef = useRef<HTMLDivElement>(null);
   const open = player.expandedOpen;
   const track = player.track;
@@ -155,6 +159,9 @@ export function NowPlaying() {
               </button>
               <Slider className="volume-slider" min={0} max={1} step={0.01} value={player.muted ? 0 : player.volume} label="Volume level" onChange={player.setVolume} />
             </div>
+            <button className={eqOn ? 'ctrl is-on' : 'ctrl'} aria-label="Equaliser" title="Equaliser" onClick={openEqualiser}>
+              <SlidersHorizontal size={20} />
+            </button>
             <button
               className="ctrl"
               aria-label="Queue"

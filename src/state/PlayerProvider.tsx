@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { audioObjectUrl } from '../api';
-import { audioEngine, isFlat } from '../lib/audio-engine';
+import { audioEngine } from '../lib/audio-engine';
+import { effectiveEq, eqActive } from '../lib/equaliser';
 import { coverFor } from '../lib/covers';
 import { readPeaks } from '../lib/peaks';
 import { useSettings } from './SettingsProvider';
@@ -17,14 +18,19 @@ import {
   jump,
   mapQueue,
   playOrder,
-  removeAt,
+  moveUpcoming,
+  reinsert,
+  removeWithUndo,
   retreat,
+  type Removed,
   setShuffle as reorder,
   startQueue,
   type QueueState,
 } from '../lib/queue-order';
 
 export type RepeatMode = 'off' | 'all' | 'one';
+
+export type QueueUndo = { removed: Removed<Track>; epoch: number };
 
 type PlayerContextValue = {
   queue: Track[];
@@ -62,8 +68,15 @@ type PlayerContextValue = {
   setExpandedOpen: (open: boolean) => void;
   clearQueue: () => void;
   playNext: (track: Track) => void;
-  removeFromQueue: (index: number) => void;
+  /** Removes the song at a play-order position; the token undoes it with `undoRemove`. */
+  removeFromQueue: (index: number) => QueueUndo | null;
+  /** Puts back a removed song. False when the queue has been replaced since. */
+  undoRemove: (token: QueueUndo) => boolean;
+  /** Moves an upcoming song from one play-order position to another. */
+  moveInQueue: (from: number, to: number) => void;
   jumpTo: (index: number) => void;
+  /** Plays a song from the history: back to it in the queue when it is there, otherwise straight after the current one. */
+  playFromHistory: (track: Track) => void;
 };
 
 const PlayerContext = createContext<PlayerContextValue | null>(null);
@@ -89,10 +102,13 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   const skipLoad = useRef(false);
   const crossfadeRef = useRef(crossfade);
   crossfadeRef.current = crossfade;
-  const needsEngine = crossfade > 0 || !isFlat(eq);
-  const engineRef = useRef({ needed: needsEngine, eq, level: 1 });
+  const needsEngine = crossfade > 0 || eqActive(eq);
+  const eqSetting = useMemo(() => effectiveEq(eq), [eq]);
+  const engineRef = useRef({ needed: needsEngine, eq: eqSetting, level: 1 });
   /** The queue in the order it was given and the order it plays in (see queue-order.ts). */
   const stateRef = useRef<QueueState<Track>>(emptyQueue());
+  /** Bumped whenever a new queue replaces the old one, so an undo from the old queue is not applied to it. */
+  const epochRef = useRef(0);
   /** The play order and position, mirrored from `stateRef` for the code that only needs those. */
   const queueRef = useRef<Track[]>([]);
   const indexRef = useRef(0);
@@ -373,14 +389,14 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     else if (audio) audio.currentTime = 0;
   }, [apply]);
 
-  engineRef.current = { needed: needsEngine, eq, level: muted ? 0 : volume };
+  engineRef.current = { needed: needsEngine, eq: eqSetting, level: muted ? 0 : volume };
   useEffect(() => {
-    if (needsEngine) audioEngine.ensure(elementsRef.current, eq, muted ? 0 : volume);
-  }, [needsEngine, eq, muted, volume]);
+    if (needsEngine) audioEngine.ensure(elementsRef.current, eqSetting, muted ? 0 : volume);
+  }, [needsEngine, eqSetting, muted, volume]);
 
   useEffect(() => {
-    audioEngine.setEq(eq);
-  }, [eq]);
+    audioEngine.setEq(eqSetting);
+  }, [eqSetting]);
 
   useEffect(() => {
     const level = muted ? 0 : volume;
@@ -483,6 +499,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   const playTracks = useCallback(
     (list: Track[], startIndex?: number) => {
       if (!list.length) return;
+      epochRef.current += 1;
       apply(startQueue(list, startIndex, shuffleRef.current), true);
     },
     [apply],
@@ -498,6 +515,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     (list: Track[]) => {
       if (!list.length) return;
       writeShuffle(true);
+      epochRef.current += 1;
       apply(startQueue(list, undefined, true), true);
     },
     [apply, writeShuffle],
@@ -554,6 +572,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       audio.removeAttribute('src');
       audio.load();
     }
+    epochRef.current += 1;
     stateRef.current = emptyQueue();
     queueRef.current = [];
     indexRef.current = 0;
@@ -650,9 +669,50 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   );
 
   const removeFromQueue = useCallback(
-    (at: number) => {
-      const nextState = removeAt(stateRef.current, at);
+    (at: number): QueueUndo | null => {
+      const result = removeWithUndo(stateRef.current, at);
+      if (!result) return null;
+      apply(result.state, false);
+      return { removed: result.removed, epoch: epochRef.current };
+    },
+    [apply],
+  );
+
+  const undoRemove = useCallback(
+    (token: QueueUndo) => {
+      if (token.epoch !== epochRef.current || !stateRef.current.slots.length) return false;
+      apply(reinsert(stateRef.current, token.removed), false);
+      return true;
+    },
+    [apply],
+  );
+
+  const moveInQueue = useCallback(
+    (from: number, to: number) => {
+      const nextState = moveUpcoming(stateRef.current, from, to);
       if (nextState !== stateRef.current) apply(nextState, false);
+    },
+    [apply],
+  );
+
+  const playFromHistory = useCallback(
+    (track: Track) => {
+      const state = stateRef.current;
+      const order = playOrder(state);
+      for (let at = state.index; at >= 0; at -= 1) {
+        if (order[at]?.id === track.id) {
+          if (at === state.index) resumeRef.current();
+          else apply(jump(state, at), true);
+          return;
+        }
+      }
+      if (!state.slots.length) {
+        epochRef.current += 1;
+        apply(startQueue([track], 0, false), true);
+        return;
+      }
+      const inserted = insertNext(state, track);
+      apply(jump(inserted, inserted.index + 1), true);
     },
     [apply],
   );
@@ -702,7 +762,10 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       clearQueue,
       playNext,
       removeFromQueue,
+      undoRemove,
+      moveInQueue,
       jumpTo,
+      playFromHistory,
     }),
     [
       queue,
@@ -735,7 +798,10 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       clearQueue,
       playNext,
       removeFromQueue,
+      undoRemove,
+      moveInQueue,
       jumpTo,
+      playFromHistory,
     ],
   );
 

@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import { Folder, MoreHorizontal, Play } from 'lucide-react';
 import type { Album, Folder as FolderRecord, Track } from '../types';
 import { formatTrackTime, matchesQuery } from '../lib/format';
@@ -9,6 +10,7 @@ import { OfflineBadge } from './OfflineBadge';
 import { atPointer, below, type Point } from './overlays';
 
 export function LibraryView({
+  header,
   title,
   folders,
   albums,
@@ -22,6 +24,8 @@ export function LibraryView({
   onTrackMenu,
   onPlayTrack,
 }: {
+  /** Shown above the albums, such as the smart playlists. */
+  header?: ReactNode;
   title?: string;
   folders: FolderRecord[];
   albums: Album[];
@@ -47,8 +51,9 @@ export function LibraryView({
   const empty = !visibleFolders.length && !visibleAlbums.length && !visibleTracks.length;
 
   return (
-    <main className="stage">
+    <main className={header ? 'stage with-shelf' : 'stage'}>
       {title ? <h2 className="stage-title">{title}</h2> : null}
+      {header}
       {empty && query ? <p className="empty-note">No matches</p> : null}
       <div className="grid">
         {visibleFolders.map((folder, index) => (

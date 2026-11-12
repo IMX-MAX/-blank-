@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { BarChart3, Flame, Headphones, Play } from 'lucide-react';
 import { coverFor } from '../lib/covers';
 import { formatTotal, plural } from '../lib/format';
-import { loadStats, onStatsChange, resetStats, summarise, type DayStats, type Period, type Ranked } from '../lib/stats';
+import { resetStats, summarise, type Period, type Ranked } from '../lib/stats';
+import { useStatsDays } from '../state/useStatsDays';
 import { useLibrary } from '../state/LibraryProvider';
 import { usePlayer } from '../state/PlayerProvider';
 import { useSettings } from '../state/SettingsProvider';
@@ -20,30 +21,11 @@ const WEEKDAY = new Intl.DateTimeFormat('en-GB', { weekday: 'narrow' });
 const SHORT_DATE = new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short' });
 const dateOf = (day: string) => new Date(`${day}T00:00:00`);
 
-function useStats() {
-  const [days, setDays] = useState<DayStats[] | null>(null);
-  const [failed, setFailed] = useState(false);
-  useEffect(() => {
-    let live = true;
-    const load = () =>
-      loadStats()
-        .then((next) => live && setDays(next))
-        .catch(() => live && setFailed(true));
-    void load();
-    const stop = onStatsChange(() => void load());
-    return () => {
-      live = false;
-      stop();
-    };
-  }, []);
-  return { days, failed };
-}
-
 export function StatsView({ notify }: { notify: (message: string) => void }) {
   const library = useLibrary();
   const player = usePlayer();
   const { songCovers } = useSettings();
-  const { days, failed } = useStats();
+  const { days, failed } = useStatsDays();
   const [period, setPeriod] = useState<Period>('7d');
   const [confirmReset, setConfirmReset] = useState(false);
 

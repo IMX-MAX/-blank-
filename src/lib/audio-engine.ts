@@ -1,11 +1,7 @@
-export type EqBands = { bass: number; mid: number; treble: number };
+import { BAND_Q, EQ_FREQUENCIES, bandKind } from './equaliser';
 
-export const EQ_FLAT: EqBands = { bass: 0, mid: 0, treble: 0 };
-export const EQ_LIMIT = 12;
-
-export const isFlat = (bands: EqBands) => bands.bass === 0 && bands.mid === 0 && bands.treble === 0;
-
-export const clampBand = (db: number) => Math.min(EQ_LIMIT, Math.max(-EQ_LIMIT, Math.round(db)));
+/** What the audio graph is set to: ten band gains and a preamp in dB, and whether Late Night compression is on. */
+export type EqSetting = { bands: number[]; preamp: number; night: boolean };
 
 /** Equal-power fade curves: the two songs together keep the same loudness all the way through. */
 export function fadeCurves(steps = 64): { out: Float32Array; in: Float32Array } {
@@ -20,15 +16,17 @@ export function fadeCurves(steps = 64): { out: Float32Array; in: Float32Array } 
 }
 
 /**
- * The Web Audio graph behind playback: every player element goes through its own fade gain, then a
- * three-band equaliser and a master volume. It is built the first time the equaliser or crossfade is
+ * The Web Audio graph behind playback: every player element goes through its own fade gain, then a preamp,
+ * a ten-band equaliser, a compressor (neutral unless Late Night is on) and a master volume. It is built the first time the equaliser or crossfade is
  * needed, so a plain player never goes through it. Elements must play same-origin or blob audio.
  */
 class AudioEngine {
   private ctx: AudioContext | null = null;
   private inputs: GainNode[] = [];
   private gains = new WeakMap<HTMLAudioElement, GainNode>();
-  private bands: { low: BiquadFilterNode; mid: BiquadFilterNode; high: BiquadFilterNode } | null = null;
+  private filters: BiquadFilterNode[] = [];
+  private preamp: GainNode | null = null;
+  private compressor: DynamicsCompressorNode | null = null;
   private master: GainNode | null = null;
   private fadeTimer: number | null = null;
 
@@ -37,29 +35,35 @@ class AudioEngine {
   }
 
   /** Builds the graph on first use, and wires in any element it has not seen yet. */
-  ensure(elements: HTMLAudioElement[], eq: EqBands, volume: number) {
+  ensure(elements: HTMLAudioElement[], eq: EqSetting, volume: number) {
     if (!this.ctx) {
       const Context = window.AudioContext ?? (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
       if (!Context) return;
       const ctx = new Context({ latencyHint: 'playback' });
 
-      const low = ctx.createBiquadFilter();
-      low.type = 'lowshelf';
-      low.frequency.value = 120;
-      const mid = ctx.createBiquadFilter();
-      mid.type = 'peaking';
-      mid.frequency.value = 1000;
-      mid.Q.value = 0.8;
-      const high = ctx.createBiquadFilter();
-      high.type = 'highshelf';
-      high.frequency.value = 6000;
+      const preamp = ctx.createGain();
+      const filters = EQ_FREQUENCIES.map((frequency, at) => {
+        const filter = ctx.createBiquadFilter();
+        filter.type = bandKind(at);
+        filter.frequency.value = frequency;
+        if (filter.type === 'peaking') filter.Q.value = BAND_Q;
+        filter.gain.value = 0;
+        return filter;
+      });
+      const compressor = ctx.createDynamicsCompressor();
       const master = ctx.createGain();
-      low.connect(mid);
-      mid.connect(high);
-      high.connect(master);
+      let previous: AudioNode = preamp;
+      for (const filter of filters) {
+        previous.connect(filter);
+        previous = filter;
+      }
+      previous.connect(compressor);
+      compressor.connect(master);
       master.connect(ctx.destination);
 
-      this.bands = { low, mid, high };
+      this.preamp = preamp;
+      this.filters = filters;
+      this.compressor = compressor;
       this.master = master;
       this.ctx = ctx;
       ctx.addEventListener('statechange', () => {
@@ -69,13 +73,13 @@ class AudioEngine {
       this.setVolume(volume);
     }
     const ctx = this.ctx;
-    const low = this.bands!.low;
+    const input = this.preamp!;
     this.inputs = elements.map((element) => {
       let gain = this.gains.get(element);
       if (!gain) {
         gain = ctx.createGain();
         ctx.createMediaElementSource(element).connect(gain);
-        gain.connect(low);
+        gain.connect(input);
         element.volume = 1;
         this.gains.set(element, gain);
       }
@@ -88,12 +92,18 @@ class AudioEngine {
     if (this.ctx && this.ctx.state !== 'running') void this.ctx.resume().catch(() => undefined);
   }
 
-  setEq(eq: EqBands) {
-    if (!this.ctx || !this.bands) return;
+  setEq(eq: EqSetting) {
+    if (!this.ctx || !this.preamp || !this.compressor) return;
     const now = this.ctx.currentTime;
-    this.bands.low.gain.setTargetAtTime(eq.bass, now, 0.015);
-    this.bands.mid.gain.setTargetAtTime(eq.mid, now, 0.015);
-    this.bands.high.gain.setTargetAtTime(eq.treble, now, 0.015);
+    this.filters.forEach((filter, at) => filter.gain.setTargetAtTime(eq.bands[at] ?? 0, now, 0.02));
+    this.preamp.gain.setTargetAtTime(10 ** (eq.preamp / 20), now, 0.02);
+    // Neutral settings leave the compressor doing nothing; Late Night brings quiet passages up and holds peaks.
+    const c = this.compressor;
+    c.threshold.setTargetAtTime(eq.night ? -30 : 0, now, 0.05);
+    c.ratio.setTargetAtTime(eq.night ? 4 : 1, now, 0.05);
+    c.knee.setTargetAtTime(eq.night ? 12 : 0, now, 0.05);
+    c.attack.setTargetAtTime(eq.night ? 0.01 : 0.003, now, 0.05);
+    c.release.setTargetAtTime(eq.night ? 0.3 : 0.25, now, 0.05);
   }
 
   setVolume(volume: number) {
