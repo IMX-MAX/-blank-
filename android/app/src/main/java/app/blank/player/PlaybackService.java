@@ -72,6 +72,7 @@ public class PlaybackService extends Service {
     private Bitmap fallbackArt;
     private boolean foreground;
     private PowerManager.WakeLock wakeLock;
+    private OutputWatcher outputs;
 
     public static void setListener(Listener next) {
         listener = next;
@@ -139,6 +140,9 @@ public class PlaybackService extends Service {
             @Override public void onStop() { emit("pause", 0); }
         });
         session.setActive(true);
+        // Headphones or Bluetooth audio going away: the page decides whether to pause (it has the setting).
+        outputs = new OutputWatcher(this, reason -> emit("noisy", 0));
+        outputs.start();
     }
 
     @Override
@@ -305,6 +309,7 @@ public class PlaybackService extends Service {
     }
 
     private void shutdown() {
+        if (outputs != null) outputs.stop();
         MAIN.removeCallbacks(demote);
         MAIN.removeCallbacks(widgetTick);
         instance = null;
@@ -330,6 +335,7 @@ public class PlaybackService extends Service {
 
     @Override
     public void onDestroy() {
+        if (outputs != null) outputs.stop();
         holdWakeLock(false);
         MAIN.removeCallbacks(widgetTick);
         if (instance == this) {

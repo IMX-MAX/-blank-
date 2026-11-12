@@ -73,7 +73,9 @@ function readRepeat(): RepeatMode {
 
 export function PlayerProvider({ children }: { children: ReactNode }) {
   const { tracks, albums } = useLibrary();
-  const { songCovers, glyphSupported, glyphWaveform, eq, crossfade } = useSettings();
+  const { songCovers, glyphSupported, glyphWaveform, eq, crossfade, pauseOnDisconnect } = useSettings();
+  const pauseOnDisconnectRef = useRef(pauseOnDisconnect);
+  pauseOnDisconnectRef.current = pauseOnDisconnect;
   const audioRef = useRef<HTMLAudioElement | null>(null);
   /** Two elements take turns as the active one so a crossfade can overlap the end of one song with the start of the next. */
   const elementsRef = useRef<HTMLAudioElement[]>([]);
@@ -359,6 +361,11 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     else if (control.action === 'next') next();
     else if (control.action === 'previous') previous();
     else if (control.action === 'shuffle') toggleShuffleRef.current();
+    // Headphones or Bluetooth went away: pause through the normal path, so the screens and the notification follow.
+    // It never resumes on its own when they come back.
+    else if (control.action === 'noisy') {
+      if (pauseOnDisconnectRef.current && audio && !audio.paused) audio.pause();
+    }
     else if (control.action === 'seekto' && audio && control.position !== undefined) {
       audio.currentTime = Math.max(0, control.position);
       setCurrentTime(audio.currentTime);

@@ -2,7 +2,8 @@ import { Capacitor, registerPlugin, type PluginListenerHandle } from '@capacitor
 import { coverObjectUrl } from '../api';
 
 export type ControlAction = {
-  action: 'play' | 'pause' | 'next' | 'previous' | 'seekto' | 'shuffle';
+  /** `noisy`: headphones or Bluetooth audio went away, so the sound would come out of the speaker. */
+  action: 'play' | 'pause' | 'next' | 'previous' | 'seekto' | 'shuffle' | 'noisy';
   /** Seconds, for `seekto`. */
   position?: number;
 };

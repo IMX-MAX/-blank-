@@ -257,6 +257,8 @@ export function SettingsView({
     setPronunciation,
     translation,
     setTranslation,
+    pauseOnDisconnect,
+    setPauseOnDisconnect,
   } = useSettings();
 
   return (
@@ -361,6 +363,21 @@ export function SettingsView({
             </button>
           </div>
         ) : null}
+        <div className="settings-row">
+          <div>
+            <div className="settings-label">Pause when headphones disconnect</div>
+            <div className="settings-hint">Music pauses when Bluetooth or wired headphones disconnect, or Bluetooth switches to another device, instead of carrying on through the speaker.</div>
+          </div>
+          <button
+            className={pauseOnDisconnect ? 'switch on' : 'switch'}
+            role="switch"
+            aria-checked={pauseOnDisconnect}
+            aria-label="Pause when headphones disconnect"
+            onClick={() => setPauseOnDisconnect(!pauseOnDisconnect)}
+          >
+            <span />
+          </button>
+        </div>
         <div className="settings-row">
           <div>
             <div className="settings-label">Show pronunciation</div>

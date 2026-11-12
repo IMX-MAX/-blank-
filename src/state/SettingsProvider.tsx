@@ -36,6 +36,9 @@ type SettingsValue = {
   /** Show a translation under lyrics in another language, like Apple Music. */
   translation: boolean;
   setTranslation: (on: boolean) => void;
+  /** Pause when headphones or Bluetooth audio disconnect, or Bluetooth switches device. */
+  pauseOnDisconnect: boolean;
+  setPauseOnDisconnect: (on: boolean) => void;
   /** Keep the screen on while the lyrics are open. */
   keepAwake: boolean;
   setKeepAwake: (on: boolean) => void;
@@ -58,6 +61,7 @@ const VIBRATE_KEY = 'blank.vibrate';
 const AWAKE_KEY = 'blank.keepAwake';
 const ROMAN_KEY = 'blank.pronunciation';
 const TRANSLATION_KEY = 'blank.translation';
+const NOISY_KEY = 'blank.pauseOnDisconnect';
 const ESTIMATE_KEY = 'blank.estimateWords';
 const EQ_KEY = 'blank.eq';
 const CROSSFADE_KEY = 'blank.crossfade';
@@ -98,6 +102,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
   const [vibrateSupported, setVibrateSupported] = useState(false);
   const [pronunciation, setPronunciationState] = useState(() => localStorage.getItem(ROMAN_KEY) !== '0');
   const [translation, setTranslationState] = useState(() => localStorage.getItem(TRANSLATION_KEY) !== '0');
+  const [pauseOnDisconnect, setPauseOnDisconnectState] = useState(() => localStorage.getItem(NOISY_KEY) !== '0');
   const [estimateWords, setEstimateWordsState] = useState(() => localStorage.getItem(ESTIMATE_KEY) !== '0');
   const [keepAwake, setKeepAwakeState] = useState(() => localStorage.getItem(AWAKE_KEY) === '1');
   const [eq, setEqState] = useState<EqBands>(readEq);
@@ -157,6 +162,11 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
   const setTranslation = useCallback((on: boolean) => {
     localStorage.setItem(TRANSLATION_KEY, on ? '1' : '0');
     setTranslationState(on);
+  }, []);
+
+  const setPauseOnDisconnect = useCallback((on: boolean) => {
+    localStorage.setItem(NOISY_KEY, on ? '1' : '0');
+    setPauseOnDisconnectState(on);
   }, []);
 
   const setEstimateWords = useCallback((on: boolean) => {
@@ -233,6 +243,8 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
       setPronunciation,
       translation,
       setTranslation,
+      pauseOnDisconnect,
+      setPauseOnDisconnect,
       estimateWords,
       setEstimateWords,
       keepAwake,
@@ -262,6 +274,8 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
       setPronunciation,
       translation,
       setTranslation,
+      pauseOnDisconnect,
+      setPauseOnDisconnect,
       estimateWords,
       setEstimateWords,
       keepAwake,
