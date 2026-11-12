@@ -1,4 +1,5 @@
 import { useMemo, useRef, type KeyboardEvent, type PointerEvent } from 'react';
+import { tickHaptic } from '../lib/haptics';
 import { BAND_LIMIT, EQ_FREQUENCIES, clampBand, formatDb, formatHz, responseDb } from '../lib/equaliser';
 
 const W = 340;
@@ -47,7 +48,10 @@ export function EqualizerGraph({
     const box = svg.current?.getBoundingClientRect();
     if (band === null || !box) return;
     const db = clampBand(dbFor(((event.clientY - box.top) / box.height) * H) - preamp);
-    if (db !== bands[band]) onBand(band, db);
+    if (db !== bands[band]) {
+      tickHaptic();
+      onBand(band, db);
+    }
   };
 
   const keyDown = (band: number, event: KeyboardEvent) => {

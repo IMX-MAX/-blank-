@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useState, type ReactNode } from 'react';
 
+import { HAPTICS_KEY, setHapticsEnabled } from '../lib/haptics';
 import { normaliseEq, normalisePresets, type EqPreset, type EqState } from '../lib/equaliser';
 import { glyphMatrix, type GlyphMode } from '../lib/glyph';
 
@@ -39,6 +40,9 @@ type SettingsValue = {
   /** Pause when headphones or Bluetooth audio disconnect, or Bluetooth switches device. */
   pauseOnDisconnect: boolean;
   setPauseOnDisconnect: (on: boolean) => void;
+  /** Haptic feedback on taps, slider steps and long presses. */
+  haptics: boolean;
+  setHaptics: (on: boolean) => void;
   /** Keep the screen on while the lyrics are open. */
   keepAwake: boolean;
   setKeepAwake: (on: boolean) => void;
@@ -117,6 +121,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
   const [translation, setTranslationState] = useState(() => localStorage.getItem(TRANSLATION_KEY) !== '0');
   const [pauseOnDisconnect, setPauseOnDisconnectState] = useState(() => localStorage.getItem(NOISY_KEY) !== '0');
   const [estimateWords, setEstimateWordsState] = useState(() => localStorage.getItem(ESTIMATE_KEY) !== '0');
+  const [haptics, setHapticsState] = useState(() => localStorage.getItem(HAPTICS_KEY) !== '0');
   const [keepAwake, setKeepAwakeState] = useState(() => localStorage.getItem(AWAKE_KEY) === '1');
   const [eq, setEqState] = useState<EqState>(readEq);
   const [eqPresets, setEqPresetsState] = useState<EqPreset[]>(readEqPresets);
@@ -186,6 +191,12 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
   const setEstimateWords = useCallback((on: boolean) => {
     localStorage.setItem(ESTIMATE_KEY, on ? '1' : '0');
     setEstimateWordsState(on);
+  }, []);
+
+  const setHaptics = useCallback((on: boolean) => {
+    localStorage.setItem(HAPTICS_KEY, on ? '1' : '0');
+    setHapticsEnabled(on);
+    setHapticsState(on);
   }, []);
 
   const setKeepAwake = useCallback((on: boolean) => {
@@ -269,6 +280,8 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
       setEstimateWords,
       keepAwake,
       setKeepAwake,
+      haptics,
+      setHaptics,
       eq,
       setEq,
       eqPresets,
@@ -302,6 +315,8 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
       setEstimateWords,
       keepAwake,
       setKeepAwake,
+      haptics,
+      setHaptics,
       eq,
       setEq,
       eqPresets,

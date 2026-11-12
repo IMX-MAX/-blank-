@@ -1,5 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { useSettings } from '../state/SettingsProvider';
+import { detents } from '../lib/haptics-core';
+import { tickHaptic } from '../lib/haptics';
 
 export function Waveform({
   peaks,
@@ -59,10 +61,13 @@ export function Waveform({
     return () => observer.disconnect();
   }, [peaks, progress, resolvedTheme]);
 
+  const ticks = useRef(detents(30));
+
   function seekAt(clientX: number) {
     const rect = canvasRef.current?.getBoundingClientRect();
     if (!rect || rect.width === 0) return;
     const ratio = Math.min(1, Math.max(0, (clientX - rect.left) / rect.width));
+    if (ticks.current(ratio)) tickHaptic();
     onSeek(ratio);
   }
 
@@ -72,6 +77,7 @@ export function Waveform({
       className="waveform"
       onPointerDown={(event) => {
         dragging.current = true;
+        ticks.current = detents(30);
         event.currentTarget.setPointerCapture(event.pointerId);
         seekAt(event.clientX);
       }}

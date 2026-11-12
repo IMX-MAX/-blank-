@@ -1,7 +1,8 @@
-import { useMemo, useState, type ComponentType } from 'react';
+import { memo, useMemo, useState, type ComponentType } from 'react';
 import { AudioLines, CalendarPlus, CircleDashed, History, Hourglass, MoreHorizontal, Pause, Play, Shuffle, TrendingUp } from 'lucide-react';
 import { coverFor } from '../lib/covers';
 import { formatTotal, plural } from '../lib/format';
+import { mosaicCovers, mosaicKey, mosaicLayout } from '../lib/mosaic';
 import { SMART_PLAYLISTS, buildSmartPlaylist, type SmartDefinition, type SmartId, type SmartWindow } from '../lib/smart-playlists';
 import { songTotals } from '../lib/stats';
 import { useLibrary } from '../state/LibraryProvider';
@@ -26,30 +27,59 @@ const WINDOW_KEY = 'blank.smartWindow';
 
 /** Every smart playlist's songs, recomputed as the library, the history and the stats change. */
 export function useSmartPlaylists(period: SmartWindow = 'all') {
-  const { tracks } = useLibrary();
+  const { tracks, albums } = useLibrary();
   const { history } = usePlayer();
   const { days } = useStatsDays();
   return useMemo(() => {
     const context = { tracks, days: days ?? [], history: history.map((track) => track.id), window: period };
     const lists = Object.fromEntries(SMART_PLAYLISTS.map((item) => [item.id, buildSmartPlaylist(item.id, context)])) as Record<SmartId, Track[]>;
-    return { lists, days: days ?? [], ready: days !== null };
-  }, [tracks, days, history, period]);
+    // Album covers, so songs from one album count once in the mosaic.
+    const albumsById = new Map(albums.map((album) => [album.id, album]));
+    const coverOf = (track: Track) => coverFor(track, track.albumId ? albumsById.get(track.albumId) : undefined, false);
+    const covers = Object.fromEntries(SMART_PLAYLISTS.map((item) => [item.id, mosaicCovers(lists[item.id], coverOf)])) as Record<SmartId, string[]>;
+    return { lists, covers, days: days ?? [], ready: days !== null };
+  }, [tracks, albums, days, history, period]);
 }
 
-export function SmartArt({ item, className }: { item: SmartDefinition; className?: string }) {
-  const Icon = ICONS[item.id];
-  return (
-    <span className={`smart-art ${className ?? ''}`} style={{ ['--hue' as string]: item.hue }} aria-hidden>
-      <Icon size={40} strokeWidth={1.6} />
-      <span className="smart-art-name">{item.name}</span>
-    </span>
-  );
-}
+/**
+ * A smart playlist's cover: a mosaic of up to four album covers from its songs, with a badge saying which smart
+ * playlist it is; the coloured placeholder when it has no songs with art. Covers come from the app's cover cache,
+ * and the mosaic only re-renders when the covers shown change.
+ */
+export const SmartArt = memo(
+  function SmartArt({ item, covers = [], className }: { item: SmartDefinition; covers?: string[]; className?: string }) {
+    const Icon = ICONS[item.id];
+    const layout = mosaicLayout(covers.length);
+    if (layout === 'none') {
+      return (
+        <span className={`smart-art ${className ?? ''}`} style={{ ['--hue' as string]: item.hue }} aria-hidden>
+          <Icon size={40} strokeWidth={1.6} />
+          <span className="smart-art-name">{item.name}</span>
+        </span>
+      );
+    }
+    return (
+      <span className={`smart-art mosaic ${className ?? ''}`} style={{ ['--hue' as string]: item.hue }} aria-hidden>
+        <span className={`mosaic-grid ${layout}`}>
+          {covers.map((fileId) => (
+            <Cover key={fileId} fileId={fileId} className="mosaic-tile" radius={0} />
+          ))}
+        </span>
+        <span className="mosaic-shade" />
+        <span className="smart-badge">
+          <Icon size={14} strokeWidth={2.2} />
+        </span>
+        <span className="smart-art-name">{item.name}</span>
+      </span>
+    );
+  },
+  (a, b) => a.item === b.item && a.className === b.className && mosaicKey(a.covers ?? []) === mosaicKey(b.covers ?? []),
+);
 
 /** The row of smart playlists at the top of the library. */
 export function SmartShelf({ onOpen }: { onOpen: (id: SmartId) => void }) {
   const player = usePlayer();
-  const { lists } = useSmartPlaylists((localStorage.getItem(WINDOW_KEY) as SmartWindow) || 'all');
+  const { lists, covers } = useSmartPlaylists((localStorage.getItem(WINDOW_KEY) as SmartWindow) || 'all');
   return (
     <section className="smart-shelf" aria-label="Smart playlists">
       <h2 className="shelf-title">Smart playlists</h2>
@@ -59,7 +89,7 @@ export function SmartShelf({ onOpen }: { onOpen: (id: SmartId) => void }) {
           return (
             <div key={item.id} className="smart-card" style={{ ['--i' as string]: index }}>
               <button className="smart-open" onClick={() => onOpen(item.id)} aria-label={`${item.name}, ${plural(list.length, 'song')}`}>
-                <SmartArt item={item} />
+                <SmartArt item={item} covers={covers[item.id]} />
               </button>
               {list.length ? (
                 <button className="card-play smart-play" aria-label={`Play ${item.name}`} onClick={() => player.playTracks(list)}>
@@ -88,7 +118,7 @@ export function SmartPlaylistView({ id, onTrackMenu }: { id: SmartId; onTrackMen
     localStorage.setItem(WINDOW_KEY, next);
     setWindowState(next);
   };
-  const { lists, days, ready } = useSmartPlaylists(period);
+  const { lists, covers, days, ready } = useSmartPlaylists(period);
   const list = lists[id];
   const totals = useMemo(() => (id === 'most-played' || id === 'forgotten' ? songTotals(days, period === '30d' && id === 'most-played' ? { withinDays: 30 } : {}) : null), [days, id, period]);
   const albumsById = useMemo(() => new Map(albums.map((album) => [album.id, album])), [albums]);
@@ -99,7 +129,7 @@ export function SmartPlaylistView({ id, onTrackMenu }: { id: SmartId; onTrackMen
   return (
     <main className="album smart-page">
       <div className="album-cover-btn smart-cover">
-        <SmartArt item={item} className="large" />
+        <SmartArt item={item} covers={covers[id]} className="large" />
       </div>
       <section className="album-main">
         <div className="album-heading">

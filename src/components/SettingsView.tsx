@@ -247,6 +247,8 @@ export function SettingsView({
     setTheme,
     songCovers,
     setSongCovers,
+    haptics,
+    setHaptics,
     glyphSupported,
     glyphWaveform,
     setGlyphWaveform,
@@ -302,6 +304,25 @@ export function SettingsView({
               </button>
             ))}
           </div>
+        </div>
+      </section>
+
+      <section className="settings-group">
+        <h2>Feel</h2>
+        <div className="settings-row">
+          <div>
+            <div className="settings-label">Haptic feedback</div>
+            <div className="settings-hint">A light tap on buttons, ticks as you drag sliders and the seek bar, and a buzz when something is added or deleted.</div>
+          </div>
+          <button
+            className={haptics ? 'switch on' : 'switch'}
+            role="switch"
+            aria-checked={haptics}
+            aria-label="Haptic feedback"
+            onClick={() => setHaptics(!haptics)}
+          >
+            <span />
+          </button>
         </div>
       </section>
 

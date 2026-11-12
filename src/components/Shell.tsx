@@ -22,6 +22,8 @@ import { SmartPlaylistView, SmartShelf } from './SmartPlaylists';
 import type { SmartId } from '../lib/smart-playlists';
 import { OPEN_EQUALISER_EVENT } from '../lib/navigation';
 import { useListeningRecorder } from '../state/useListeningRecorder';
+import { useGlobalHaptics } from '../state/useGlobalHaptics';
+import { successHaptic } from '../lib/haptics';
 import { Presence } from './Presence';
 import {
   AddMenu,
@@ -77,6 +79,7 @@ export function Shell() {
   const toastId = useRef(0);
   const route = stack[stack.length - 1] ?? { name: 'library' as const };
   useListeningRecorder();
+  useGlobalHaptics();
 
   const album = route.name === 'album' ? library.albums.find((item) => item.id === route.albumId) : undefined;
   const folder = route.name === 'folder' ? library.folders.find((item) => item.id === route.folderId) : undefined;
@@ -93,7 +96,10 @@ export function Shell() {
   async function run(action: () => Promise<unknown>, success?: string) {
     try {
       await action();
-      if (success) notify(success);
+      if (success) {
+        if (success.startsWith('Added')) successHaptic();
+        notify(success);
+      }
     } catch (err) {
       notify(errorMessage(err));
     }
@@ -213,7 +219,10 @@ export function Shell() {
       await library.addTracksToPlaylist(album.id, created.map((track) => track.id));
     }
     if (!created.length) notify('Choose audio files — mp3, flac, wav, m4a, and similar');
-    else notify(`Added ${plural(created.length, 'track')}`);
+    else {
+      successHaptic();
+      notify(`Added ${plural(created.length, 'track')}`);
+    }
   }
 
   function openFiles() {
@@ -283,7 +292,15 @@ export function Shell() {
     const source = list ?? (from ? library.tracksFor(from) : [track]);
     const items: MenuItem[] = [
       { id: 'play', label: 'Play', onClick: () => player.playTracks(source, Math.max(0, source.findIndex((item) => item.id === track.id))) },
-      { id: 'next', label: 'Play next', onClick: () => player.playNext(track) },
+      {
+        id: 'next',
+        label: 'Play next',
+        onClick: () => {
+          player.playNext(track);
+          successHaptic();
+          notify('Playing next');
+        },
+      },
       ...offlineItem([track], track.title),
       { id: 'add', label: 'Add to playlist', onClick: () => setDialog({ kind: 'add-playlist', track }) },
       { id: 'research-lyrics', label: 'Re-search lyrics', onClick: () => setDialog({ kind: 'research-lyrics', track }) },
