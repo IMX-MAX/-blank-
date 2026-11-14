@@ -20,7 +20,10 @@ import { StatsView } from './StatsView';
 import { EqualiserView } from './EqualiserView';
 import { SmartPlaylistView, SmartShelf } from './SmartPlaylists';
 import type { SmartId } from '../lib/smart-playlists';
-import { OPEN_EQUALISER_EVENT } from '../lib/navigation';
+import { OPEN_ALBUM_EVENT, OPEN_ARTIST_EVENT, OPEN_EQUALISER_EVENT } from '../lib/navigation';
+import { artistKey, knownArtists, splitArtists } from '../lib/artists';
+import { ArtistView } from './ArtistView';
+import { LibraryPicker } from './LibraryPicker';
 import { useListeningRecorder } from '../state/useListeningRecorder';
 import { useGlobalHaptics } from '../state/useGlobalHaptics';
 import { successHaptic } from '../lib/haptics';
@@ -42,6 +45,7 @@ type Route =
   | { name: 'stats' }
   | { name: 'equaliser' }
   | { name: 'smart'; id: SmartId }
+  | { name: 'artist'; artist: string }
   | { name: 'folder'; folderId: string } | { name: 'album'; albumId: string };
 
 type Dialog =
@@ -142,6 +146,31 @@ export function Shell() {
     const open = () => openEqualiser.current();
     window.addEventListener(OPEN_EQUALISER_EVENT, open);
     return () => window.removeEventListener(OPEN_EQUALISER_EVENT, open);
+  }, []);
+
+  // Artist and album names anywhere (song rows, the player) open their pages over whatever is showing.
+  const openPage = useRef((_next: Route) => undefined as void);
+  openPage.current = (next: Route) => {
+    setMenu(null);
+    setDialog(null);
+    setPanel(null);
+    player.setExpandedOpen(false);
+    player.setQueueOpen(false);
+    player.setLyricsOpen(false);
+    const same =
+      (next.name === 'artist' && route.name === 'artist' && artistKey(route.artist) === artistKey(next.artist)) ||
+      (next.name === 'album' && route.name === 'album' && route.albumId === next.albumId);
+    if (!same) push(next);
+  };
+  useEffect(() => {
+    const onArtist = (event: Event) => openPage.current({ name: 'artist', artist: String((event as CustomEvent).detail) });
+    const onAlbum = (event: Event) => openPage.current({ name: 'album', albumId: String((event as CustomEvent).detail) });
+    window.addEventListener(OPEN_ARTIST_EVENT, onArtist);
+    window.addEventListener(OPEN_ALBUM_EVENT, onAlbum);
+    return () => {
+      window.removeEventListener(OPEN_ARTIST_EVENT, onArtist);
+      window.removeEventListener(OPEN_ALBUM_EVENT, onAlbum);
+    };
   }, []);
 
   const backButton = useRef<() => void>(() => undefined);
@@ -276,6 +305,9 @@ export function Shell() {
     const items: MenuItem[] = [
       { id: 'play', label: 'Play', onClick: () => playCollection(item) },
       ...offlineItem(library.tracksFor(item), item.name),
+      ...(item.kind === 'album' && item.artist.trim() && !(route.name === 'artist' && artistKey(route.artist) === artistKey(item.artist))
+        ? [{ id: 'artist', label: 'Go to artist', onClick: () => push({ name: 'artist', artist: splitArtists(item.artist, knownArtists(library.albums, library.tracks))[0] ?? item.artist }) }]
+        : []),
       { id: 'rename', label: 'Rename', onClick: () => setDialog({ kind: 'rename-album', album: item }) },
       { id: 'move', label: 'Move to folder', onClick: () => setDialog({ kind: 'move', album: item }) },
       {
@@ -303,6 +335,7 @@ export function Shell() {
       },
       ...offlineItem([track], track.title),
       { id: 'add', label: 'Add to playlist', onClick: () => setDialog({ kind: 'add-playlist', track }) },
+      ...goToItems(track),
       { id: 'research-lyrics', label: 'Re-search lyrics', onClick: () => setDialog({ kind: 'research-lyrics', track }) },
     ];
     if (from?.kind === 'playlist') {
@@ -319,6 +352,26 @@ export function Shell() {
       onClick: () => setDialog({ kind: 'delete-track', track }),
     });
     setMenu({ ...at, items });
+  }
+
+  /** "Go to artist" (one per credited artist, up to three) and "Go to album", leaving out the page you are on. */
+  function goToItems(track: Track): MenuItem[] {
+    const items: MenuItem[] = [];
+    const names = splitArtists(track.artist, knownArtists(library.albums, library.tracks))
+      .filter((name) => !(route.name === 'artist' && artistKey(route.artist) === artistKey(name)))
+      .slice(0, 3);
+    for (const name of names) {
+      items.push({
+        id: `artist-${artistKey(name)}`,
+        label: names.length > 1 ? `Go to ${name}` : 'Go to artist',
+        onClick: () => push({ name: 'artist', artist: name }),
+      });
+    }
+    const home = library.albums.find((item) => item.id === track.albumId);
+    if (home?.kind === 'album' && !(route.name === 'album' && route.albumId === home.id)) {
+      items.push({ id: 'album', label: 'Go to album', onClick: () => push({ name: 'album', albumId: home.id }) });
+    }
+    return items;
   }
 
   const recent = [...library.tracks].sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1)).slice(0, 8);
@@ -482,6 +535,14 @@ export function Shell() {
         <StatsView notify={notify} />
       ) : route.name === 'equaliser' ? (
         <EqualiserView notify={notify} />
+      ) : route.name === 'artist' ? (
+        <ArtistView
+          key={artistKey(route.artist)}
+          name={route.artist}
+          onOpenAlbum={(albumId) => push({ name: 'album', albumId })}
+          onPlayAlbum={playCollection}
+          onTrackMenu={(track, at, list) => trackMenu(track, at, undefined, list)}
+        />
       ) : route.name === 'smart' ? (
         <SmartPlaylistView id={route.id} onTrackMenu={(track, at, list) => trackMenu(track, at, undefined, list)} />
       ) : route.name === 'settings' ? (
@@ -788,19 +849,17 @@ export function Shell() {
         />
       ) : null}
       {dialog?.kind === 'pick-tracks' ? (
-        <PickerDialog
-          title="Add tracks"
-          confirm="Add"
-          multiple
-          empty="Add songs to your library first"
-          choices={library.tracks
-            .filter((track) => !library.tracksFor(dialog.playlist).some((item) => item.id === track.id))
-            .map((track) => ({ id: track.id, label: track.title, detail: track.artist }))}
+        <LibraryPicker
+          playlist={dialog.playlist}
           onClose={() => setDialog(null)}
+          onUpload={() => {
+            setDialog(null);
+            openFiles();
+          }}
           onConfirm={(ids) => {
             const playlistId = dialog.playlist.id;
             setDialog(null);
-            void run(() => library.addTracksToPlaylist(playlistId, ids), `Added ${plural(ids.length, 'track')}`);
+            void run(() => library.addTracksToPlaylist(playlistId, ids), `Added ${plural(ids.length, 'song')}`);
           }}
         />
       ) : null}

@@ -22,6 +22,7 @@ import { readPeaks } from '../lib/peaks';
 import { useLibrary } from '../state/LibraryProvider';
 import { usePlayer } from '../state/PlayerProvider';
 import { useSettings } from '../state/SettingsProvider';
+import { AlbumLink, ArtistLinks } from './ArtistLinks';
 import { Cover } from './Cover';
 import { Slider } from './Slider';
 import { Waveform } from './Waveform';
@@ -98,7 +99,15 @@ export function NowPlaying() {
         <div className="now-panel">
           <div className="now-names">
             <div className="now-title">{track.title}</div>
-            <div className="now-artist">{track.artist}</div>
+            <div className="now-artist">
+              <ArtistLinks artist={track.artist} />
+              {album?.kind === 'album' ? (
+                <>
+                  <span className="now-dot"> · </span>
+                  <AlbumLink album={album} className="now-album" />
+                </>
+              ) : null}
+            </div>
           </div>
           <div className="now-seek">
             <Waveform

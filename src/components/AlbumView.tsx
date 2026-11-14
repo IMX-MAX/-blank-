@@ -1,7 +1,12 @@
 import { useRef } from 'react';
 import { AudioLines, ImagePlus, MoreHorizontal, Pause, Play, Plus, Shuffle } from 'lucide-react';
 import type { Album, Track } from '../types';
-import { formatTotal, matchesQuery, plural, relativeTime } from '../lib/format';
+import { albumYear } from '../lib/artists';
+import { coverFor } from '../lib/covers';
+import { formatTotal, matchesQuery, plural } from '../lib/format';
+import { useLibrary } from '../state/LibraryProvider';
+import { useSettings } from '../state/SettingsProvider';
+import { AlbumLink, ArtistLinks } from './ArtistLinks';
 import { useOffline, useOnline } from '../state/OfflineProvider';
 import { usePlayer } from '../state/PlayerProvider';
 import { Cover } from './Cover';
@@ -31,6 +36,11 @@ export function AlbumView({
   const offline = useOffline();
   const online = useOnline();
   const coverInput = useRef<HTMLInputElement>(null);
+  const { albums } = useLibrary();
+  const { songCovers } = useSettings();
+  const isPlaylist = album.kind === 'playlist';
+  const albumsById = new Map(albums.map((item) => [item.id, item]));
+  const year = isPlaylist ? null : albumYear(tracks);
   const visible = tracks
     .map((track, index) => ({ track, index }))
     .filter(({ track }) => matchesQuery(query, track.title, track.artist));
@@ -67,7 +77,8 @@ export function AlbumView({
           <div>
             <h2 className="album-title">{album.name}</h2>
             <p className="album-meta">
-              {album.artist} · {plural(tracks.length, 'track')} · {formatTotal(totalMs)}
+              {isPlaylist ? 'Playlist' : <ArtistLinks artist={album.artist} className="album-artist" />}
+              {year ? ` · ${year}` : ''} · {plural(tracks.length, 'track')} · {formatTotal(totalMs)}
             </p>
           </div>
           <div className="play-cluster">
@@ -90,25 +101,37 @@ export function AlbumView({
           </div>
         </div>
         <button className="add-tracks" onClick={onAdd}>
-          <Plus size={16} /> Add tracks
+          <Plus size={16} /> {isPlaylist ? 'Add songs' : 'Add tracks'}
         </button>
         <div className="track-list">
           {visible.map(({ track, index }) => {
             const active = player.track?.id === track.id;
             const unavailable = !online && !offline.isSaved(track.id);
+            const home = track.albumId ? albumsById.get(track.albumId) : undefined;
             return (
               <div
-                className={`track${active ? ' active' : ''}${unavailable ? ' unavailable' : ''}`}
+                className={`track${isPlaylist ? ' art-track' : ''}${active ? ' active' : ''}${unavailable ? ' unavailable' : ''}`}
                 key={track.id}
                 onContextMenu={(event) => onTrackMenu(track, atPointer(event))}
               >
                 <button className="track-hit" disabled={unavailable} onClick={() => onTrack(track)}>
                   <span className="track-num">
-                    {active ? <AudioLines size={15} /> : index + 1}
+                    {active ? <AudioLines size={15} /> : !isPlaylist && track.trackNumber ? track.trackNumber : index + 1}
                   </span>
+                  {isPlaylist ? (
+                    <Cover fileId={coverFor(track, home, songCovers)} hue={home?.hue ?? track.hue} className="smart-track-art" radius={8} />
+                  ) : null}
                   <span className="track-copy">
                     <span className="track-title">{track.title}</span>
-                    <span className="track-sub">{relativeTime(track.createdAt)}</span>
+                    <span className="track-sub">
+                      <ArtistLinks artist={track.artist} />
+                      {isPlaylist && home?.kind === 'album' ? (
+                        <>
+                          {' · '}
+                          <AlbumLink album={home} />
+                        </>
+                      ) : null}
+                    </span>
                   </span>
                 </button>
                 <OfflineBadge trackId={track.id} />

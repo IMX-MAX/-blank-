@@ -5,6 +5,7 @@ import { formatTrackTime, matchesQuery } from '../lib/format';
 import { useLibrary } from '../state/LibraryProvider';
 import { useOffline, useOnline } from '../state/OfflineProvider';
 import { usePlayer } from '../state/PlayerProvider';
+import { ArtistLinks } from './ArtistLinks';
 import { Cover } from './Cover';
 import { OfflineBadge } from './OfflineBadge';
 import { atPointer, below, type Point } from './overlays';
@@ -139,7 +140,7 @@ export function LibraryView({
               <Cover fileId={track.coverFileId} hue={track.hue} radius={8} className="search-art" />
               <span>
                 <span className="track-title">{track.title}</span>
-                <span className="track-sub">{track.artist}</span>
+                <ArtistLinks artist={track.artist} className="track-sub" />
               </span>
               <span className="track-dur">
                 <OfflineBadge trackId={track.id} />
