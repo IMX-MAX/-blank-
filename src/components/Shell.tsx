@@ -21,9 +21,9 @@ import { EqualiserView } from './EqualiserView';
 import { SmartPlaylistView, SmartShelf } from './SmartPlaylists';
 import type { SmartId } from '../lib/smart-playlists';
 import { OPEN_ALBUM_EVENT, OPEN_ARTIST_EVENT, OPEN_EQUALISER_EVENT, handleInterceptedBack } from '../lib/navigation';
-import { artistKey, knownArtists, splitArtists } from '../lib/artists';
+import { albumArtists, artistKey, knownArtists, trackArtists } from '../lib/artists';
 import { ArtistView } from './ArtistView';
-import { LibraryPicker } from './LibraryPicker';
+import { LibraryPicker, type PickerTarget } from './LibraryPicker';
 import { useListeningRecorder } from '../state/useListeningRecorder';
 import { useGlobalHaptics } from '../state/useGlobalHaptics';
 import { successHaptic } from '../lib/haptics';
@@ -52,7 +52,7 @@ type Dialog =
   | { kind: 'folder' }
   | { kind: 'project' }
   | { kind: 'playlist' }
-  | { kind: 'playlist-for-track'; track: Track }
+  | { kind: 'playlist-for-track'; trackIds: string[] }
   | { kind: 'rename-album'; album: Album }
   | { kind: 'rename-folder'; folder: Folder }
   | { kind: 'delete-album'; album: Album }
@@ -60,8 +60,8 @@ type Dialog =
   | { kind: 'delete-track'; track: Track }
   | { kind: 'research-lyrics'; track: Track }
   | { kind: 'move'; album: Album }
-  | { kind: 'add-playlist'; track: Track }
-  | { kind: 'pick-tracks'; playlist: Album };
+  | { kind: 'add-playlist'; trackIds: string[] }
+  | { kind: 'pick-tracks'; target: PickerTarget };
 
 export function Shell() {
   const { user, signOut, signUp, leaveOffline } = useAuth();
@@ -307,9 +307,13 @@ export function Shell() {
     const items: MenuItem[] = [
       { id: 'play', label: 'Play', onClick: () => playCollection(item) },
       ...offlineItem(library.tracksFor(item), item.name),
-      ...(item.kind === 'album' && item.artist.trim() && !(route.name === 'artist' && artistKey(route.artist) === artistKey(item.artist))
-        ? [{ id: 'artist', label: 'Go to artist', onClick: () => push({ name: 'artist', artist: splitArtists(item.artist, knownArtists(library.albums, library.tracks))[0] ?? item.artist }) }]
+      ...(library.tracksFor(item).length
+        ? [{ id: 'add', label: 'Add to playlist', onClick: () => setDialog({ kind: 'add-playlist', trackIds: library.tracksFor(item).map((track) => track.id) }) }]
         : []),
+      ...albumArtists(item, knownArtists(library.albums, library.tracks))
+        .filter((name) => !(route.name === 'artist' && artistKey(route.artist) === artistKey(name)))
+        .slice(0, 1)
+        .map((name) => ({ id: 'artist', label: 'Go to artist', onClick: () => push({ name: 'artist', artist: name }) })),
       { id: 'rename', label: 'Rename', onClick: () => setDialog({ kind: 'rename-album', album: item }) },
       { id: 'move', label: 'Move to folder', onClick: () => setDialog({ kind: 'move', album: item }) },
       {
@@ -336,7 +340,7 @@ export function Shell() {
         },
       },
       ...offlineItem([track], track.title),
-      { id: 'add', label: 'Add to playlist', onClick: () => setDialog({ kind: 'add-playlist', track }) },
+      { id: 'add', label: 'Add to playlist', onClick: () => setDialog({ kind: 'add-playlist', trackIds: [track.id] }) },
       ...goToItems(track),
       { id: 'research-lyrics', label: 'Re-search lyrics', onClick: () => setDialog({ kind: 'research-lyrics', track }) },
     ];
@@ -359,7 +363,7 @@ export function Shell() {
   /** "Go to artist" (one per credited artist, up to three) and "Go to album", leaving out the page you are on. */
   function goToItems(track: Track): MenuItem[] {
     const items: MenuItem[] = [];
-    const names = splitArtists(track.artist, knownArtists(library.albums, library.tracks))
+    const names = trackArtists(track, knownArtists(library.albums, library.tracks))
       .filter((name) => !(route.name === 'artist' && artistKey(route.artist) === artistKey(name)))
       .slice(0, 3);
     for (const name of names) {
@@ -568,8 +572,8 @@ export function Shell() {
           onTrack={(track) => player.toggleTrack(track, library.tracksFor(album))}
           onTrackMenu={(track, at) => trackMenu(track, at, album)}
           onAdd={() => {
-            if (album.kind === 'playlist') setDialog({ kind: 'pick-tracks', playlist: album });
-            else openFiles();
+            // Always your library first; uploading new files is the second option inside the picker.
+            setDialog({ kind: 'pick-tracks', target: { kind: album.kind === 'playlist' ? 'playlist' : 'album', album } });
           }}
           onCover={(file) => void run(() => library.setAlbumCover(album.id, file), 'Cover updated')}
         />
@@ -635,6 +639,10 @@ export function Shell() {
       <Presence show={addOpen}>
         <AddMenu
           onClose={() => setAddOpen(false)}
+          onLibrary={() => {
+            setAddOpen(false);
+            setDialog({ kind: 'pick-tracks', target: { kind: 'choose' } });
+          }}
           onAudio={openFiles}
           onFolder={() => {
             setAddOpen(false);
@@ -696,6 +704,8 @@ export function Shell() {
             void run(async () => {
               const created = await library.createProject(name, route.name === 'folder' ? route.folderId : null);
               push({ name: 'album', albumId: created.id });
+              // A new playlist is empty: go straight to picking songs from your library.
+              if (library.tracks.length) setDialog({ kind: 'pick-tracks', target: { kind: 'playlist', album: created } });
             });
           }}
         />
@@ -711,6 +721,8 @@ export function Shell() {
             void run(async () => {
               const created = await library.createPlaylist(name, route.name === 'folder' ? route.folderId : null);
               push({ name: 'album', albumId: created.id });
+              // A new playlist is empty: go straight to picking songs from your library.
+              if (library.tracks.length) setDialog({ kind: 'pick-tracks', target: { kind: 'playlist', album: created } });
             });
           }}
         />
@@ -825,12 +837,12 @@ export function Shell() {
             .filter((item) => item.kind === 'playlist')
             .map((item) => ({ id: item.id, label: item.name, detail: item.artist }))}
           onClose={() => setDialog(null)}
-          onCreate={() => setDialog({ kind: 'playlist-for-track', track: dialog.track })}
+          onCreate={() => setDialog({ kind: 'playlist-for-track', trackIds: dialog.trackIds })}
           onConfirm={(ids) => {
-            const trackId = dialog.track.id;
+            const trackIds = dialog.trackIds;
             const playlistId = ids[0];
             setDialog(null);
-            if (playlistId) void run(() => library.addTracksToPlaylist(playlistId, [trackId]), 'Added to playlist');
+            if (playlistId) void run(() => library.addTracksToPlaylist(playlistId, trackIds), trackIds.length > 1 ? `Added ${plural(trackIds.length, 'song')}` : 'Added to playlist');
           }}
         />
       ) : null}
@@ -841,27 +853,36 @@ export function Shell() {
           confirm="Create"
           onCancel={() => setDialog(null)}
           onConfirm={(name) => {
-            const trackId = dialog.track.id;
+            const trackIds = dialog.trackIds;
             setDialog(null);
             void run(async () => {
               const playlist = await library.createPlaylist(name, null);
-              await library.addTracksToPlaylist(playlist.id, [trackId]);
+              await library.addTracksToPlaylist(playlist.id, trackIds);
             }, 'Added to playlist');
           }}
         />
       ) : null}
       {dialog?.kind === 'pick-tracks' ? (
         <LibraryPicker
-          playlist={dialog.playlist}
+          target={dialog.target}
           onClose={() => setDialog(null)}
           onUpload={() => {
             setDialog(null);
             openFiles();
           }}
           onConfirm={(ids) => {
-            const playlistId = dialog.playlist.id;
+            const target = dialog.target;
+            if (target.kind === 'choose') {
+              setDialog({ kind: 'add-playlist', trackIds: ids });
+              return;
+            }
             setDialog(null);
-            void run(() => library.addTracksToPlaylist(playlistId, ids), `Added ${plural(ids.length, 'song')}`);
+            if (target.kind === 'playlist') void run(() => library.addTracksToPlaylist(target.album.id, ids), `Added ${plural(ids.length, 'song')}`);
+            else
+              void run(async () => {
+                const moved = await library.moveTracksToAlbum(target.album.id, ids);
+                notify(`Moved ${plural(moved, 'song')} to ${target.album.name}`);
+              });
           }}
         />
       ) : null}

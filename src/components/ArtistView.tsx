@@ -1,8 +1,8 @@
 import { useMemo, useState } from 'react';
 import { AudioLines, MoreHorizontal, Pause, Play, Shuffle } from 'lucide-react';
-import { artistCovers, artistPage, albumYear } from '../lib/artists';
+import { artistCovers, artistInitials, artistKey, trackArtists, artistPage, artistSections, albumYear } from '../lib/artists';
 import { coverFor } from '../lib/covers';
-import { formatTotal, formatTrackTime, plural } from '../lib/format';
+import { formatTotal, formatTrackTime, hueFromName, plural } from '../lib/format';
 import { songTotals } from '../lib/stats';
 import { useLibrary } from '../state/LibraryProvider';
 import { useOffline, useOnline } from '../state/OfflineProvider';
@@ -38,7 +38,7 @@ export function ArtistView({
   const covers = artistCovers(page);
   const hero = covers[0] ?? null;
   const heroAlbum = page.albums[0] ?? page.appearsOn[0];
-  const hue = heroAlbum?.hue ?? page.tracks[0]?.hue ?? null;
+  const hue = heroAlbum?.hue ?? page.tracks[0]?.hue ?? hueFromName(page.name);
   const totals = useMemo(() => songTotals(days ?? []), [days]);
   const popular = useMemo(
     () =>
@@ -54,29 +54,43 @@ export function ArtistView({
   const playingHere = inQueue && player.playing;
   const totalMs = list.reduce((sum, track) => sum + track.durationMs, 0);
   const albumCount = page.albums.length;
-  const visibleSongs = showAll || list.length <= 10 ? list : list.slice(0, 10);
+  const sections = artistSections(page, popular.length);
+  const visibleSongs = showAll ? list : list.slice(0, sections.songsLimit);
+  const sparse = list.length <= 3 && albumCount + page.appearsOn.length <= 1;
 
   if (!list.length && !albumCount) {
     return (
       <main className="artist-page">
-        <p className="empty-note">No songs by {name} in your library</p>
+        <div className="artist-empty">
+          <span className="artist-avatar initials" style={{ ['--hue' as string]: hueFromName(name) }}>
+            {artistInitials(name)}
+          </span>
+          <h2 className="artist-name">{name}</h2>
+          <p className="empty-note">No songs by this artist in your library</p>
+        </div>
       </main>
     );
   }
 
   return (
-    <main className="artist-page">
+    <main className={sparse ? 'artist-page sparse' : 'artist-page'}>
       <header className="artist-hero">
         <div className="artist-hero-bg" aria-hidden>
           <Cover fileId={hero} hue={hue} radius={0} className="artist-hero-art" />
         </div>
-        <Cover fileId={hero} hue={hue} radius="50%" className="artist-avatar" />
+        {hero ? (
+          <Cover fileId={hero} hue={hue} radius="50%" className="artist-avatar" />
+        ) : (
+          <span className="artist-avatar initials" style={{ ['--hue' as string]: hue }} aria-hidden>
+            {artistInitials(page.name)}
+          </span>
+        )}
         <div className="artist-heading">
           <p className="artist-kicker">Artist</p>
           <h2 className="artist-name">{page.name}</h2>
           <p className="album-meta">
             {plural(list.length, 'song')}
-            {albumCount ? ` · ${plural(albumCount, 'album')}` : ''}
+            {albumCount ? ` · ${plural(albumCount, 'album')}` : page.appearsOn.length ? ` · on ${plural(page.appearsOn.length, 'album')}` : ''}
             {list.length ? ` · ${formatTotal(totalMs)}` : ''}
           </p>
         </div>
@@ -100,7 +114,7 @@ export function ArtistView({
         </div>
       </header>
 
-      {popular.length >= 2 ? (
+      {sections.mostPlayed ? (
         <section className="artist-section">
           <h3 className="shelf-title">Most played</h3>
           <SongRows rows={popular.map((item) => item.track)} list={popular.map((item) => item.track)} artist={page.name} plays={totals} songCovers={songCovers} onTrackMenu={onTrackMenu} />
@@ -109,7 +123,7 @@ export function ArtistView({
 
       {page.albums.length ? (
         <section className="artist-section">
-          <h3 className="shelf-title">Albums</h3>
+          <h3 className="shelf-title">{page.albums.length === 1 ? 'Album' : 'Albums'}</h3>
           <AlbumShelf albums={page.albums} tracksFor={tracksFor} onOpen={onOpenAlbum} onPlay={onPlayAlbum} />
         </section>
       ) : null}
@@ -123,7 +137,7 @@ export function ArtistView({
 
       {list.length ? (
         <section className="artist-section">
-          <h3 className="shelf-title">Songs</h3>
+          <h3 className="shelf-title">{list.length === 1 ? 'Song' : 'Songs'}</h3>
           <SongRows rows={visibleSongs} list={list} artist={page.name} plays={totals} songCovers={songCovers} onTrackMenu={onTrackMenu} />
           {visibleSongs.length < list.length ? (
             <button className="text-btn artist-more" onClick={() => setShowAll(true)}>
@@ -208,7 +222,7 @@ function SongRows({
         const album = track.albumId ? byId.get(track.albumId) : undefined;
         const count = plays.get(track.id)?.plays ?? 0;
         // Other artists on the song are links; the artist whose page this is goes without saying.
-        const others = track.artist.trim().toLowerCase() !== artist.toLowerCase();
+        const others = trackArtists(track).some((name) => artistKey(name) !== artistKey(artist));
         return (
           <div className={`track art-track${active ? ' active' : ''}${unavailable ? ' unavailable' : ''}`} key={track.id} onContextMenu={(event) => onTrackMenu(track, atPointer(event), list)}>
             <button className="track-hit" disabled={unavailable} onClick={() => (active ? player.toggle() : player.playTracks(list, Math.max(0, list.indexOf(track))))}>

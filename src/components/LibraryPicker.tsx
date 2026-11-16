@@ -12,18 +12,21 @@ import { Scrim } from './overlays';
 
 const PAGE = 60;
 
+/** Where picked songs go: linked into a playlist, moved into an album, or (from the library) a playlist chosen next. */
+export type PickerTarget = { kind: 'playlist'; album: Album } | { kind: 'album'; album: Album } | { kind: 'choose' };
+
 /**
- * Add songs already in the library to a playlist: search everything by title, artist or album, tick as many as
+ * Add songs already in the library to a playlist or album: search everything by title, artist or album, tick as many as
  * you like, and they are linked into the playlist (the same song, not another copy). Uploading new files is
  * still there for songs you do not have yet.
  */
 export function LibraryPicker({
-  playlist,
+  target,
   onClose,
   onConfirm,
   onUpload,
 }: {
-  playlist: Album;
+  target: PickerTarget;
   onClose: () => void;
   onConfirm: (trackIds: string[]) => void;
   onUpload: () => void;
@@ -33,7 +36,14 @@ export function LibraryPicker({
   const [query, setQuery] = useState('');
   const [picked, setPicked] = useState<string[]>([]);
   const [limit, setLimit] = useState(PAGE);
-  const already = useMemo(() => new Set(tracksFor(playlist).map((track) => track.id)), [playlist, tracksFor]);
+  const already = useMemo(
+    () => new Set(target.kind === 'choose' ? [] : tracksFor(target.album).map((track) => track.id)),
+    [target, tracksFor],
+  );
+  const heading = target.kind === 'album' ? 'Add tracks' : 'Add songs';
+  const to = target.kind === 'choose' ? 'Pick songs, then choose a playlist' : `to ${target.album.name}`;
+  const action = (count: number) =>
+    target.kind === 'choose' ? `Next · ${plural(count, 'song')}` : target.kind === 'album' ? `Move ${plural(count, 'song')} here` : `Add ${plural(count, 'song')}`;
   const rows = useMemo(() => pickerRows(query, tracks, albums, already), [query, tracks, albums, already]);
   const shown = rows.slice(0, limit);
   const free = rows.filter((row) => !row.added);
@@ -46,11 +56,11 @@ export function LibraryPicker({
 
   return (
     <Scrim onClose={onClose}>
-      <div className="dialog picker-sheet" role="dialog" aria-label={`Add songs to ${playlist.name}`}>
+      <div className="dialog picker-sheet" role="dialog" aria-label={target.kind === 'choose' ? 'Add songs from your library' : `${heading} to ${target.album.name}`}>
         <header className="picker-head">
           <div>
-            <h2>Add songs</h2>
-            <p className="picker-to">to {playlist.name}</p>
+            <h2>{heading}</h2>
+            <p className="picker-to">{to}</p>
           </div>
           <button className="icon-btn" aria-label="Close" onClick={onClose}>
             <X size={18} />
@@ -98,7 +108,14 @@ export function LibraryPicker({
             if (limit < rows.length && el.scrollTop + el.clientHeight > el.scrollHeight - 400) setLimit((value) => value + PAGE);
           }}
         >
-          {!tracks.length ? <p className="empty-note">Add songs to your library first</p> : null}
+          {!tracks.length ? (
+            <div className="picker-empty">
+              <p className="empty-note">Your library is empty. Upload some songs to get started.</p>
+              <button className="white-btn" onClick={onUpload}>
+                <Upload size={16} /> Upload files
+              </button>
+            </div>
+          ) : null}
           {tracks.length && !rows.length ? <p className="empty-note">No songs match “{query.trim()}”</p> : null}
           {shown.map(({ track, album, added }) => {
             const on = added || picked.includes(track.id);
@@ -120,6 +137,8 @@ export function LibraryPicker({
                 </span>
                 {added ? (
                   <span className="picker-added">Added</span>
+                ) : target.kind === 'album' && album?.kind === 'album' && on ? (
+                  <span className="picker-added">Moves here</span>
                 ) : (
                   <span className="picker-dur">{formatTrackTime(track.durationMs)}</span>
                 )}
@@ -135,7 +154,7 @@ export function LibraryPicker({
             <Upload size={16} /> Upload files
           </button>
           <button className="white-btn" disabled={!picked.length} onClick={() => onConfirm(picked)}>
-            {picked.length ? `Add ${plural(picked.length, 'song')}` : 'Add'}
+            {picked.length ? action(picked.length) : target.kind === 'choose' ? 'Next' : 'Add'}
           </button>
         </footer>
       </div>

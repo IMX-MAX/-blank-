@@ -2,14 +2,14 @@
 .lyrics,
 .now {
   color-scheme: dark;
-  --bg: #111111;
-  --surface: #2a2a2a;
-  --surface-2: #333333;
-  --panel: #2c2c2c;
-  --panel-2: #242424;
-  --panel-hover: #353535;
-  --field: #1c1c1c;
-  --field-line: #3a3a3a;
+  --bg: #000000;
+  --surface: #161616;
+  --surface-2: #1e1e1e;
+  --panel: #121212;
+  --panel-2: #0c0c0c;
+  --panel-hover: #1b1b1b;
+  --field: #0e0e0e;
+  --field-line: #2a2a2a;
   --text: #f7f7f7;
   --text-strong: #ffffff;
   --text-2: #e6e6e6;
@@ -19,13 +19,13 @@
   --hover: rgba(255, 255, 255, 0.06);
   --hover-weak: rgba(255, 255, 255, 0.045);
   --ring: rgba(255, 255, 255, 0.16);
-  --scrim: rgba(0, 0, 0, 0.45);
-  --bar-bg: linear-gradient(180deg, #303030, #2a2a2a);
+  --scrim: rgba(0, 0, 0, 0.62);
+  --bar-bg: linear-gradient(180deg, #181818, #121212);
   --btn-bg: #ffffff;
   --btn-fg: #000000;
-  --folder-bg: #1b1b1b;
+  --folder-bg: #0e0e0e;
   --folder-fg: #d7d7d7;
-  --danger-bg: #3a2222;
+  --danger-bg: #2a1515;
   --danger-fg: #ffb4b4;
   --wave-on: rgba(240, 240, 240, 0.96);
   --wave-off: rgba(196, 196, 196, 0.8);
@@ -876,7 +876,7 @@ button { cursor: pointer; }
   z-index: 80;
   border-radius: 28px;
   border: 2px dashed rgba(255, 255, 255, 0.35);
-  background: rgba(17, 17, 17, 0.72);
+  background: rgba(0, 0, 0, 0.78);
   display: grid;
   place-items: center;
   font-size: 22px;
@@ -909,7 +909,7 @@ button { cursor: pointer; }
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  background: #151515;
+  background: #000000;
   color: var(--text);
 }
 .lyrics-bg {
@@ -1277,7 +1277,7 @@ button.offline-note { cursor: pointer; color: var(--text, #fff); }
   flex-direction: column;
   overflow: hidden;
 }
-.now-backdrop { position: absolute; inset: 0; overflow: hidden; background: #050505; animation: fade-in 0.34s ease both; }
+.now-backdrop { position: absolute; inset: 0; overflow: hidden; background: #000; animation: fade-in 0.34s ease both; }
 @keyframes now-rise { from { opacity: 0; transform: translateY(28px); } }
 @keyframes now-fall { to { opacity: 0; transform: translateY(28px); } }
 .now-head, .now-panel { animation: now-rise 0.46s var(--ease-out) 0.06s both; }
@@ -1294,8 +1294,7 @@ button.offline-note { cursor: pointer; color: var(--text, #fff); }
 .now-bg img { object-fit: cover; width: 100%; height: 100%; }
 .now-shade { position: absolute; inset: 0; pointer-events: none; }
 /* A soft glow on the player's buttons, like light bleeding from them. Shapes and places stay as they are. */
-.now-controls .ctrl, .now-extras .ctrl, .now-head .icon-btn { filter: drop-shadow(0 0 7px rgba(255, 255, 255, 0.28)); }
-.now-controls .ctrl.is-on, .now-extras .ctrl.is-on { filter: drop-shadow(0 0 8px rgba(230, 200, 74, 0.5)); }
+/* Only light buttons glow (the white play button and white pills); icons, the collapse chevron and grey buttons do not. */
 .now-play { box-shadow: 0 0 26px rgba(255, 255, 255, 0.32), 0 0 60px rgba(255, 255, 255, 0.12); }
 .now-play:active { box-shadow: 0 0 18px rgba(255, 255, 255, 0.26), 0 0 40px rgba(255, 255, 255, 0.1); }
 .now-head {
@@ -1836,7 +1835,7 @@ button.stats-item:hover { background: var(--hover); }
 /* ---------- Player and lyrics backdrop fade ---------- */
 /* The artwork's colour sits in the middle and eases, without banding, into the page colour at the top and the
    bottom: near-pure black in dark mode, near-white in light mode. */
-.now, .lyrics { --fade: 3 3 3; }
+.now, .lyrics { --fade: 0 0 0; }
 .now-shade, .lyrics-shade {
   background: linear-gradient(
     180deg,
@@ -1882,12 +1881,7 @@ button.stats-item:hover { background: var(--hover); }
 :root[data-theme="light"] .now-dot,
 :root[data-theme="light"] .now-album { color: rgba(20, 20, 24, 0.48); }
 :root[data-theme="light"] .now-artist .name-link:hover { color: #000; }
-:root[data-theme="light"] .now-play { background: #17171a; color: #fff; box-shadow: 0 0 26px rgba(23, 23, 26, 0.22), 0 0 60px rgba(23, 23, 26, 0.08); }
-:root[data-theme="light"] .now-controls .ctrl,
-:root[data-theme="light"] .now-extras .ctrl,
-:root[data-theme="light"] .now-head .icon-btn { filter: drop-shadow(0 0 7px rgba(20, 20, 24, 0.16)); }
-:root[data-theme="light"] .now-controls .ctrl.is-on,
-:root[data-theme="light"] .now-extras .ctrl.is-on { filter: drop-shadow(0 0 8px rgba(168, 134, 0, 0.35)); }
+:root[data-theme="light"] .now-play { background: #17171a; color: #fff; box-shadow: none; }
 :root[data-theme="light"] .lyrics-chip,
 :root[data-theme="light"] .lyrics-chip.estimated { background: rgba(0, 0, 0, 0.06); color: rgba(20, 20, 24, 0.72); }
 :root[data-theme="light"] .lyrics-chip.word { background: rgba(168, 134, 0, 0.14); }
@@ -1904,22 +1898,6 @@ button.stats-item:hover { background: var(--hover); }
 :root[data-theme="light"] .lyrics-state p { color: #111114; }
 :root[data-theme="light"] .lyrics-state small { color: rgba(20, 20, 24, 0.5); }
 :root[data-theme="light"] .lyrics-skeleton span { background: linear-gradient(90deg, rgba(0, 0, 0, 0.05), rgba(0, 0, 0, 0.11), rgba(0, 0, 0, 0.05)); background-size: 200% 100%; }
-
-/* ---------- Pure black (OLED) ---------- */
-:root[data-oled] {
-  --bg: #000000;
-  --surface: #191919;
-  --surface-2: #232323;
-  --panel: #161616;
-  --panel-2: #111111;
-  --panel-hover: #202020;
-  --field: #0b0b0b;
-  --field-line: #2a2a2a;
-  --bar-bg: linear-gradient(180deg, #1b1b1b, #141414);
-  --folder-bg: #0e0e0e;
-  --scrim: rgba(0, 0, 0, 0.6);
-}
-:root[data-oled] .now, :root[data-oled] .lyrics { --fade: 0 0 0; }
 
 /* ---------- Choosing lyrics to share ---------- */
 .ly { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
@@ -1946,7 +1924,7 @@ button.stats-item:hover { background: var(--hover); }
 .lyrics-lines.selecting .ly.picked .ly-in { --on: #fff; --off: #fff; }
 .lyrics-lines.selecting .ly.picked .ly-bg { opacity: 0.9; }
 .lyrics-lines.selecting .lw.long { filter: none; }
-:root[data-theme="light"] .select-next { background: #17171a; color: #fff; box-shadow: 0 0 22px rgba(23, 23, 26, 0.18); }
+:root[data-theme="light"] .select-next { background: #17171a; color: #fff; box-shadow: none; }
 :root[data-theme="light"] .lyrics-lines.selecting .ly .ly-in { --on: rgba(20, 20, 24, 0.3); --off: rgba(20, 20, 24, 0.3); }
 :root[data-theme="light"] .lyrics-lines.selecting .ly.picked .ly-in { --on: #111114; --off: #111114; }
 
@@ -2010,7 +1988,7 @@ button.stats-item:hover { background: var(--hover); }
 .share-actions > button { flex: 1; height: 50px; display: inline-flex; align-items: center; justify-content: center; gap: 8px; font-size: 15.5px; font-weight: 650; border-radius: 999px; }
 .share-copy { border: 0; background: var(--surface); color: var(--text-strong); }
 .share-go { box-shadow: 0 0 26px rgba(255, 255, 255, 0.22); }
-:root[data-theme="light"] .share-go { box-shadow: 0 0 26px rgba(23, 23, 26, 0.16); }
+:root[data-theme="light"] .share-go { box-shadow: none; }
 .lyrics .share-lyrics .white-btn { background: var(--text-strong); color: rgb(var(--fade)); }
 @media (min-width: 761px) {
   .share-lyrics { padding-left: max(20px, calc(50% - 300px)); padding-right: max(20px, calc(50% - 300px)); }
@@ -2083,3 +2061,41 @@ button.stats-item:hover { background: var(--hover); }
 :root[data-theme="light"] .now .icon-btn,
 :root[data-theme="light"] .lyrics .icon-btn { background: rgba(255, 255, 255, 0.7); }
 :root[data-theme="light"] .player { box-shadow: 0 12px 36px rgba(0, 0, 0, 0.14), 0 0 0 1px rgba(0, 0, 0, 0.04); }
+
+/* Artist pictures with no cover, and artists with only a song or two. */
+.artist-avatar.initials {
+  display: grid;
+  place-items: center;
+  color: #fff;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 64px;
+  letter-spacing: -0.02em;
+  background: linear-gradient(150deg, hsl(var(--hue, 210) 55% 52%), hsl(calc(var(--hue, 210) + 35) 55% 26%));
+}
+.artist-page.sparse .artist-hero { padding: 28px; }
+.artist-page.sparse .artist-avatar { width: 132px; height: 132px; }
+.artist-page.sparse .artist-avatar.initials { font-size: 48px; }
+.artist-page.sparse .artist-section { margin-top: 28px; }
+.artist-empty { display: flex; flex-direction: column; align-items: center; gap: 14px; padding: 60px 0; text-align: center; }
+.artist-empty .artist-name { font-size: 32px; }
+@media (max-width: 600px) {
+  .artist-page.sparse .artist-avatar { width: 116px; height: 116px; }
+}
+.picker-empty { display: flex; flex-direction: column; align-items: center; gap: 14px; padding: 40px 0; }
+.album-empty { margin: 8px 0 0; }
+
+/* Share lyrics sits above the player bar; the bar hides while choosing or sharing lines. */
+.share-lyrics { z-index: 75; }
+html[data-sharing-lyrics] .player {
+  opacity: 0;
+  transform: translateY(24px);
+  pointer-events: none;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+.share-lyrics {
+  padding-bottom: calc(18px + max(env(safe-area-inset-bottom, 0px), var(--safe-area-inset-bottom, 0px)));
+}
+/* Portalled to the body, so it needs its own page colour. */
+.share-lyrics { --fade: 0 0 0; }
+:root[data-theme="light"] .share-lyrics { --fade: 246 246 248; }

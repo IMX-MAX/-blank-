@@ -4,7 +4,7 @@ const config: CapacitorConfig = {
   appId: 'app.blank.local',
   appName: '[blank] local',
   webDir: 'dist',
-  backgroundColor: '#151515',
+  backgroundColor: '#000000',
   android: {
     allowMixedContent: false,
   },

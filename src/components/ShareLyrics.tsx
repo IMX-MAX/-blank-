@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Check, ChevronLeft, Copy, Share2 } from 'lucide-react';
 import { coverObjectUrl } from '../api';
 import { successHaptic, tickHaptic } from '../lib/haptics';
@@ -99,7 +100,8 @@ export function ShareLyricsSheet({
 
   const size = SHARE_SIZES[format];
 
-  return (
+  // Portalled to the body so it sits above the player bar and everything else, whatever it is rendered inside.
+  return createPortal(
     <section className="share-lyrics" data-overlay aria-label="Share lyrics">
       <header className="share-head">
         <button className="icon-btn" aria-label="Back to lyrics" onClick={onBack}>
@@ -198,6 +200,7 @@ export function ShareLyricsSheet({
           <Share2 size={17} /> {busy ? 'Preparing…' : 'Share'}
         </button>
       </footer>
-    </section>
+    </section>,
+    document.body,
   );
 }

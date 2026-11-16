@@ -258,9 +258,6 @@ export function SettingsView({
     vibrate,
     setVibrate,
     keepAwake,
-    oled,
-    setOled,
-    resolvedTheme,
     setKeepAwake,
     pronunciation,
     setPronunciation,
@@ -307,22 +304,6 @@ export function SettingsView({
               </button>
             ))}
           </div>
-        </div>
-      <div className="settings-row">
-          <div>
-            <div className="settings-label">Pure black</div>
-            <div className="settings-hint">True black backgrounds in dark mode. Saves battery on OLED screens.</div>
-          </div>
-          <button
-            className={oled ? 'switch on' : 'switch'}
-            role="switch"
-            aria-checked={oled}
-            aria-label="Pure black"
-            disabled={resolvedTheme === 'light'}
-            onClick={() => setOled(!oled)}
-          >
-            <span />
-          </button>
         </div>
       </section>
 

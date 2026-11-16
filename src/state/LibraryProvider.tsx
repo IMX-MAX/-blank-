@@ -2,6 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { api, forgetCover, type Library } from '../api';
 import { LOCAL_ONLY } from '../config';
 import { hueFromName } from '../lib/format';
+import { setFallbackArtist } from '../lib/artists';
 import { forgetTrackLyrics } from '../lib/lyrics-cache';
 import { loadLibrarySnapshot, saveLibrarySnapshot } from '../lib/offline';
 import { coverFileFromPicture, isAudioFile, readMetadata } from '../lib/metadata';
@@ -39,6 +40,7 @@ type LibraryContextValue = {
   deleteFolder: (id: string) => Promise<void>;
   deleteTrack: (id: string) => Promise<void>;
   addTracksToPlaylist: (playlistId: string, trackIds: string[]) => Promise<void>;
+  moveTracksToAlbum: (albumId: string, trackIds: string[]) => Promise<number>;
   removeFromPlaylist: (playlistId: string, trackId: string) => Promise<void>;
   tracksFor: (album: Album) => Track[];
 };
@@ -57,6 +59,8 @@ function albumKey(name: string, artist: string, folderId: string | null) {
 
 export function LibraryProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
+  // Songs with no artist tag are credited to your name on import; that name is not an artist page.
+  setFallbackArtist(user?.name);
   const [ready, setReady] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [live, setLive] = useState(true);
@@ -256,6 +260,13 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
     if (added.length) setPlaylistTracks((current) => [...current, ...added]);
   }, []);
 
+  const moveTracksToAlbum = useCallback(async (albumId: string, trackIds: string[]) => {
+    const { moved } = await api.moveTracks(albumId, trackIds);
+    const byId = new Map(moved.map((track) => [track.id, track]));
+    if (byId.size) setTracks((current) => current.map((track) => byId.get(track.id) ?? track));
+    return byId.size;
+  }, []);
+
   const removeFromPlaylist = useCallback(async (playlistId: string, trackId: string) => {
     await api.removeFromPlaylist(playlistId, trackId);
     setPlaylistTracks((current) =>
@@ -368,6 +379,7 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
       deleteFolder,
       deleteTrack,
       addTracksToPlaylist,
+      moveTracksToAlbum,
       removeFromPlaylist,
       tracksFor,
     }),
@@ -393,6 +405,7 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
       deleteFolder,
       deleteTrack,
       addTracksToPlaylist,
+      moveTracksToAlbum,
       removeFromPlaylist,
       tracksFor,
     ],

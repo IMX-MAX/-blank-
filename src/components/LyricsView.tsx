@@ -584,6 +584,15 @@ export function LyricsView() {
 
   const pickedSet = new Set(picked ?? []);
   const selecting = picked !== null;
+  // While choosing or sharing lines the player bar steps aside so it cannot cover the buttons.
+  useEffect(() => {
+    if (!selecting && !sharing) return;
+    const root = document.documentElement;
+    root.dataset.sharingLyrics = '';
+    return () => {
+      delete root.dataset.sharingLyrics;
+    };
+  }, [selecting, sharing]);
 
   const hotSet = new Set(view.hot ? view.hot.split(',').map(Number) : []);
 

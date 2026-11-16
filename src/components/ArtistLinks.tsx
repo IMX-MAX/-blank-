@@ -1,5 +1,5 @@
 import { Fragment, type MouseEvent, type KeyboardEvent } from 'react';
-import { knownArtists, splitArtists } from '../lib/artists';
+import { isPlaceholderArtist, knownArtists, splitArtists } from '../lib/artists';
 import { openAlbum, openArtist } from '../lib/navigation';
 import { useLibrary } from '../state/LibraryProvider';
 import type { Album, Track } from '../types';
@@ -59,7 +59,8 @@ function InlineLink({ label, className, onOpen }: { label: string; className?: s
 export function ArtistLinks({ artist, className, onOpen }: { artist: string; className?: string; onOpen?: () => void }) {
   const known = useKnownArtists();
   if (!artist.trim()) return <span className={className}>Unknown artist</span>;
-  const segments = artistSegments(artist, splitArtists(artist, known));
+  // "Various Artists", unknown and the stand-in name are shown but are not links.
+  const segments = artistSegments(artist, splitArtists(artist, known).filter((name) => !isPlaceholderArtist(name)));
   return (
     <span className={className}>
       {segments.map((segment, index) =>

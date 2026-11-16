@@ -111,6 +111,8 @@ const cloudApi = {
     waveform?: string | null;
   }) => json<Track>('/tracks', 'POST', input),
   deleteTrack: (id: string) => json<{ ok: true }>(`/tracks/${id}`, 'DELETE'),
+  moveTracks: (albumId: string, trackIds: string[]) =>
+    json<{ moved: Track[] }>(`/albums/${albumId}/tracks`, 'POST', { trackIds }),
   addToPlaylist: (playlistId: string, trackIds: string[]) =>
     json<{ added: PlaylistTrack[] }>(`/playlists/${playlistId}/tracks`, 'POST', { trackIds }),
   removeFromPlaylist: (playlistId: string, trackId: string) =>
@@ -146,6 +148,7 @@ const localApi: typeof cloudApi = {
     return { ok: true };
   },
   addToPlaylist: local.localAddToPlaylist,
+  moveTracks: local.localMoveTracks,
   removeFromPlaylist: async (playlistId, trackId) => {
     await local.localRemoveFromPlaylist(playlistId, trackId);
     return { ok: true };

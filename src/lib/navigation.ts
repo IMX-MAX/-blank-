@@ -1,3 +1,5 @@
+import { isPlaceholderArtist } from './artists';
+
 /** Fired to open the equaliser screen from outside the page stack (the player). */
 export const OPEN_EQUALISER_EVENT = 'blank:open-equaliser';
 
@@ -11,7 +13,7 @@ export const OPEN_ARTIST_EVENT = 'blank:open-artist';
 export const OPEN_ALBUM_EVENT = 'blank:open-album';
 
 export function openArtist(name: string): void {
-  if (name.trim()) window.dispatchEvent(new CustomEvent(OPEN_ARTIST_EVENT, { detail: name.trim() }));
+  if (name.trim() && !isPlaceholderArtist(name)) window.dispatchEvent(new CustomEvent(OPEN_ARTIST_EVENT, { detail: name.trim() }));
 }
 
 export function openAlbum(albumId: string | null | undefined): void {

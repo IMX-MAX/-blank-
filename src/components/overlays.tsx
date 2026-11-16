@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from 'react';
-import { AudioLines, Folder, Plus, X } from 'lucide-react';
+import { Folder, ListMusic, Plus, Upload, X } from 'lucide-react';
 
 export type Point = { x: number; y: number };
 
@@ -85,11 +85,13 @@ export function AnchoredMenu({
 
 export function AddMenu({
   onClose,
+  onLibrary,
   onAudio,
   onFolder,
   onProject,
 }: {
   onClose: () => void;
+  onLibrary: () => void;
   onAudio: () => void;
   onFolder: () => void;
   onProject: () => void;
@@ -98,8 +100,11 @@ export function AddMenu({
     <Scrim onClose={onClose}>
       <div className="add-stack">
         <div className="add-card" role="menu">
+          <button className="add-row" onClick={onLibrary}>
+            <ListMusic size={20} strokeWidth={1.75} /> From your library
+          </button>
           <button className="add-row" onClick={onAudio}>
-            <AudioLines size={20} strokeWidth={1.75} /> Audio
+            <Upload size={20} strokeWidth={1.75} /> Upload files
           </button>
           <button className="add-row" onClick={onFolder}>
             <Folder size={20} strokeWidth={1.75} /> New Folder

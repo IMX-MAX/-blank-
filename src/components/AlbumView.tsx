@@ -103,6 +103,11 @@ export function AlbumView({
         <button className="add-tracks" onClick={onAdd}>
           <Plus size={16} /> {isPlaylist ? 'Add songs' : 'Add tracks'}
         </button>
+        {!tracks.length && !query ? (
+          <p className="empty-note album-empty">
+            {isPlaylist ? 'No songs yet. Add some from your library.' : 'No tracks yet. Add some from your library or upload files.'}
+          </p>
+        ) : null}
         <div className="track-list">
           {visible.map(({ track, index }) => {
             const active = player.track?.id === track.id;

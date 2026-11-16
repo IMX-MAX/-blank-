@@ -46,9 +46,6 @@ type SettingsValue = {
   /** Keep the screen on while the lyrics are open. */
   keepAwake: boolean;
   setKeepAwake: (on: boolean) => void;
-  /** Pure black backgrounds in dark mode, for OLED screens. */
-  oled: boolean;
-  setOled: (on: boolean) => void;
   /** Ten-band equaliser with preamp, on/off and the preset picked. */
   eq: EqState;
   setEq: (eq: EqState) => void;
@@ -62,6 +59,8 @@ type SettingsValue = {
 
 const SettingsContext = createContext<SettingsValue | null>(null);
 
+// Dark mode is pure black now; the old "Pure black" switch is gone.
+if (typeof localStorage !== 'undefined') localStorage.removeItem('blank.oled');
 const THEME_KEY = 'blank.theme';
 const COVERS_KEY = 'blank.songCovers';
 const LYRICS_KEY = 'blank.cacheLyrics';
@@ -69,7 +68,6 @@ const GLYPH_KEY = 'blank.glyphWaveform';
 const GLYPH_MODE_KEY = 'blank.glyphMode';
 const VIBRATE_KEY = 'blank.vibrate';
 const AWAKE_KEY = 'blank.keepAwake';
-const OLED_KEY = 'blank.oled';
 const ROMAN_KEY = 'blank.pronunciation';
 const TRANSLATION_KEY = 'blank.translation';
 const NOISY_KEY = 'blank.pauseOnDisconnect';
@@ -127,7 +125,6 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
   const [estimateWords, setEstimateWordsState] = useState(() => localStorage.getItem(ESTIMATE_KEY) !== '0');
   const [haptics, setHapticsState] = useState(() => localStorage.getItem(HAPTICS_KEY) !== '0');
   const [keepAwake, setKeepAwakeState] = useState(() => localStorage.getItem(AWAKE_KEY) === '1');
-  const [oled, setOledState] = useState(() => localStorage.getItem(OLED_KEY) === '1');
   const [eq, setEqState] = useState<EqState>(readEq);
   const [eqPresets, setEqPresetsState] = useState<EqPreset[]>(readEqPresets);
   const [crossfade, setCrossfadeState] = useState(() => {
@@ -145,11 +142,8 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
 
   useLayoutEffect(() => {
     document.documentElement.dataset.theme = resolvedTheme;
-    const black = oled && resolvedTheme === 'dark';
-    if (black) document.documentElement.dataset.oled = '';
-    else delete document.documentElement.dataset.oled;
-    document.querySelector('meta[name="theme-color"]')?.setAttribute('content', resolvedTheme === 'light' ? '#f6f6f8' : black ? '#000000' : '#151515');
-  }, [resolvedTheme, oled]);
+    document.querySelector('meta[name="theme-color"]')?.setAttribute('content', resolvedTheme === 'light' ? '#f6f6f8' : '#000000');
+  }, [resolvedTheme]);
 
   const setTheme = useCallback((next: ThemeChoice) => {
     localStorage.setItem(THEME_KEY, next);
@@ -210,11 +204,6 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
   const setKeepAwake = useCallback((on: boolean) => {
     localStorage.setItem(AWAKE_KEY, on ? '1' : '0');
     setKeepAwakeState(on);
-  }, []);
-
-  const setOled = useCallback((on: boolean) => {
-    localStorage.setItem(OLED_KEY, on ? '1' : '0');
-    setOledState(on);
   }, []);
 
   const setEq = useCallback((next: EqState) => {
@@ -293,8 +282,6 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
       setEstimateWords,
       keepAwake,
       setKeepAwake,
-      oled,
-      setOled,
       haptics,
       setHaptics,
       eq,
@@ -330,8 +317,6 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
       setEstimateWords,
       keepAwake,
       setKeepAwake,
-      oled,
-      setOled,
       haptics,
       setHaptics,
       eq,

@@ -407,6 +407,25 @@ export function createApp({ db, store, verify, origins }: AppDeps) {
     return c.json({ ok: true });
   });
 
+  app.post('/albums/:id/tracks', async (c) => {
+    const owner = c.get('userId');
+    const albumId = requireId(c.req.param('id'), 'album');
+    const body = await c.req.json().catch(() => ({}));
+    const trackIds: string[] = Array.isArray(body.trackIds) ? body.trackIds.map((v: unknown) => requireId(v, 'track')) : [];
+    if (!trackIds.length) throw new HttpError(400, 'Choose at least one track');
+    const rows = await db.tx(async (q) => {
+      const album = (await q.query("select id from albums where id = $1 and owner_id = $2 and kind = 'album'", [albumId, owner])).rows[0];
+      if (!album) throw new HttpError(404, 'Album not found');
+      return (
+        await q.query(
+          'update tracks set album_id = $1 where owner_id = $2 and id = any($3::uuid[]) and album_id is distinct from $1 returning *',
+          [albumId, owner, trackIds],
+        )
+      ).rows;
+    });
+    return c.json({ moved: rows.map(trackOut) });
+  });
+
   app.post('/playlists/:id/tracks', async (c) => {
     const owner = c.get('userId');
     const playlistId = requireId(c.req.param('id'), 'playlist');

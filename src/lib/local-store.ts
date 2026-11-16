@@ -240,6 +240,23 @@ export async function localCreateTrack(input: {
   });
 }
 
+/** Move songs into another album (adding songs you already have to an album, without a second copy). */
+export async function localMoveTracks(albumId: string, trackIds: string[]): Promise<{ moved: Track[] }> {
+  return transact(['albums', 'tracks'], 'readwrite', async (tx) => {
+    const album = await get<Album>(tx, 'albums', albumId);
+    if (!album || album.kind !== 'album') throw new Error('Album not found');
+    const moved: Track[] = [];
+    for (const id of trackIds) {
+      const track = await get<Track>(tx, 'tracks', id);
+      if (!track || track.albumId === albumId) continue;
+      const next = { ...track, albumId };
+      await put(tx, 'tracks', next);
+      moved.push(next);
+    }
+    return { moved };
+  });
+}
+
 export async function localDeleteTrack(id: string): Promise<void> {
   await transact(['tracks', 'links', 'files'], 'readwrite', async (tx) => {
     const track = await get<Track>(tx, 'tracks', id);
