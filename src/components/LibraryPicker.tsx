@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Check, Search, Upload, X } from 'lucide-react';
-import { pickerRows } from '../lib/artists';
+import { pickerRows } from '../lib/library-search';
 import { coverFor } from '../lib/covers';
 import { formatTrackTime, plural } from '../lib/format';
 import { tickHaptic } from '../lib/haptics';

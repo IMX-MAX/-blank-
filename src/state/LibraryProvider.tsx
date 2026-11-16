@@ -2,7 +2,6 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { api, forgetCover, type Library } from '../api';
 import { LOCAL_ONLY } from '../config';
 import { hueFromName } from '../lib/format';
-import { setFallbackArtist } from '../lib/artists';
 import { forgetTrackLyrics } from '../lib/lyrics-cache';
 import { loadLibrarySnapshot, saveLibrarySnapshot } from '../lib/offline';
 import { coverFileFromPicture, isAudioFile, readMetadata } from '../lib/metadata';
@@ -59,8 +58,6 @@ function albumKey(name: string, artist: string, folderId: string | null) {
 
 export function LibraryProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
-  // Songs with no artist tag are credited to your name on import; that name is not an artist page.
-  setFallbackArtist(user?.name);
   const [ready, setReady] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [live, setLive] = useState(true);

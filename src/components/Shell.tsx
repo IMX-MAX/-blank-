@@ -20,9 +20,7 @@ import { StatsView } from './StatsView';
 import { EqualiserView } from './EqualiserView';
 import { SmartPlaylistView, SmartShelf } from './SmartPlaylists';
 import type { SmartId } from '../lib/smart-playlists';
-import { OPEN_ALBUM_EVENT, OPEN_ARTIST_EVENT, OPEN_EQUALISER_EVENT, handleInterceptedBack } from '../lib/navigation';
-import { albumArtists, artistKey, knownArtists, trackArtists } from '../lib/artists';
-import { ArtistView } from './ArtistView';
+import { OPEN_ALBUM_EVENT, OPEN_EQUALISER_EVENT, handleInterceptedBack } from '../lib/navigation';
 import { LibraryPicker, type PickerTarget } from './LibraryPicker';
 import { useListeningRecorder } from '../state/useListeningRecorder';
 import { useGlobalHaptics } from '../state/useGlobalHaptics';
@@ -45,7 +43,6 @@ type Route =
   | { name: 'stats' }
   | { name: 'equaliser' }
   | { name: 'smart'; id: SmartId }
-  | { name: 'artist'; artist: string }
   | { name: 'folder'; folderId: string } | { name: 'album'; albumId: string };
 
 type Dialog =
@@ -148,7 +145,7 @@ export function Shell() {
     return () => window.removeEventListener(OPEN_EQUALISER_EVENT, open);
   }, []);
 
-  // Artist and album names anywhere (song rows, the player) open their pages over whatever is showing.
+  // Album names anywhere (song rows, the player) open their pages over whatever is showing.
   const openPage = useRef((_next: Route) => undefined as void);
   openPage.current = (next: Route) => {
     setMenu(null);
@@ -157,18 +154,13 @@ export function Shell() {
     player.setExpandedOpen(false);
     player.setQueueOpen(false);
     player.setLyricsOpen(false);
-    const same =
-      (next.name === 'artist' && route.name === 'artist' && artistKey(route.artist) === artistKey(next.artist)) ||
-      (next.name === 'album' && route.name === 'album' && route.albumId === next.albumId);
+    const same = next.name === 'album' && route.name === 'album' && route.albumId === next.albumId;
     if (!same) push(next);
   };
   useEffect(() => {
-    const onArtist = (event: Event) => openPage.current({ name: 'artist', artist: String((event as CustomEvent).detail) });
     const onAlbum = (event: Event) => openPage.current({ name: 'album', albumId: String((event as CustomEvent).detail) });
-    window.addEventListener(OPEN_ARTIST_EVENT, onArtist);
     window.addEventListener(OPEN_ALBUM_EVENT, onAlbum);
     return () => {
-      window.removeEventListener(OPEN_ARTIST_EVENT, onArtist);
       window.removeEventListener(OPEN_ALBUM_EVENT, onAlbum);
     };
   }, []);
@@ -310,10 +302,6 @@ export function Shell() {
       ...(library.tracksFor(item).length
         ? [{ id: 'add', label: 'Add to playlist', onClick: () => setDialog({ kind: 'add-playlist', trackIds: library.tracksFor(item).map((track) => track.id) }) }]
         : []),
-      ...albumArtists(item, knownArtists(library.albums, library.tracks))
-        .filter((name) => !(route.name === 'artist' && artistKey(route.artist) === artistKey(name)))
-        .slice(0, 1)
-        .map((name) => ({ id: 'artist', label: 'Go to artist', onClick: () => push({ name: 'artist', artist: name }) })),
       { id: 'rename', label: 'Rename', onClick: () => setDialog({ kind: 'rename-album', album: item }) },
       { id: 'move', label: 'Move to folder', onClick: () => setDialog({ kind: 'move', album: item }) },
       {
@@ -360,19 +348,9 @@ export function Shell() {
     setMenu({ ...at, items });
   }
 
-  /** "Go to artist" (one per credited artist, up to three) and "Go to album", leaving out the page you are on. */
+  /** "Go to album", unless you are on that album already. */
   function goToItems(track: Track): MenuItem[] {
     const items: MenuItem[] = [];
-    const names = trackArtists(track, knownArtists(library.albums, library.tracks))
-      .filter((name) => !(route.name === 'artist' && artistKey(route.artist) === artistKey(name)))
-      .slice(0, 3);
-    for (const name of names) {
-      items.push({
-        id: `artist-${artistKey(name)}`,
-        label: names.length > 1 ? `Go to ${name}` : 'Go to artist',
-        onClick: () => push({ name: 'artist', artist: name }),
-      });
-    }
     const home = library.albums.find((item) => item.id === track.albumId);
     if (home?.kind === 'album' && !(route.name === 'album' && route.albumId === home.id)) {
       items.push({ id: 'album', label: 'Go to album', onClick: () => push({ name: 'album', albumId: home.id }) });
@@ -541,14 +519,6 @@ export function Shell() {
         <StatsView notify={notify} />
       ) : route.name === 'equaliser' ? (
         <EqualiserView notify={notify} />
-      ) : route.name === 'artist' ? (
-        <ArtistView
-          key={artistKey(route.artist)}
-          name={route.artist}
-          onOpenAlbum={(albumId) => push({ name: 'album', albumId })}
-          onPlayAlbum={playCollection}
-          onTrackMenu={(track, at, list) => trackMenu(track, at, undefined, list)}
-        />
       ) : route.name === 'smart' ? (
         <SmartPlaylistView id={route.id} onTrackMenu={(track, at, list) => trackMenu(track, at, undefined, list)} />
       ) : route.name === 'settings' ? (
@@ -704,8 +674,6 @@ export function Shell() {
             void run(async () => {
               const created = await library.createProject(name, route.name === 'folder' ? route.folderId : null);
               push({ name: 'album', albumId: created.id });
-              // A new playlist is empty: go straight to picking songs from your library.
-              if (library.tracks.length) setDialog({ kind: 'pick-tracks', target: { kind: 'playlist', album: created } });
             });
           }}
         />

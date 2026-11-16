@@ -1,12 +1,12 @@
 import { useRef } from 'react';
 import { AudioLines, ImagePlus, MoreHorizontal, Pause, Play, Plus, Shuffle } from 'lucide-react';
 import type { Album, Track } from '../types';
-import { albumYear } from '../lib/artists';
+import { albumYear } from '../lib/library-search';
 import { coverFor } from '../lib/covers';
 import { formatTotal, matchesQuery, plural } from '../lib/format';
 import { useLibrary } from '../state/LibraryProvider';
 import { useSettings } from '../state/SettingsProvider';
-import { AlbumLink, ArtistLinks } from './ArtistLinks';
+import { AlbumLink } from './AlbumLink';
 import { useOffline, useOnline } from '../state/OfflineProvider';
 import { usePlayer } from '../state/PlayerProvider';
 import { Cover } from './Cover';
@@ -77,7 +77,7 @@ export function AlbumView({
           <div>
             <h2 className="album-title">{album.name}</h2>
             <p className="album-meta">
-              {isPlaylist ? 'Playlist' : <ArtistLinks artist={album.artist} className="album-artist" />}
+              {isPlaylist ? 'Playlist' : <span className="album-artist">{album.artist || 'Unknown artist'}</span>}
               {year ? ` · ${year}` : ''} · {plural(tracks.length, 'track')} · {formatTotal(totalMs)}
             </p>
           </div>
@@ -129,7 +129,7 @@ export function AlbumView({
                   <span className="track-copy">
                     <span className="track-title">{track.title}</span>
                     <span className="track-sub">
-                      <ArtistLinks artist={track.artist} />
+                      {track.artist || 'Unknown artist'}
                       {isPlaylist && home?.kind === 'album' ? (
                         <>
                           {' · '}

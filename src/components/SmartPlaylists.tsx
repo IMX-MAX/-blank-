@@ -11,7 +11,6 @@ import { usePlayer } from '../state/PlayerProvider';
 import { useSettings } from '../state/SettingsProvider';
 import { useStatsDays } from '../state/useStatsDays';
 import type { Track } from '../types';
-import { ArtistLinks } from './ArtistLinks';
 import { Cover } from './Cover';
 import { OfflineBadge } from './OfflineBadge';
 import { atPointer, below, type Point } from './overlays';
@@ -193,7 +192,7 @@ export function SmartPlaylistView({ id, onTrackMenu }: { id: SmartId; onTrackMen
                   <span className="track-copy">
                     <span className="track-title">{track.title}</span>
                     <span className="track-sub">
-                      <ArtistLinks artist={track.artist} />
+                      {track.artist || 'Unknown artist'}
                       {plays ? ` · ${plural(plays, 'play')}` : ''}
                     </span>
                   </span>

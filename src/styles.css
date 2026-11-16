@@ -1731,39 +1731,8 @@ button.stats-item:hover { background: var(--hover); }
 .now-dot, .now-album { color: rgba(255, 255, 255, 0.5); }
 .now-artist { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
-/* ---------- Artist page ---------- */
-.artist-page { width: min(1120px, calc(100% - 96px)); margin: 0 auto; padding-bottom: 160px; animation: item-in 0.36s var(--ease-out) both; }
-.artist-hero {
-  position: relative;
-  display: grid;
-  grid-template-columns: auto 1fr auto;
-  align-items: end;
-  gap: 28px;
-  padding: 36px;
-  border-radius: 32px;
-  corner-shape: squircle;
-  overflow: hidden;
-  isolation: isolate;
-  background: var(--surface);
-}
-.artist-hero-bg { position: absolute; inset: 0; z-index: -1; }
-.artist-hero-art { position: absolute; inset: -40px; filter: blur(42px) saturate(1.4); transform: scale(1.15); opacity: 0.75; }
-.artist-hero-bg::after { content: ''; position: absolute; inset: 0; background: linear-gradient(to top, rgba(0, 0, 0, 0.55), rgba(0, 0, 0, 0.12)); }
-.artist-avatar, .artist-avatar img { corner-shape: round; }
-.artist-avatar { width: 180px; height: 180px; border-radius: 50%; flex: none; box-shadow: 0 18px 50px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(255, 255, 255, 0.08); }
-.artist-heading { min-width: 0; color: #fff; }
-.artist-kicker { margin: 0 0 6px; font-size: 12.5px; font-weight: 650; letter-spacing: 0.06em; text-transform: uppercase; opacity: 0.75; }
-.artist-name { margin: 0; font-size: clamp(32px, 5vw, 56px); font-weight: 700; letter-spacing: -0.045em; line-height: 1.02; overflow-wrap: anywhere; }
-.artist-heading .album-meta { color: rgba(255, 255, 255, 0.72); }
-.artist-play .shuffle-btn { color: #fff; background: rgba(255, 255, 255, 0.12); -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px); }
-.artist-play .shuffle-btn.on { color: var(--gold); }
-.artist-play .big-play { background: #fff; color: #000; }
-.artist-section { margin-top: 40px; }
-.artist-section .track-list { margin-top: 6px; }
 .art-track { grid-template-columns: 1fr auto auto; }
 .art-dur { display: flex; align-items: center; gap: 8px; padding-right: 4px; }
-.artist-more { margin: 8px 0 0 4px; height: 36px; padding: 0 12px; font-weight: 600; }
-.artist-more:hover { color: var(--text); }
 .album-shelf { display: flex; gap: 20px; overflow-x: auto; scrollbar-width: none; padding: 2px 2px 8px; margin: 0 -2px; scroll-snap-type: x mandatory; }
 .album-shelf::-webkit-scrollbar { display: none; }
 .shelf-card { flex: none; width: 160px; scroll-snap-align: start; animation: card-in 0.34s var(--ease-out) both; animation-delay: calc(min(var(--i, 0), 10) * 30ms); }
@@ -1774,11 +1743,6 @@ button.stats-item:hover { background: var(--hover); }
 .shelf-title-btn { margin-top: 16px; font-size: 14.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .shelf-sub { margin-top: 2px; font-size: 13px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 @media (max-width: 600px) {
-  .artist-page { width: calc(100% - 32px); padding-bottom: calc(var(--player-space) + 20px); }
-  .artist-hero { grid-template-columns: 1fr auto; padding: 28px 22px 22px; gap: 18px; border-radius: 28px; }
-  .artist-avatar { grid-column: 1 / -1; justify-self: center; width: 156px; height: 156px; }
-  .artist-name { font-size: clamp(28px, 9vw, 40px); }
-  .artist-section { margin-top: 30px; }
   .shelf-card, .shelf-art-wrap { width: 140px; }
   .shelf-art-wrap { height: 140px; }
 }
@@ -1999,14 +1963,13 @@ button.stats-item:hover { background: var(--hover); }
 
 /* ---------- Type ---------- */
 /* SF Pro Display for type from 20px up (titles, the player, lyrics), SF Pro Text below, as Apple uses them. */
-.wordmark, .album-title, .artist-name, .now-title, .ly, .ly-dots, .dialog h2, .lyrics-state p,
+.wordmark, .album-title, .now-title, .ly, .ly-dots, .dialog h2, .lyrics-state p,
 .stats-hero, .stats-big, .eq-title, .smart-art-name, .settings-title, .share-head h2 {
   font-family: var(--font-display);
 }
 /* SF Pro is narrower than Inter, so it needs less of the tightening Inter gets. */
 :root[data-font="sf"] body { letter-spacing: -0.006em; }
 :root[data-font="sf"] .album-title { letter-spacing: -0.022em; }
-:root[data-font="sf"] .artist-name { letter-spacing: -0.028em; }
 :root[data-font="sf"] .now-title { letter-spacing: -0.018em; }
 :root[data-font="sf"] .ly { letter-spacing: -0.012em; }
 :root[data-font="sf"] .card-title, :root[data-font="sf"] .track-title { letter-spacing: -0.012em; }
@@ -2046,7 +2009,6 @@ button.stats-item:hover { background: var(--hover); }
 :root[data-theme="light"] .smart-track-art,
 :root[data-theme="light"] .picker-art,
 :root[data-theme="light"] .search-art { box-shadow: 0 1px 4px rgba(0, 0, 0, 0.1); }
-:root[data-theme="light"] .artist-hero { box-shadow: 0 10px 34px rgba(0, 0, 0, 0.12); }
 :root[data-theme="light"] .track:hover,
 :root[data-theme="light"] .track.active { background: rgba(0, 0, 0, 0.04); }
 :root[data-theme="light"] .segmented { background: rgba(0, 0, 0, 0.06); }
@@ -2062,26 +2024,6 @@ button.stats-item:hover { background: var(--hover); }
 :root[data-theme="light"] .lyrics .icon-btn { background: rgba(255, 255, 255, 0.7); }
 :root[data-theme="light"] .player { box-shadow: 0 12px 36px rgba(0, 0, 0, 0.14), 0 0 0 1px rgba(0, 0, 0, 0.04); }
 
-/* Artist pictures with no cover, and artists with only a song or two. */
-.artist-avatar.initials {
-  display: grid;
-  place-items: center;
-  color: #fff;
-  font-family: var(--font-display);
-  font-weight: 700;
-  font-size: 64px;
-  letter-spacing: -0.02em;
-  background: linear-gradient(150deg, hsl(var(--hue, 210) 55% 52%), hsl(calc(var(--hue, 210) + 35) 55% 26%));
-}
-.artist-page.sparse .artist-hero { padding: 28px; }
-.artist-page.sparse .artist-avatar { width: 132px; height: 132px; }
-.artist-page.sparse .artist-avatar.initials { font-size: 48px; }
-.artist-page.sparse .artist-section { margin-top: 28px; }
-.artist-empty { display: flex; flex-direction: column; align-items: center; gap: 14px; padding: 60px 0; text-align: center; }
-.artist-empty .artist-name { font-size: 32px; }
-@media (max-width: 600px) {
-  .artist-page.sparse .artist-avatar { width: 116px; height: 116px; }
-}
 .picker-empty { display: flex; flex-direction: column; align-items: center; gap: 14px; padding: 40px 0; }
 .album-empty { margin: 8px 0 0; }
 
@@ -2099,3 +2041,58 @@ html[data-sharing-lyrics] .player {
 /* Portalled to the body, so it needs its own page colour. */
 .share-lyrics { --fade: 0 0 0; }
 :root[data-theme="light"] .share-lyrics { --fade: 246 246 248; }
+
+/* ---------- Player and lyrics backdrop, v2 ---------- */
+/* A very soft wash of the artwork's own colours at their natural brightness, melting into the page colour only at
+   the top edge and behind the controls at the bottom. Smootherstep stops and a faint grain keep it free of banding. */
+.now-bg, .lyrics-bg {
+  inset: -35% !important;
+  width: 170% !important;
+  height: 170% !important;
+  filter: blur(110px) saturate(0.9) brightness(0.8) !important;
+  opacity: 1 !important;
+  transform: translateZ(0);
+}
+.now-shade, .lyrics-shade {
+  background: linear-gradient(
+    180deg,
+    rgb(var(--fade) / 1.000) 0.0%,
+    rgb(var(--fade) / 0.991) 1.5%,
+    rgb(var(--fade) / 0.942) 3.0%,
+    rgb(var(--fade) / 0.837) 4.5%,
+    rgb(var(--fade) / 0.683) 6.0%,
+    rgb(var(--fade) / 0.500) 7.5%,
+    rgb(var(--fade) / 0.317) 9.0%,
+    rgb(var(--fade) / 0.163) 10.5%,
+    rgb(var(--fade) / 0.058) 12.0%,
+    rgb(var(--fade) / 0.009) 13.5%,
+    rgb(var(--fade) / 0.000) 15.0%,
+    rgb(var(--fade) / 0.000) 62.0%,
+    rgb(var(--fade) / 0.019) 65.2%,
+    rgb(var(--fade) / 0.082) 68.3%,
+    rgb(var(--fade) / 0.182) 71.5%,
+    rgb(var(--fade) / 0.310) 74.7%,
+    rgb(var(--fade) / 0.452) 77.8%,
+    rgb(var(--fade) / 0.595) 81.0%,
+    rgb(var(--fade) / 0.727) 84.2%,
+    rgb(var(--fade) / 0.838) 87.3%,
+    rgb(var(--fade) / 0.921) 90.5%,
+    rgb(var(--fade) / 0.973) 93.7%,
+    rgb(var(--fade) / 0.996) 96.8%,
+    rgb(var(--fade) / 1.000) 100.0%
+  ) !important;
+}
+.now-shade::after, .lyrics-shade::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  opacity: 0.05;
+  mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  background-size: 160px 160px;
+}
+:root[data-theme="light"] .now-bg, :root[data-theme="light"] .lyrics-bg {
+  filter: blur(110px) saturate(0.8) brightness(1.12) !important;
+  opacity: 0.75 !important;
+}
+:root[data-theme="light"] .now-shade::after, :root[data-theme="light"] .lyrics-shade::after { opacity: 0.035; mix-blend-mode: multiply; }
