@@ -1,0 +1,61 @@
+/*
+ * SF Pro Display for large type and SF Pro Text for small, from public/fonts-local/ (kept out of git: Apple's
+ * licence does not allow sharing them). Without those files every face fails to load and the app falls back to
+ * Inter, then the system font, so the repo still builds and runs.
+ */
+@font-face {
+  font-family: 'SF Pro Display';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: local('SF Pro Display Regular'), local('SF-Pro-Display-Regular'), url('/fonts-local/SF-Pro-Display-Regular.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'SF Pro Display';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: local('SF Pro Display Medium'), local('SF-Pro-Display-Medium'), url('/fonts-local/SF-Pro-Display-Medium.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'SF Pro Display';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: local('SF Pro Display Semibold'), local('SF-Pro-Display-Semibold'), url('/fonts-local/SF-Pro-Display-Semibold.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'SF Pro Display';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: local('SF Pro Display Bold'), local('SF-Pro-Display-Bold'), url('/fonts-local/SF-Pro-Display-Bold.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'SF Pro Text';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: local('SF Pro Text Regular'), local('SF-Pro-Text-Regular'), url('/fonts-local/SF-Pro-Text-Regular.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'SF Pro Text';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: local('SF Pro Text Medium'), local('SF-Pro-Text-Medium'), url('/fonts-local/SF-Pro-Text-Medium.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'SF Pro Text';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: local('SF Pro Text Semibold'), local('SF-Pro-Text-Semibold'), url('/fonts-local/SF-Pro-Text-Semibold.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'SF Pro Text';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: local('SF Pro Text Bold'), local('SF-Pro-Text-Bold'), url('/fonts-local/SF-Pro-Text-Bold.woff2') format('woff2');
+}

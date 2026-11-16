@@ -20,7 +20,7 @@ import { StatsView } from './StatsView';
 import { EqualiserView } from './EqualiserView';
 import { SmartPlaylistView, SmartShelf } from './SmartPlaylists';
 import type { SmartId } from '../lib/smart-playlists';
-import { OPEN_ALBUM_EVENT, OPEN_ARTIST_EVENT, OPEN_EQUALISER_EVENT } from '../lib/navigation';
+import { OPEN_ALBUM_EVENT, OPEN_ARTIST_EVENT, OPEN_EQUALISER_EVENT, handleInterceptedBack } from '../lib/navigation';
 import { artistKey, knownArtists, splitArtists } from '../lib/artists';
 import { ArtistView } from './ArtistView';
 import { LibraryPicker } from './LibraryPicker';
@@ -175,6 +175,7 @@ export function Shell() {
 
   const backButton = useRef<() => void>(() => undefined);
   backButton.current = () => {
+    if (!dialog && !menu && handleInterceptedBack()) return;
     if (closeTopmost()) return;
     if (stack.length > 1) back();
     else void App.minimizeApp();
@@ -193,6 +194,7 @@ export function Shell() {
       const target = event.target as HTMLElement | null;
       const typing = Boolean(target?.closest('input, textarea'));
       if (event.key === 'Escape') {
+        if (!dialog && !menu && handleInterceptedBack()) return;
         closeTopmost();
         return;
       }

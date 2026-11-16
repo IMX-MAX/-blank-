@@ -8,3 +8,6 @@ dist
 .dev
 .neon
 !.env.production
+
+# Apple SF Pro fonts for personal builds; licensed, never committed.
+public/fonts-local/

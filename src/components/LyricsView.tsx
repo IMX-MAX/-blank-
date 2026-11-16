@@ -1,5 +1,5 @@
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
-import { ChevronDown, Music2, RotateCw } from 'lucide-react';
+import { ChevronDown, Music2, RotateCw, X } from 'lucide-react';
 import { activeLineIndex, checkSources, type SourceCheck, type LyricLine, type LyricWord, type Lyrics, type LyricsResult } from '../lib/lyrics';
 import { withEstimatedWords } from '../lib/estimate';
 import { addPronunciation } from '../lib/romanize';
@@ -16,6 +16,10 @@ import { coverFor } from '../lib/covers';
 import { setKeepAwake } from '../lib/keep-awake';
 import { useSettings } from '../state/SettingsProvider';
 import { Cover } from './Cover';
+import { ShareLyricsSheet } from './ShareLyrics';
+import { pressHaptic, tickHaptic } from '../lib/haptics';
+import { interceptBack } from '../lib/navigation';
+import { SHARE_MAX_LINES, toggleSelection } from '../lib/share-layout';
 
 type State = { status: 'loading' } | { status: 'error' } | LyricsResult;
 
@@ -128,10 +132,25 @@ type RowProps = {
   translated: boolean;
   seek: (time: number) => void;
   register: (item: number, element: HTMLElement | null) => void;
+  /** Choosing lines to share: a tap picks the line instead of jumping to it. */
+  selecting: boolean;
+  picked: boolean;
+  onPick: (index: number) => void;
+  /** A long press on the line, to start choosing lines to share. */
+  onHold: (index: number) => void;
 };
 
-const Row = memo(function Row({ line, index, item, status, distance, synced, translated, seek, register }: RowProps) {
+const HOLD_MS = 450;
+const HOLD_SLOP = 10;
+
+const Row = memo(function Row({ line, index, item, status, distance, synced, translated, seek, register, selecting, picked, onPick, onHold }: RowProps) {
+  const hold = useRef<{ timer: number; x: number; y: number; fired: boolean } | null>(null);
+  const cancelHold = () => {
+    if (hold.current) window.clearTimeout(hold.current.timer);
+  };
+  useEffect(() => cancelHold, []);
   const classes = ['ly', status];
+  if (selecting) classes.push(picked ? 'picked' : 'unpicked');
   if (line.align) classes.push(line.align);
   if (line.backing) classes.push('backing');
   const words = synced && line.words.length ? line.words : null;
@@ -142,8 +161,42 @@ const Row = memo(function Row({ line, index, item, status, distance, synced, tra
       data-line={index}
       className={classes.join(' ')}
       style={{ ['--d' as string]: distance } as CSSProperties}
-      onClick={synced ? () => seek(line.start) : undefined}
-      role={synced ? 'button' : undefined}
+      onClick={() => {
+        // The click that ends a long press does nothing more.
+        if (hold.current?.fired) {
+          hold.current = null;
+          return;
+        }
+        if (selecting) onPick(index);
+        else if (synced) seek(line.start);
+      }}
+      onPointerDown={(event) => {
+        if (event.button !== 0 || !line.text.trim()) return;
+        cancelHold();
+        const state = { timer: 0, x: event.clientX, y: event.clientY, fired: false };
+        state.timer = window.setTimeout(() => {
+          state.fired = true;
+          onHold(index);
+        }, HOLD_MS);
+        hold.current = state;
+      }}
+      onPointerMove={(event) => {
+        const state = hold.current;
+        if (state && !state.fired && Math.hypot(event.clientX - state.x, event.clientY - state.y) > HOLD_SLOP) cancelHold();
+      }}
+      onPointerUp={cancelHold}
+      onPointerCancel={cancelHold}
+      onPointerLeave={cancelHold}
+      onContextMenu={(event) => {
+        // Right-click, or a long press the browser turned into a context menu.
+        event.preventDefault();
+        if (hold.current?.fired || !line.text.trim()) return;
+        cancelHold();
+        hold.current = { timer: 0, x: 0, y: 0, fired: true };
+        onHold(index);
+      }}
+      role={synced || selecting ? 'button' : undefined}
+      aria-pressed={selecting ? picked : undefined}
     >
       <div className="ly-in">
         <div className="ly-main">{words ? wordSpans(words, line.romanGroups) : line.text}</div>
@@ -249,6 +302,13 @@ export function LyricsView() {
   const [view, setView] = useState<View>(START_VIEW);
   const viewRef = useRef<View>(START_VIEW);
   const holdScrollUntil = useRef(0);
+  // Choosing lines to share: the picked line numbers, or null when not choosing.
+  const [picked, setPicked] = useState<number[] | null>(null);
+  const [sharing, setSharing] = useState(false);
+  const [capHint, setCapHint] = useState(false);
+  const capTimer = useRef(0);
+  const selectingRef = useRef(false);
+  selectingRef.current = picked !== null;
   const realign = useRef(0);
   const aligned = useRef(false);
   const { getTime, seek } = player;
@@ -437,7 +497,7 @@ export function LyricsView() {
   // A layout effect, so the new line's highlight and the scroll that brings it into place are painted together.
   useLayoutEffect(() => {
     if (!synced || !lines.length) return;
-    if (Date.now() < holdScrollUntil.current) return;
+    if (selectingRef.current || Date.now() < holdScrollUntil.current) return;
     alignTo(anchorItem, aligned.current ? 'spring' : 'instant');
     aligned.current = true;
   }, [anchorItem, synced, lines, alignTo]);
@@ -453,6 +513,7 @@ export function LyricsView() {
     holdScrollUntil.current = Date.now() + 2800;
     window.clearTimeout(realign.current);
     realign.current = window.setTimeout(() => {
+      if (selectingRef.current) return;
       const current = viewRef.current;
       alignTo(current.dots >= 0 ? current.dots : (itemOfLine.get(current.anchor) ?? 0), 'smooth');
     }, 2900);
@@ -470,7 +531,59 @@ export function LyricsView() {
     [seek],
   );
 
+  const startPicking = useCallback((index: number) => {
+    pressHaptic();
+    window.clearTimeout(realign.current);
+    setSharing(false);
+    setPicked((current) => (current ? toggleSelection(current, index).next : [index]));
+  }, []);
+
+  const pickedRef = useRef<number[] | null>(null);
+  pickedRef.current = picked;
+  const pickLine = useCallback((index: number) => {
+    const current = pickedRef.current;
+    if (!current) return;
+    const { next, capped } = toggleSelection(current, index);
+    tickHaptic();
+    if (capped) {
+      setCapHint(true);
+      window.clearTimeout(capTimer.current);
+      capTimer.current = window.setTimeout(() => setCapHint(false), 1800);
+    }
+    pickedRef.current = next;
+    setPicked(next);
+  }, []);
+
+  const stopPicking = useCallback(() => {
+    setPicked(null);
+    setSharing(false);
+    setCapHint(false);
+    holdScrollUntil.current = 0;
+    const current = viewRef.current;
+    alignTo(current.dots >= 0 ? current.dots : (itemOfLine.get(current.anchor) ?? 0), 'smooth');
+  }, [alignTo, itemOfLine]);
+
+  // Back closes the share screen, then the choosing, before the lyrics.
+  useEffect(() => {
+    if (picked === null) return;
+    return interceptBack(() => {
+      if (sharing) setSharing(false);
+      else stopPicking();
+      return true;
+    });
+  }, [picked === null, sharing, stopPicking]);
+
+  // A new song ends choosing.
+  useEffect(() => {
+    setPicked(null);
+    setSharing(false);
+  }, [track?.id]);
+  useEffect(() => () => window.clearTimeout(capTimer.current), []);
+
   if (!track) return null;
+
+  const pickedSet = new Set(picked ?? []);
+  const selecting = picked !== null;
 
   const hotSet = new Set(view.hot ? view.hot.split(',').map(Number) : []);
 
@@ -478,6 +591,22 @@ export function LyricsView() {
     <section className="lyrics" data-overlay aria-label="Lyrics">
       <Cover fileId={coverFor(track, album, songCovers)} hue={album?.hue ?? track.hue} className="lyrics-bg" radius={0} />
       <div className="lyrics-shade" />
+      {selecting ? (
+        <header className="lyrics-head lyrics-select-head">
+          <button className="icon-btn" aria-label="Stop choosing lines" onClick={stopPicking}>
+            <X size={19} />
+          </button>
+          <div className="lyrics-names">
+            <div className="lyrics-title">{picked.length ? `${picked.length} ${picked.length === 1 ? 'line' : 'lines'} selected` : 'Select lyrics'}</div>
+            <div className={capHint ? 'lyrics-artist select-hint cap' : 'lyrics-artist select-hint'}>
+              {capHint ? `You can share up to ${SHARE_MAX_LINES} lines` : `Tap up to ${SHARE_MAX_LINES} lines to share`}
+            </div>
+          </div>
+          <button className="select-next" disabled={!picked.length} onClick={() => setSharing(true)}>
+            Next
+          </button>
+        </header>
+      ) : (
       <header className="lyrics-head">
         <button className="icon-btn" aria-label="Close lyrics" onClick={() => player.setLyricsOpen(false)}>
           <ChevronDown size={20} />
@@ -494,6 +623,7 @@ export function LyricsView() {
           <span className={`lyrics-chip ${lyrics.mode}`}>{MODE_LABEL[lyrics.mode]}</span>
         ) : null}
       </header>
+      )}
       {why ? (
         <div className="lyrics-why">
           <div className="lyrics-why-title">Why this song is only estimated</div>
@@ -549,7 +679,7 @@ export function LyricsView() {
         ) : null}
 
         {lyrics ? (
-          <div className={`lyrics-lines ${lyrics.mode}`}>
+          <div className={`lyrics-lines ${lyrics.mode}${selecting ? ' selecting' : ''}`} data-haptic={selecting ? 'off' : undefined}>
             {items.map((item, position) => {
               if (item.kind === 'gap') return <div key={`g${position}`} className="ly-gap" />;
               if (item.kind === 'dots') return <Dots key={`d${position}`} item={position} active={view.dots === position} register={register} />;
@@ -567,6 +697,10 @@ export function LyricsView() {
                   translated={translated}
                   seek={seekLine}
                   register={register}
+                  selecting={selecting}
+                  picked={pickedSet.has(item.index)}
+                  onPick={pickLine}
+                  onHold={startPicking}
                 />
               );
             })}
@@ -574,6 +708,17 @@ export function LyricsView() {
           </div>
         ) : null}
       </div>
+      {sharing && picked?.length ? (
+        <ShareLyricsSheet
+          title={track.title}
+          artist={track.artist}
+          lines={picked.map((index) => lines[index]?.text ?? '').filter((text) => text.trim())}
+          coverFileId={coverFor(track, album, songCovers)}
+          hue={album?.hue ?? track.hue ?? 210}
+          onBack={() => setSharing(false)}
+          onDone={stopPicking}
+        />
+      ) : null}
     </section>
   );
 }

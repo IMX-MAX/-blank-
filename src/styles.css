@@ -33,7 +33,10 @@
   --danger: #ff5d5d;
 }
 :root {
-  font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-text: "SF Pro Text", "Inter Variable", Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-display: "SF Pro Display", "Inter Variable", Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font-family: var(--font-text);
+  font-optical-sizing: auto;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
@@ -922,7 +925,6 @@ button { cursor: pointer; }
 .lyrics-shade {
   position: absolute;
   inset: 0;
-  background: linear-gradient(180deg, rgba(14, 14, 14, 0.55), rgba(14, 14, 14, 0.25) 40%, rgba(14, 14, 14, 0.7));
   pointer-events: none;
 }
 .lyrics-head {
@@ -1275,7 +1277,7 @@ button.offline-note { cursor: pointer; color: var(--text, #fff); }
   flex-direction: column;
   overflow: hidden;
 }
-.now-backdrop { position: absolute; inset: 0; overflow: hidden; background: #151515; animation: fade-in 0.34s ease both; }
+.now-backdrop { position: absolute; inset: 0; overflow: hidden; background: #050505; animation: fade-in 0.34s ease both; }
 @keyframes now-rise { from { opacity: 0; transform: translateY(28px); } }
 @keyframes now-fall { to { opacity: 0; transform: translateY(28px); } }
 .now-head, .now-panel { animation: now-rise 0.46s var(--ease-out) 0.06s both; }
@@ -1290,7 +1292,12 @@ button.offline-note { cursor: pointer; color: var(--text, #fff); }
   pointer-events: none;
 }
 .now-bg img { object-fit: cover; width: 100%; height: 100%; }
-.now-shade { position: absolute; inset: 0; background: linear-gradient(180deg, rgba(14, 14, 14, 0.35), rgba(14, 14, 14, 0.65)); pointer-events: none; }
+.now-shade { position: absolute; inset: 0; pointer-events: none; }
+/* A soft glow on the player's buttons, like light bleeding from them. Shapes and places stay as they are. */
+.now-controls .ctrl, .now-extras .ctrl, .now-head .icon-btn { filter: drop-shadow(0 0 7px rgba(255, 255, 255, 0.28)); }
+.now-controls .ctrl.is-on, .now-extras .ctrl.is-on { filter: drop-shadow(0 0 8px rgba(230, 200, 74, 0.5)); }
+.now-play { box-shadow: 0 0 26px rgba(255, 255, 255, 0.32), 0 0 60px rgba(255, 255, 255, 0.12); }
+.now-play:active { box-shadow: 0 0 18px rgba(255, 255, 255, 0.26), 0 0 40px rgba(255, 255, 255, 0.1); }
 .now-head {
   position: relative;
   z-index: 1;
@@ -1824,3 +1831,255 @@ button.stats-item:hover { background: var(--hover); }
   .scrim:has(.picker-sheet) { place-items: end center; }
   .dialog.picker-sheet { width: 100vw; height: calc(100dvh - 56px - env(safe-area-inset-top)); border-radius: 26px 26px 0 0; padding-bottom: calc(14px + env(safe-area-inset-bottom)); }
 }
+
+
+/* ---------- Player and lyrics backdrop fade ---------- */
+/* The artwork's colour sits in the middle and eases, without banding, into the page colour at the top and the
+   bottom: near-pure black in dark mode, near-white in light mode. */
+.now, .lyrics { --fade: 3 3 3; }
+.now-shade, .lyrics-shade {
+  background: linear-gradient(
+    180deg,
+    rgb(var(--fade)) 0%,
+    rgb(var(--fade) / 0.9) 7%,
+    rgb(var(--fade) / 0.62) 17%,
+    rgb(var(--fade) / 0.34) 30%,
+    rgb(var(--fade) / 0.24) 42%,
+    rgb(var(--fade) / 0.32) 54%,
+    rgb(var(--fade) / 0.58) 66%,
+    rgb(var(--fade) / 0.84) 78%,
+    rgb(var(--fade) / 0.96) 88%,
+    rgb(var(--fade)) 96%
+  );
+}
+.now-backdrop, .lyrics { background: rgb(var(--fade)); }
+
+/* Light mode: the same fade, to near-white, with dark text and controls on top. */
+:root[data-theme="light"] .now,
+:root[data-theme="light"] .lyrics {
+  --fade: 246 246 248;
+  color-scheme: light;
+  --text: #17171a;
+  --text-strong: #000000;
+  --text-2: #2a2a2e;
+  --muted: #5f5f67;
+  --muted-2: #5f5f67;
+  --hover: rgba(0, 0, 0, 0.06);
+  --hover-weak: rgba(0, 0, 0, 0.04);
+  --ring: rgba(0, 0, 0, 0.18);
+  --surface: rgba(0, 0, 0, 0.06);
+  --surface-2: rgba(0, 0, 0, 0.1);
+  --wave-on: rgba(20, 20, 24, 0.92);
+  --wave-off: rgba(20, 20, 24, 0.3);
+  --gold: #a88600;
+  color: var(--text);
+}
+:root[data-theme="light"] .now-bg { filter: blur(80px) saturate(1.6) brightness(1.08); opacity: 0.7; }
+:root[data-theme="light"] .lyrics-bg { filter: blur(70px) saturate(1.6) brightness(1.08); opacity: 0.6; }
+:root[data-theme="light"] .now-artist,
+:root[data-theme="light"] .lyrics-artist { color: rgba(20, 20, 24, 0.62); }
+:root[data-theme="light"] .now-times { color: rgba(20, 20, 24, 0.58); }
+:root[data-theme="light"] .now-dot,
+:root[data-theme="light"] .now-album { color: rgba(20, 20, 24, 0.48); }
+:root[data-theme="light"] .now-artist .name-link:hover { color: #000; }
+:root[data-theme="light"] .now-play { background: #17171a; color: #fff; box-shadow: 0 0 26px rgba(23, 23, 26, 0.22), 0 0 60px rgba(23, 23, 26, 0.08); }
+:root[data-theme="light"] .now-controls .ctrl,
+:root[data-theme="light"] .now-extras .ctrl,
+:root[data-theme="light"] .now-head .icon-btn { filter: drop-shadow(0 0 7px rgba(20, 20, 24, 0.16)); }
+:root[data-theme="light"] .now-controls .ctrl.is-on,
+:root[data-theme="light"] .now-extras .ctrl.is-on { filter: drop-shadow(0 0 8px rgba(168, 134, 0, 0.35)); }
+:root[data-theme="light"] .lyrics-chip,
+:root[data-theme="light"] .lyrics-chip.estimated { background: rgba(0, 0, 0, 0.06); color: rgba(20, 20, 24, 0.72); }
+:root[data-theme="light"] .lyrics-chip.word { background: rgba(168, 134, 0, 0.14); }
+:root[data-theme="light"] .ly-in { --on: rgba(20, 20, 24, 0.3); --off: rgba(20, 20, 24, 0.3); }
+@media (hover: hover) {
+  :root[data-theme="light"] .ly[role="button"]:not(.hot):hover .ly-in { --on: rgba(20, 20, 24, 0.56); --off: rgba(20, 20, 24, 0.56); }
+}
+:root[data-theme="light"] .ly.hot .ly-in { --on: #111114; --off: rgba(20, 20, 24, 0.3); }
+:root[data-theme="light"] .ly.plain .ly-in { --on: rgba(20, 20, 24, 0.82); --off: rgba(20, 20, 24, 0.82); }
+:root[data-theme="light"] .ly.hot .lw.long { filter: drop-shadow(0 0 calc(var(--p) * 0.3em) rgba(20, 20, 24, calc(var(--p) * 0.18))); }
+:root[data-theme="light"] .lyrics-credit { color: rgba(20, 20, 24, 0.42); }
+:root[data-theme="light"] .ly-dots i { background: rgba(20, 20, 24, calc(0.25 + var(--p) * 0.7)); }
+:root[data-theme="light"] .lyrics-state { color: rgba(20, 20, 24, 0.68); }
+:root[data-theme="light"] .lyrics-state p { color: #111114; }
+:root[data-theme="light"] .lyrics-state small { color: rgba(20, 20, 24, 0.5); }
+:root[data-theme="light"] .lyrics-skeleton span { background: linear-gradient(90deg, rgba(0, 0, 0, 0.05), rgba(0, 0, 0, 0.11), rgba(0, 0, 0, 0.05)); background-size: 200% 100%; }
+
+/* ---------- Pure black (OLED) ---------- */
+:root[data-oled] {
+  --bg: #000000;
+  --surface: #191919;
+  --surface-2: #232323;
+  --panel: #161616;
+  --panel-2: #111111;
+  --panel-hover: #202020;
+  --field: #0b0b0b;
+  --field-line: #2a2a2a;
+  --bar-bg: linear-gradient(180deg, #1b1b1b, #141414);
+  --folder-bg: #0e0e0e;
+  --scrim: rgba(0, 0, 0, 0.6);
+}
+:root[data-oled] .now, :root[data-oled] .lyrics { --fade: 0 0 0; }
+
+/* ---------- Choosing lyrics to share ---------- */
+.ly { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
+.lyrics-select-head .lyrics-names { text-align: left; }
+.select-hint { transition: color 0.2s ease; }
+.select-hint.cap { color: var(--gold) !important; }
+.select-next {
+  height: 38px;
+  padding: 0 20px;
+  border: 0;
+  border-radius: 999px;
+  background: #fff;
+  color: #000;
+  font-weight: 650;
+  font-size: 15px;
+  box-shadow: 0 0 22px rgba(255, 255, 255, 0.22);
+  transition: opacity 0.15s ease, transform 0.15s ease;
+}
+.select-next:disabled { opacity: 0.35; box-shadow: none; }
+.select-next:not(:disabled):active { transform: scale(0.96); }
+.lyrics-lines.selecting .ly { cursor: pointer; }
+.lyrics-lines.selecting .ly .ly-in { transform: scale(1); filter: none; --on: rgba(255, 255, 255, 0.34); --off: rgba(255, 255, 255, 0.34); transition: --on 0.2s ease, --off 0.2s ease; }
+.lyrics-lines.selecting .ly .ly-bg { opacity: 0.5; filter: none; transform: none; }
+.lyrics-lines.selecting .ly.picked .ly-in { --on: #fff; --off: #fff; }
+.lyrics-lines.selecting .ly.picked .ly-bg { opacity: 0.9; }
+.lyrics-lines.selecting .lw.long { filter: none; }
+:root[data-theme="light"] .select-next { background: #17171a; color: #fff; box-shadow: 0 0 22px rgba(23, 23, 26, 0.18); }
+:root[data-theme="light"] .lyrics-lines.selecting .ly .ly-in { --on: rgba(20, 20, 24, 0.3); --off: rgba(20, 20, 24, 0.3); }
+:root[data-theme="light"] .lyrics-lines.selecting .ly.picked .ly-in { --on: #111114; --off: #111114; }
+
+/* ---------- Share lyrics screen ---------- */
+.share-lyrics {
+  position: fixed;
+  inset: 0;
+  z-index: 46;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: calc(16px + env(safe-area-inset-top)) 20px calc(18px + env(safe-area-inset-bottom));
+  background: rgb(var(--fade) / 0.9);
+  -webkit-backdrop-filter: blur(30px) saturate(1.3);
+  backdrop-filter: blur(30px) saturate(1.3);
+  color: var(--text);
+  animation: fade-in 0.24s ease both;
+}
+.share-head { display: flex; align-items: center; gap: 12px; }
+.share-head h2 { flex: 1; margin: 0; font-size: 18px; font-weight: 650; letter-spacing: -0.02em; }
+.share-format button { padding: 0 14px; }
+.share-stage { flex: 1; min-height: 0; display: grid; place-items: center; touch-action: pan-y; }
+.share-canvas {
+  display: block;
+  max-width: 100%;
+  max-height: 100%;
+  height: 100%;
+  width: auto;
+  border-radius: 18px;
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.45);
+  opacity: 0;
+  transition: opacity 0.25s ease;
+}
+.share-canvas.ready { opacity: 1; }
+.share-styles { display: flex; gap: 8px; justify-content: flex-start; padding: 0 2px; overflow-x: auto; scrollbar-width: none; scroll-snap-type: x mandatory; }
+.share-styles::-webkit-scrollbar { display: none; }
+.share-style {
+  flex: none;
+  scroll-snap-align: center;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 36px;
+  padding: 0 14px 0 8px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--text-2);
+  font-size: 13.5px;
+  font-weight: 550;
+}
+.share-style.on { background: var(--text-strong); color: rgb(var(--fade)); }
+.share-swatch { width: 22px; height: 22px; border-radius: 50%; corner-shape: round; box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.2); }
+.share-style.artwork .share-swatch { background: conic-gradient(from 200deg, hsl(var(--hue) 70% 55%), hsl(calc(var(--hue) + 60) 70% 50%), hsl(calc(var(--hue) - 40) 60% 35%), hsl(var(--hue) 70% 55%)); }
+.share-style.colour .share-swatch { background: linear-gradient(160deg, hsl(var(--hue) 60% 45%), hsl(calc(var(--hue) + 20) 60% 18%)); }
+.share-style.light .share-swatch { background: linear-gradient(160deg, hsl(var(--hue) 50% 90%), hsl(calc(var(--hue) + 25) 45% 80%)); }
+.share-style.black .share-swatch { background: radial-gradient(circle at 50% 35%, hsl(var(--hue) 50% 30%), #050505 70%); }
+.share-hint { margin: -4px 0 0; text-align: center; font-size: 12px; color: var(--muted); }
+.share-error { margin: 0; text-align: center; font-size: 13px; color: var(--danger); }
+.share-actions { display: flex; gap: 10px; }
+.share-actions > button { flex: 1; height: 50px; display: inline-flex; align-items: center; justify-content: center; gap: 8px; font-size: 15.5px; font-weight: 650; border-radius: 999px; }
+.share-copy { border: 0; background: var(--surface); color: var(--text-strong); }
+.share-go { box-shadow: 0 0 26px rgba(255, 255, 255, 0.22); }
+:root[data-theme="light"] .share-go { box-shadow: 0 0 26px rgba(23, 23, 26, 0.16); }
+.lyrics .share-lyrics .white-btn { background: var(--text-strong); color: rgb(var(--fade)); }
+@media (min-width: 761px) {
+  .share-lyrics { padding-left: max(20px, calc(50% - 300px)); padding-right: max(20px, calc(50% - 300px)); }
+}
+.share-styles > :first-child { margin-left: auto; }
+.share-styles > :last-child { margin-right: auto; }
+:root[data-theme="light"] .now-art { box-shadow: 0 26px 70px rgba(0, 0, 0, 0.18); }
+
+/* ---------- Type ---------- */
+/* SF Pro Display for type from 20px up (titles, the player, lyrics), SF Pro Text below, as Apple uses them. */
+.wordmark, .album-title, .artist-name, .now-title, .ly, .ly-dots, .dialog h2, .lyrics-state p,
+.stats-hero, .stats-big, .eq-title, .smart-art-name, .settings-title, .share-head h2 {
+  font-family: var(--font-display);
+}
+/* SF Pro is narrower than Inter, so it needs less of the tightening Inter gets. */
+:root[data-font="sf"] body { letter-spacing: -0.006em; }
+:root[data-font="sf"] .album-title { letter-spacing: -0.022em; }
+:root[data-font="sf"] .artist-name { letter-spacing: -0.028em; }
+:root[data-font="sf"] .now-title { letter-spacing: -0.018em; }
+:root[data-font="sf"] .ly { letter-spacing: -0.012em; }
+:root[data-font="sf"] .card-title, :root[data-font="sf"] .track-title { letter-spacing: -0.012em; }
+:root[data-font="sf"] .shelf-title { letter-spacing: 0.02em; }
+/* Inter's optical sizes stand in for Display and Text; its lyric weight is set a touch heavier to read like SF Bold. */
+:root[data-font="inter"] .ly { font-weight: 720; }
+
+/* ---------- Light mode polish ---------- */
+/* Closer to Apple's light look: a soft off-white page, white controls lifted by gentle shadows rather than grey
+   fills, and covers that sit on the page instead of blending into it. */
+:root[data-theme="light"] {
+  --bg: #f5f5f7;
+  --surface: #ffffff;
+  --surface-2: #f0f0f3;
+  --panel-hover: #f2f2f5;
+  --field: #ebebef;
+  --field-line: #d2d2d8;
+  --muted: #6e6e73;
+  --muted-2: #6e6e73;
+  --faint: #a1a1a6;
+  --hover: rgba(0, 0, 0, 0.05);
+  --hover-weak: rgba(0, 0, 0, 0.035);
+  --gold: #a47f00;
+  --lift: 0 1px 2px rgba(0, 0, 0, 0.06), 0 4px 14px rgba(0, 0, 0, 0.06);
+}
+:root[data-theme="light"] .icon-btn,
+:root[data-theme="light"] .add-tracks,
+:root[data-theme="light"] .add-btn,
+:root[data-theme="light"] .share-copy,
+:root[data-theme="light"] .share-style:not(.on) { box-shadow: var(--lift); }
+:root[data-theme="light"] .icon-btn.on { background: var(--btn-bg); color: var(--btn-fg); }
+:root[data-theme="light"] .card-play { background: #fff; border-color: var(--bg); box-shadow: 0 2px 10px rgba(0, 0, 0, 0.12); }
+:root[data-theme="light"] .card-cover,
+:root[data-theme="light"] .album-cover-btn,
+:root[data-theme="light"] .smart-art,
+:root[data-theme="light"] .shelf-open .card-cover { box-shadow: 0 6px 22px rgba(0, 0, 0, 0.1); }
+:root[data-theme="light"] .smart-track-art,
+:root[data-theme="light"] .picker-art,
+:root[data-theme="light"] .search-art { box-shadow: 0 1px 4px rgba(0, 0, 0, 0.1); }
+:root[data-theme="light"] .artist-hero { box-shadow: 0 10px 34px rgba(0, 0, 0, 0.12); }
+:root[data-theme="light"] .track:hover,
+:root[data-theme="light"] .track.active { background: rgba(0, 0, 0, 0.04); }
+:root[data-theme="light"] .segmented { background: rgba(0, 0, 0, 0.06); }
+:root[data-theme="light"] .segmented button.on { background: #fff; color: #000; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12); }
+:root[data-theme="light"] .menu,
+:root[data-theme="light"] .add-card,
+:root[data-theme="light"] .dialog,
+:root[data-theme="light"] .popover { box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.04), 0 20px 50px rgba(0, 0, 0, 0.14); }
+:root[data-theme="light"] .dialog input,
+:root[data-theme="light"] .search-bar input { background: var(--field); border-color: transparent; }
+:root[data-theme="light"] .picker-row.on:not(.added) { background: rgba(0, 0, 0, 0.05); }
+:root[data-theme="light"] .now .icon-btn,
+:root[data-theme="light"] .lyrics .icon-btn { background: rgba(255, 255, 255, 0.7); }
+:root[data-theme="light"] .player { box-shadow: 0 12px 36px rgba(0, 0, 0, 0.14), 0 0 0 1px rgba(0, 0, 0, 0.04); }
