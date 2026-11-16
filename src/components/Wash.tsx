@@ -1,24 +1,24 @@
 import { useEffect, useRef, useState } from 'react';
 import { coverObjectUrl } from '../api';
 
-/** Canvas pixels across. The wash is blurred far past this resolution, so a small canvas stretched up is smooth. */
-const WIDTH = 96;
+/** Canvas pixels across: enough to keep the cover's shapes, small enough to blur in a few milliseconds. */
+const WIDTH = 432;
 
 /**
- * The player's artwork wash: the cover, zoomed and blurred into soft colour, drawn into a small canvas that CSS
- * stretches over the screen.
+ * The player's backdrop: the cover itself, filling the screen and softly blurred so its shapes and colour regions
+ * still read, drawn into a modest canvas that CSS stretches over the screen.
  *
  * This used to be the cover image with `filter: blur(150px)` on an element 170% of the screen. On phones Chromium
  * has to rasterise that as one GPU texture (screen size times device pixel ratio, plus three blur radii on every
  * side), which is past the GPU's texture limit, so it clipped the filtered layer and the top and bottom of the
- * screen showed the black page behind it. Blurring 96 pixels in a canvas looks the same and costs almost nothing.
+ * screen showed the black page behind it. Blurring a 432-pixel canvas looks the same and is cheap.
  */
 export function Wash({
   fileId,
   hue,
   className,
-  blur = 150,
-  spread = 0.35,
+  blur = 26,
+  spread = 0.04,
 }: {
   fileId?: string | null;
   hue?: number | null;
@@ -69,9 +69,10 @@ export function Wash({
       const ctx = canvas.getContext('2d');
       if (!o || !ctx) return;
       o.filter = `blur(${radius}px)`;
-      // The cover fills a box (1 + 2 × spread) times the screen, centred, like object-fit: cover.
-      const bw = (1 + spread * 2) * W * k;
-      const bh = (1 + spread * 2) * H * k;
+      // The cover fills the whole off-screen canvas, blur margins included, centred like object-fit: cover, so the
+      // blur never pulls transparent (black) in from the edges.
+      const bw = (1 + spread * 2) * cw + margin * 2;
+      const bh = (1 + spread * 2) * ch + margin * 2;
       const cx = margin + cw / 2;
       const cy = margin + ch / 2;
       if (image && image.naturalWidth) {

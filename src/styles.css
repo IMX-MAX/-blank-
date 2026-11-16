@@ -2064,18 +2064,18 @@ html[data-sharing-lyrics] .player {
 }
 :root[data-theme="light"] .now-shade::after, :root[data-theme="light"] .lyrics-shade::after { opacity: 0.035; mix-blend-mode: multiply; }
 
-/* Dark mode: matched to Amazon Music by sampling. The artwork is blurred into a muted wash, then one long, gentle
+/* Dark mode: matched to Amazon Music by sampling. The cover is softly blurred behind the UI, then one long, gentle
    darkening runs down the whole screen: a soft dark mauve at the status bar, lightest in the upper middle, a warm
    dark grey behind the controls. Never pure black, no hard bands. */
 .now, .lyrics {
-  --wash-sat: 0.75;
-  --wash-bright: 0.9;
+  --wash-sat: 1;
+  --wash-bright: 1;
   /* Darkening at 0, 2.2 (status bar), 8.5 (collapse button), 14, 25, 40, 55, 66, 81 (transport row), 91 (bottom
      row) and 100% of the height, fitted to Amazon Music on a 412×915 phone. Never black. */
-  --d0: 0.858; --d1: 0.832; --d2: 0.709; --d3: 0.531; --d4: 0.098; --d5: 0.12; --d6: 0.331; --d7: 0.498; --d8: 0.613; --d9: 0.773; --d10: 0.855;
+  --d0: 0.878; --d1: 0.854; --d2: 0.743; --d3: 0.587; --d4: 0.08; --d5: 0.12; --d6: 0.308; --d7: 0.499; --d8: 0.614; --d9: 0.777; --d10: 0.847;
 }
 /* The lyrics view sits darker overall, as Amazon's does, so white lines read on any cover. */
-.lyrics { --d0: 0.85; --d1: 0.84; --d2: 0.78; --d3: 0.65; --d4: 0.35; --d5: 0.55; --d6: 0.7; --d7: 0.74; --d8: 0.82; --d9: 0.86; --d10: 0.88; }
+.lyrics { --d0: 0.912; --d1: 0.895; --d2: 0.815; --d3: 0.703; --d4: 0.338; --d5: 0.366; --d6: 0.502; --d7: 0.639; --d8: 0.722; --d9: 0.839; --d10: 0.89; }
 :root:not([data-theme="light"]) .now-shade, :root:not([data-theme="light"]) .lyrics-shade {
   background: linear-gradient(
     180deg,
@@ -2094,7 +2094,7 @@ html[data-sharing-lyrics] .player {
 }
 :root:not([data-theme="light"]) .now-backdrop, :root:not([data-theme="light"]) .lyrics { background: #050505; }
 
-/* The artwork wash is a small, already-blurred canvas (see Wash.tsx) stretched over the screen; CSS only mutes it. */
+/* The blurred cover is a canvas (see Wash.tsx) stretched over the screen, at its natural colour in dark mode. */
 .now-bg, .lyrics-bg {
   position: absolute;
   inset: 0;
@@ -2104,4 +2104,4 @@ html[data-sharing-lyrics] .player {
   pointer-events: none;
   filter: saturate(var(--wash-sat)) brightness(var(--wash-bright));
 }
-:root[data-theme="light"] .now-bg, :root[data-theme="light"] .lyrics-bg { filter: saturate(0.8) brightness(1.12); opacity: 0.75; }
+:root[data-theme="light"] .now-bg, :root[data-theme="light"] .lyrics-bg { filter: saturate(0.9) brightness(1.08); opacity: 0.8; }
