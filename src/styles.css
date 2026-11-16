@@ -2046,14 +2046,14 @@ html[data-sharing-lyrics] .player {
 /* A very soft wash of the artwork's own colours at their natural brightness, melting into the page colour only at
    the top edge and behind the controls at the bottom. Smootherstep stops and a faint grain keep it free of banding. */
 .now-bg, .lyrics-bg {
-  inset: -35% !important;
-  width: 170% !important;
-  height: 170% !important;
-  filter: blur(110px) saturate(0.9) brightness(0.8) !important;
+  inset: calc(-1 * var(--wash-spread, 35%)) !important;
+  width: calc(100% + 2 * var(--wash-spread, 35%)) !important;
+  height: calc(100% + 2 * var(--wash-spread, 35%)) !important;
+  filter: blur(var(--wash-blur)) saturate(var(--wash-sat)) brightness(var(--wash-bright)) !important;
   opacity: 1 !important;
   transform: translateZ(0);
 }
-.now-shade, .lyrics-shade {
+:root[data-theme="light"] .now-shade, :root[data-theme="light"] .lyrics-shade {
   background: linear-gradient(
     180deg,
     rgb(var(--fade) / 1.000) 0.0%,
@@ -2096,3 +2096,32 @@ html[data-sharing-lyrics] .player {
   opacity: 0.75 !important;
 }
 :root[data-theme="light"] .now-shade::after, :root[data-theme="light"] .lyrics-shade::after { opacity: 0.035; mix-blend-mode: multiply; }
+
+/* Dark mode, v3: matched to Amazon Music by sampling. The artwork is blurred into a dim, muted wash, then one long,
+   gentle darkening runs down the whole screen (a little at the top, least in the upper middle, near-black only behind
+   the bottom row of buttons). No hard edge bands. */
+.now, .lyrics {
+  --wash-blur: 150px;
+  --wash-sat: 0.75;
+  --wash-bright: 0.9;
+  --wash-spread: 35%;
+  /* Darkening at 0, 12, 25, 40, 55, 66, 77, 88 and 100% of the height, fitted to Amazon Music's cover view. */
+  --d0: 0.95; --d1: 0.55; --d2: 0; --d3: 0.04; --d4: 0.36; --d5: 0.44; --d6: 0.56; --d7: 0.71; --d8: 0.86;
+}
+/* The lyrics view sits darker overall, as Amazon's does, so white lines read on any cover. */
+.lyrics { --d0: 0.92; --d1: 0.6; --d2: 0.28; --d3: 0.55; --d4: 0.71; --d5: 0.74; --d6: 0.88; --d7: 0.93; --d8: 0.96; }
+:root:not([data-theme="light"]) .now-shade, :root:not([data-theme="light"]) .lyrics-shade {
+  background: linear-gradient(
+    180deg,
+    rgb(0 0 0 / var(--d0)) 0%,
+    rgb(0 0 0 / var(--d1)) 12%,
+    rgb(0 0 0 / var(--d2)) 25%,
+    rgb(0 0 0 / var(--d3)) 40%,
+    rgb(0 0 0 / var(--d4)) 55%,
+    rgb(0 0 0 / var(--d5)) 66%,
+    rgb(0 0 0 / var(--d6)) 77%,
+    rgb(0 0 0 / var(--d7)) 88%,
+    rgb(0 0 0 / var(--d8)) 100%
+  ) !important;
+}
+:root:not([data-theme="light"]) .now-backdrop, :root:not([data-theme="light"]) .lyrics { background: #050505; }
