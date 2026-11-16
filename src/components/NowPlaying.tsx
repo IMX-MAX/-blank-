@@ -24,6 +24,7 @@ import { usePlayer } from '../state/PlayerProvider';
 import { useSettings } from '../state/SettingsProvider';
 import { AlbumLink } from './AlbumLink';
 import { Cover } from './Cover';
+import { Wash } from './Wash';
 import { Slider } from './Slider';
 import { Waveform } from './Waveform';
 
@@ -84,7 +85,7 @@ export function NowPlaying() {
   return (
     <section className="now" data-overlay aria-label="Now playing">
       <div className="now-backdrop">
-        <Cover fileId={coverFileId} hue={hue} className="now-bg" radius={0} />
+        <Wash fileId={coverFileId} hue={hue} className="now-bg" />
         <div className="now-shade" />
       </div>
       <header className="now-head">

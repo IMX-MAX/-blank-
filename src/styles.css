@@ -912,16 +912,6 @@ button { cursor: pointer; }
   background: #000000;
   color: var(--text);
 }
-.lyrics-bg {
-  position: absolute !important;
-  inset: -12%;
-  width: 124% !important;
-  height: 124% !important;
-  filter: blur(70px) saturate(1.5) brightness(0.55);
-  opacity: 0.9;
-  pointer-events: none;
-}
-.lyrics-bg img { object-fit: cover; width: 100%; height: 100%; }
 .lyrics-shade {
   position: absolute;
   inset: 0;
@@ -1283,15 +1273,6 @@ button.offline-note { cursor: pointer; color: var(--text, #fff); }
 .now-head, .now-panel { animation: now-rise 0.46s var(--ease-out) 0.06s both; }
 .presence[data-state="closed"] .now-backdrop { animation: fade-out 0.34s ease both; }
 .presence[data-state="closed"] .now-head, .presence[data-state="closed"] .now-panel { animation: now-fall 0.22s ease both; }
-.now-bg {
-  position: absolute !important;
-  inset: -12%;
-  width: 124% !important;
-  height: 124% !important;
-  filter: blur(80px) saturate(1.5) brightness(0.5);
-  pointer-events: none;
-}
-.now-bg img { object-fit: cover; width: 100%; height: 100%; }
 .now-shade { position: absolute; inset: 0; pointer-events: none; }
 /* A soft glow on the player's buttons, like light bleeding from them. Shapes and places stay as they are. */
 /* Only light buttons glow (the white play button and white pills); icons, the collapse chevron and grey buttons do not. */
@@ -1837,8 +1818,6 @@ button.stats-item:hover { background: var(--hover); }
   --gold: #a88600;
   color: var(--text);
 }
-:root[data-theme="light"] .now-bg { filter: blur(80px) saturate(1.6) brightness(1.08); opacity: 0.7; }
-:root[data-theme="light"] .lyrics-bg { filter: blur(70px) saturate(1.6) brightness(1.08); opacity: 0.6; }
 :root[data-theme="light"] .now-artist,
 :root[data-theme="light"] .lyrics-artist { color: rgba(20, 20, 24, 0.62); }
 :root[data-theme="light"] .now-times { color: rgba(20, 20, 24, 0.58); }
@@ -2045,14 +2024,6 @@ html[data-sharing-lyrics] .player {
 /* ---------- Player and lyrics backdrop, v2 ---------- */
 /* A very soft wash of the artwork's own colours at their natural brightness, melting into the page colour only at
    the top edge and behind the controls at the bottom. Smootherstep stops and a faint grain keep it free of banding. */
-.now-bg, .lyrics-bg {
-  inset: calc(-1 * var(--wash-spread, 35%)) !important;
-  width: calc(100% + 2 * var(--wash-spread, 35%)) !important;
-  height: calc(100% + 2 * var(--wash-spread, 35%)) !important;
-  filter: blur(var(--wash-blur)) saturate(var(--wash-sat)) brightness(var(--wash-bright)) !important;
-  opacity: 1 !important;
-  transform: translateZ(0);
-}
 :root[data-theme="light"] .now-shade, :root[data-theme="light"] .lyrics-shade {
   background: linear-gradient(
     180deg,
@@ -2091,37 +2062,46 @@ html[data-sharing-lyrics] .player {
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
   background-size: 160px 160px;
 }
-:root[data-theme="light"] .now-bg, :root[data-theme="light"] .lyrics-bg {
-  filter: blur(110px) saturate(0.8) brightness(1.12) !important;
-  opacity: 0.75 !important;
-}
 :root[data-theme="light"] .now-shade::after, :root[data-theme="light"] .lyrics-shade::after { opacity: 0.035; mix-blend-mode: multiply; }
 
-/* Dark mode, v3: matched to Amazon Music by sampling. The artwork is blurred into a dim, muted wash, then one long,
-   gentle darkening runs down the whole screen (a little at the top, least in the upper middle, near-black only behind
-   the bottom row of buttons). No hard edge bands. */
+/* Dark mode: matched to Amazon Music by sampling. The artwork is blurred into a muted wash, then one long, gentle
+   darkening runs down the whole screen: a soft dark mauve at the status bar, lightest in the upper middle, a warm
+   dark grey behind the controls. Never pure black, no hard bands. */
 .now, .lyrics {
-  --wash-blur: 150px;
   --wash-sat: 0.75;
   --wash-bright: 0.9;
-  --wash-spread: 35%;
-  /* Darkening at 0, 12, 25, 40, 55, 66, 77, 88 and 100% of the height, fitted to Amazon Music's cover view. */
-  --d0: 0.95; --d1: 0.55; --d2: 0; --d3: 0.04; --d4: 0.36; --d5: 0.44; --d6: 0.56; --d7: 0.71; --d8: 0.86;
+  /* Darkening at 0, 2.2 (status bar), 8.5 (collapse button), 14, 25, 40, 55, 66, 81 (transport row), 91 (bottom
+     row) and 100% of the height, fitted to Amazon Music on a 412×915 phone. Never black. */
+  --d0: 0.858; --d1: 0.832; --d2: 0.709; --d3: 0.531; --d4: 0.098; --d5: 0.12; --d6: 0.331; --d7: 0.498; --d8: 0.613; --d9: 0.773; --d10: 0.855;
 }
 /* The lyrics view sits darker overall, as Amazon's does, so white lines read on any cover. */
-.lyrics { --d0: 0.92; --d1: 0.6; --d2: 0.28; --d3: 0.55; --d4: 0.71; --d5: 0.74; --d6: 0.88; --d7: 0.93; --d8: 0.96; }
+.lyrics { --d0: 0.85; --d1: 0.84; --d2: 0.78; --d3: 0.65; --d4: 0.35; --d5: 0.55; --d6: 0.7; --d7: 0.74; --d8: 0.82; --d9: 0.86; --d10: 0.88; }
 :root:not([data-theme="light"]) .now-shade, :root:not([data-theme="light"]) .lyrics-shade {
   background: linear-gradient(
     180deg,
     rgb(0 0 0 / var(--d0)) 0%,
-    rgb(0 0 0 / var(--d1)) 12%,
-    rgb(0 0 0 / var(--d2)) 25%,
-    rgb(0 0 0 / var(--d3)) 40%,
-    rgb(0 0 0 / var(--d4)) 55%,
-    rgb(0 0 0 / var(--d5)) 66%,
-    rgb(0 0 0 / var(--d6)) 77%,
-    rgb(0 0 0 / var(--d7)) 88%,
-    rgb(0 0 0 / var(--d8)) 100%
+    rgb(0 0 0 / var(--d1)) 2.2%,
+    rgb(0 0 0 / var(--d2)) 8.5%,
+    rgb(0 0 0 / var(--d3)) 14%,
+    rgb(0 0 0 / var(--d4)) 25%,
+    rgb(0 0 0 / var(--d5)) 40%,
+    rgb(0 0 0 / var(--d6)) 55%,
+    rgb(0 0 0 / var(--d7)) 66%,
+    rgb(0 0 0 / var(--d8)) 81%,
+    rgb(0 0 0 / var(--d9)) 91%,
+    rgb(0 0 0 / var(--d10)) 100%
   ) !important;
 }
 :root:not([data-theme="light"]) .now-backdrop, :root:not([data-theme="light"]) .lyrics { background: #050505; }
+
+/* The artwork wash is a small, already-blurred canvas (see Wash.tsx) stretched over the screen; CSS only mutes it. */
+.now-bg, .lyrics-bg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  pointer-events: none;
+  filter: saturate(var(--wash-sat)) brightness(var(--wash-bright));
+}
+:root[data-theme="light"] .now-bg, :root[data-theme="light"] .lyrics-bg { filter: saturate(0.8) brightness(1.12); opacity: 0.75; }

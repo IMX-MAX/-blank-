@@ -15,7 +15,7 @@ import type { Track } from '../types';
 import { coverFor } from '../lib/covers';
 import { setKeepAwake } from '../lib/keep-awake';
 import { useSettings } from '../state/SettingsProvider';
-import { Cover } from './Cover';
+import { Wash } from './Wash';
 import { ShareLyricsSheet } from './ShareLyrics';
 import { pressHaptic, tickHaptic } from '../lib/haptics';
 import { interceptBack } from '../lib/navigation';
@@ -598,7 +598,7 @@ export function LyricsView() {
 
   return (
     <section className="lyrics" data-overlay aria-label="Lyrics">
-      <Cover fileId={coverFor(track, album, songCovers)} hue={album?.hue ?? track.hue} className="lyrics-bg" radius={0} />
+      <Wash fileId={coverFor(track, album, songCovers)} hue={album?.hue ?? track.hue} className="lyrics-bg" />
       <div className="lyrics-shade" />
       {selecting ? (
         <header className="lyrics-head lyrics-select-head">

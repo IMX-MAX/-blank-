@@ -8,6 +8,7 @@ import { useLibrary } from '../state/LibraryProvider';
 import { LOCAL_ONLY } from '../config';
 import { useOffline, useOnline } from '../state/OfflineProvider';
 import { usePlayer } from '../state/PlayerProvider';
+import { useSettings } from '../state/SettingsProvider';
 import type { Album, Folder, Track } from '../types';
 import { AlbumView } from './AlbumView';
 import { LyricsResearchDialog } from './LyricsResearch';
@@ -22,6 +23,7 @@ import { SmartPlaylistView, SmartShelf } from './SmartPlaylists';
 import type { SmartId } from '../lib/smart-playlists';
 import { OPEN_ALBUM_EVENT, OPEN_EQUALISER_EVENT, handleInterceptedBack } from '../lib/navigation';
 import { LibraryPicker, type PickerTarget } from './LibraryPicker';
+import { surfaceIsDark, syncSystemBars } from '../lib/system-bars';
 import { useListeningRecorder } from '../state/useListeningRecorder';
 import { useGlobalHaptics } from '../state/useGlobalHaptics';
 import { successHaptic } from '../lib/haptics';
@@ -59,6 +61,15 @@ type Dialog =
   | { kind: 'move'; album: Album }
   | { kind: 'add-playlist'; trackIds: string[] }
   | { kind: 'pick-tracks'; target: PickerTarget };
+
+/** Keeps the Android status and navigation bar icons readable over whatever is showing. */
+function SystemBarsSync() {
+  const { resolvedTheme } = useSettings();
+  const player = usePlayer();
+  const playerOpen = player.expandedOpen || player.lyricsOpen;
+  useEffect(() => syncSystemBars(surfaceIsDark(resolvedTheme, playerOpen)), [resolvedTheme, playerOpen]);
+  return null;
+}
 
 export function Shell() {
   const { user, signOut, signUp, leaveOffline } = useAuth();
@@ -592,6 +603,7 @@ export function Shell() {
       ) : null}
 
       <PlayerBar />
+      <SystemBarsSync />
       <NativeLiveData />
 
       <input
