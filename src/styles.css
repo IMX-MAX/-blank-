@@ -998,10 +998,14 @@ button { cursor: pointer; }
   );
   -webkit-background-clip: text;
   background-clip: text;
-  transition: transform 0.5s var(--spring), filter 0.5s ease;
+  transition: filter 0.5s ease;
 }
 .ly.past .lw, .ly.plain .lw { --p: 1; }
-.ly.hot .lw { transform: translateY(calc(var(--p) * -0.07em)); }
+/* A word, which may be several timed pieces: it wraps and rises as one, from its first piece to its last. */
+.lwg { --q: 0; white-space: nowrap; transition: transform 0.5s var(--spring); }
+.lwg:not(.rg) { display: inline-block; }
+.ly.past .lwg, .ly.plain .lwg { --q: 1; }
+.ly.hot .lwg { transform: translateY(calc(var(--q) * -0.07em)); }
 /* Long words always carry the (empty) glow filter, so lighting them does not add a filter layer mid-line. */
 .lw.long { filter: drop-shadow(0 0 0 rgba(255, 255, 255, 0)); }
 .ly.hot .lw.long { filter: drop-shadow(0 0 calc(var(--p) * 0.32em) rgba(255, 255, 255, calc(var(--p) * 0.55))); }

@@ -225,6 +225,8 @@ function parseEnhancedWords(body: string): LyricWord[] | null {
     const to = marks[index + 1]?.index ?? body.length;
     const text = body.slice(from, to);
     if (text.trim()) words.push({ text, start: toSeconds(mark[1]!, mark[2]!, mark[3]) });
+    // A timestamp on just a space still separates two words: keep the space on the word before it.
+    else if (text && words.length && !/\s$/.test(words[words.length - 1]!.text)) words[words.length - 1]!.text += ' ';
   });
   if (!words.length) return null;
   const lastStart = words[words.length - 1]!.start;

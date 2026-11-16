@@ -20,6 +20,7 @@ import { ShareLyricsSheet } from './ShareLyrics';
 import { pressHaptic, tickHaptic } from '../lib/haptics';
 import { interceptBack } from '../lib/navigation';
 import { SHARE_MAX_LINES, toggleSelection } from '../lib/share-layout';
+import { groupProgress, groupWords } from '../lib/word-groups';
 
 type State = { status: 'loading' } | { status: 'error' } | LyricsResult;
 
@@ -97,9 +98,16 @@ function wordSpans(
       {word.text}
     </span>
   );
-  if (!groups) return words.map(span);
+  // Pieces of one word ("o" + "pen ") sit in one unbreakable wrapper that rises as a whole; each piece still fills
+  // by its own timestamps.
+  if (!groups)
+    return groupWords(words).map((group, index) => (
+      <span className="lwg" key={index} data-from={group.from} data-to={group.to}>
+        {words.slice(group.from, group.to).map((word, offset) => span(word, group.from + offset))}
+      </span>
+    ));
   return groups.map((group, index) => (
-    <span className="rg" key={index}>
+    <span className="rg lwg" key={index} data-from={group.from} data-to={group.to}>
       <span className="rg-w">{words.slice(group.from, group.to).map((word, offset) => span(word, group.from + offset))}</span>
       <span className={group.text ? 'rg-r' : 'rg-r empty'}>{group.text}</span>
     </span>
@@ -342,7 +350,10 @@ export function LyricsView() {
     let litLines: number[] = [];
     /** Lines left filled after they were sung. */
     const filled = new Set<number>();
-    const cache = new Map<number, { words: HTMLElement[]; back: HTMLElement[]; bg: HTMLElement | null }>();
+    const cache = new Map<
+      number,
+      { words: HTMLElement[]; back: HTMLElement[]; wordGroups: HTMLElement[]; backGroups: HTMLElement[]; bg: HTMLElement | null }
+    >();
 
     const lookup = (index: number) => {
       let found = cache.get(index);
@@ -351,6 +362,8 @@ export function LyricsView() {
         found = {
           words: row ? Array.from(row.querySelectorAll<HTMLElement>('.ly-in > .ly-main .lw')) : [],
           back: row ? Array.from(row.querySelectorAll<HTMLElement>('.ly-bg .lw')) : [],
+          wordGroups: row ? Array.from(row.querySelectorAll<HTMLElement>('.ly-in > .ly-main .lwg')) : [],
+          backGroups: row ? Array.from(row.querySelectorAll<HTMLElement>('.ly-bg .lwg')) : [],
           bg: row?.querySelector<HTMLElement>('.ly-bg') ?? null,
         };
         cache.set(index, found);
@@ -358,11 +371,18 @@ export function LyricsView() {
       return found;
     };
 
-    const paint = (spans: HTMLElement[], words: LyricWord[], time: number) => {
+    const paint = (spans: HTMLElement[], words: LyricWord[], time: number, groups: HTMLElement[] = []) => {
       words.forEach((word, wordIndex) => {
         const progress = Math.min(1, Math.max(0, (time - word.start) / Math.max(0.05, word.end - word.start)));
         spans[wordIndex]?.style.setProperty('--p', progress.toFixed(3));
       });
+      // The whole word rises from its first piece's start to its last piece's end.
+      for (const element of groups) {
+        const from = Number(element.dataset.from);
+        const to = Number(element.dataset.to);
+        if (!(to > from) || !words[from] || !words[to - 1]) continue;
+        element.style.setProperty('--q', groupProgress(words, { from, to }, time).toFixed(3));
+      }
     };
 
     const tick = () => {
@@ -388,6 +408,7 @@ export function LyricsView() {
         const found = lookup(gone);
         const sung = time >= lines[gone]!.start;
         [...found.words, ...found.back].forEach((span) => (sung ? span.style.setProperty('--p', '1') : span.style.removeProperty('--p')));
+        [...found.wordGroups, ...found.backGroups].forEach((group) => (sung ? group.style.setProperty('--q', '1') : group.style.removeProperty('--q')));
         if (sung) filled.add(gone);
         found.bg?.classList.remove('on');
       }
@@ -395,15 +416,16 @@ export function LyricsView() {
         if (hot.includes(index) || time >= lines[index]!.start) continue;
         const found = lookup(index);
         [...found.words, ...found.back].forEach((span) => span.style.removeProperty('--p'));
+        [...found.wordGroups, ...found.backGroups].forEach((group) => group.style.removeProperty('--q'));
         filled.delete(index);
       }
       litLines = hot;
       for (const index of hot) {
         const line = lines[index]!;
         const found = lookup(index);
-        if (line.words.length) paint(found.words, line.words, time);
+        if (line.words.length) paint(found.words, line.words, time, found.wordGroups);
         if (line.bg) {
-          if (line.bg.words.length) paint(found.back, line.bg.words, time);
+          if (line.bg.words.length) paint(found.back, line.bg.words, time, found.backGroups);
           found.bg?.classList.toggle('on', time >= line.bg.start - BACKING_BEFORE && time < line.bg.end + BACKING_AFTER);
         }
       }
@@ -425,6 +447,7 @@ export function LyricsView() {
     return () => {
       cancelAnimationFrame(frame);
       root.querySelectorAll<HTMLElement>('.lw').forEach((span) => span.style.removeProperty('--p'));
+      root.querySelectorAll<HTMLElement>('.lwg').forEach((group) => group.style.removeProperty('--q'));
     };
   }, [lyrics, synced, lines, items, getTime]);
 
