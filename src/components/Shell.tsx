@@ -21,7 +21,9 @@ import { StatsView } from './StatsView';
 import { EqualiserView } from './EqualiserView';
 import { SmartPlaylistView, SmartShelf } from './SmartPlaylists';
 import type { SmartId } from '../lib/smart-playlists';
-import { OPEN_ALBUM_EVENT, OPEN_EQUALISER_EVENT, handleInterceptedBack } from '../lib/navigation';
+import { OPEN_ALBUM_EVENT, OPEN_EQUALISER_EVENT, OPEN_YOUTUBE_ALBUM_EVENT, handleInterceptedBack } from '../lib/navigation';
+import type { YtAlbum } from '../lib/youtube';
+import { YoutubeAlbumView } from './YoutubeAlbumView';
 import { LibraryPicker, type PickerTarget } from './LibraryPicker';
 import { surfaceIsDark, syncSystemBars } from '../lib/system-bars';
 import { useListeningRecorder } from '../state/useListeningRecorder';
@@ -45,7 +47,9 @@ type Route =
   | { name: 'stats' }
   | { name: 'equaliser' }
   | { name: 'smart'; id: SmartId }
-  | { name: 'folder'; folderId: string } | { name: 'album'; albumId: string };
+  | { name: 'folder'; folderId: string }
+  | { name: 'album'; albumId: string }
+  | { name: 'youtube-album'; album: YtAlbum };
 
 type Dialog =
   | { kind: 'folder' }
@@ -170,9 +174,18 @@ export function Shell() {
   };
   useEffect(() => {
     const onAlbum = (event: Event) => openPage.current({ name: 'album', albumId: String((event as CustomEvent).detail) });
+    const onYoutube = (event: Event) => {
+      const album = (event as CustomEvent<YtAlbum>).detail;
+      if (album?.browseId) openPage.current({ name: 'youtube-album', album });
+    };
+    const onPlaybackError = (event: Event) => notify(String((event as CustomEvent).detail || 'Could not play that song'));
     window.addEventListener(OPEN_ALBUM_EVENT, onAlbum);
+    window.addEventListener(OPEN_YOUTUBE_ALBUM_EVENT, onYoutube);
+    window.addEventListener('blank:playback-error', onPlaybackError);
     return () => {
       window.removeEventListener(OPEN_ALBUM_EVENT, onAlbum);
+      window.removeEventListener(OPEN_YOUTUBE_ALBUM_EVENT, onYoutube);
+      window.removeEventListener('blank:playback-error', onPlaybackError);
     };
   }, []);
 
@@ -516,7 +529,7 @@ export function Shell() {
           <input
             autoFocus
             value={query}
-            placeholder="Search your library"
+            placeholder="Search your library and YouTube Music"
             onChange={(event) => setQuery(event.target.value)}
           />
         </div>
@@ -544,6 +557,8 @@ export function Shell() {
             if (next) void run(() => signUp(next, '', ''), 'Name updated');
           }}
         />
+      ) : route.name === 'youtube-album' ? (
+        <YoutubeAlbumView album={route.album} />
       ) : route.name === 'album' && album ? (
         <AlbumView
           album={album}
