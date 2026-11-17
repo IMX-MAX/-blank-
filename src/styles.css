@@ -300,6 +300,35 @@ button { cursor: pointer; }
 .track-sub { color: var(--muted); font-size: 12.5px; margin-top: 2px; }
 .track-dur { color: var(--muted); font-variant-numeric: tabular-nums; font-size: 13px; }
 
+.yt-block { width: min(640px, 100%); margin: 28px auto 0; }
+.yt-label { margin: 0 8px 10px; font-size: 13px; font-weight: 650; letter-spacing: 0.02em; color: var(--muted); }
+.yt-status { margin: 8px; color: var(--muted); font-size: 13px; }
+.yt-albums {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(132px, 1fr));
+  gap: 14px;
+  margin-bottom: 8px;
+}
+.yt-album {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  text-align: left;
+  min-width: 0;
+}
+.yt-album-art { width: 100%; aspect-ratio: 1; }
+.yt-album .track-title, .yt-album .track-sub { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.yt-songs { margin-top: 12px; }
+.yt-row { display: grid; grid-template-columns: 1fr auto; align-items: center; }
+.yt-row .search-track { width: 100%; }
+.yt-save { width: 36px; height: 36px; }
+.yt-album-page { display: block; width: min(760px, calc(100% - 40px)); }
+.yt-page-art { width: 168px; height: 168px; flex: none; }
+.yt-album-page .album-heading { align-items: flex-end; }
+
 .album {
   display: flex;
   gap: 72px;

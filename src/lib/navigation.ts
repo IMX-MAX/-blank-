@@ -5,6 +5,13 @@ export function openEqualiser(): void {
   window.dispatchEvent(new Event(OPEN_EQUALISER_EVENT));
 }
 
+/** Fired to open a YouTube Music album that is not in the library yet. */
+export const OPEN_YOUTUBE_ALBUM_EVENT = 'blank:open-youtube-album';
+
+export function openYoutubeAlbum(album: { browseId: string; title: string; artist: string; thumbnail: string; year: number | null }): void {
+  window.dispatchEvent(new CustomEvent(OPEN_YOUTUBE_ALBUM_EVENT, { detail: album }));
+}
+
 /** Fired to open an album's page from anywhere. */
 export const OPEN_ALBUM_EVENT = 'blank:open-album';
 

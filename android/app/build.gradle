@@ -24,6 +24,16 @@ android {
     }
 }
 
+// Sign debug builds with the local blank-debug keystore when it is present,
+// so installs update the same app. The keystore is not committed.
+def blankDebugKeystore = file('blank-debug.keystore')
+if (blankDebugKeystore.exists()) {
+    android.signingConfigs.debug.storeFile = blankDebugKeystore
+    android.signingConfigs.debug.storePassword = 'android'
+    android.signingConfigs.debug.keyAlias = 'androiddebugkey'
+    android.signingConfigs.debug.keyPassword = 'android'
+}
+
 repositories {
     flatDir{
         dirs '../capacitor-cordova-android-plugins/src/main/libs', 'libs'

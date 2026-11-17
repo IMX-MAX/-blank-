@@ -7,6 +7,7 @@ import { useOffline, useOnline } from '../state/OfflineProvider';
 import { usePlayer } from '../state/PlayerProvider';
 import { Cover } from './Cover';
 import { OfflineBadge } from './OfflineBadge';
+import { YoutubeResults } from './YoutubeResults';
 import { atPointer, below, type Point } from './overlays';
 
 export function LibraryView({
@@ -54,7 +55,7 @@ export function LibraryView({
     <main className={header ? 'stage with-shelf' : 'stage'}>
       {title ? <h2 className="stage-title">{title}</h2> : null}
       {header}
-      {empty && query ? <p className="empty-note">No matches</p> : null}
+      {empty && query ? <p className="empty-note">Nothing in your library</p> : null}
       <div className="grid">
         {visibleFolders.map((folder, index) => (
           <div
@@ -149,6 +150,7 @@ export function LibraryView({
           ))}
         </div>
       ) : null}
+      {query ? <YoutubeResults query={query} /> : null}
     </main>
   );
 }

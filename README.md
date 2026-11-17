@@ -101,6 +101,10 @@ npm run android:apk
 
 The Android app's origin is `https://localhost`, which must be a trusted Neon Auth domain: `neon neon-auth domain add https://localhost`.
 
+## YouTube Music
+
+Search (the magnifying glass) also asks YouTube Music as a guest, with no Google account. Songs and albums from the public catalog show under your own library matches. Tap a song to play it. **Download** (or **Download for offline** on an album) copies the audio into your library, so it plays with no connection and shows up with your other albums. YouTube sometimes refuses a stream until you are signed in; search still works, and the app tells you when a song cannot be played or saved.
+
 ## Offline
 
 Right-click (long-press on Android) a song or album and choose **Make available offline**. The audio, cover art and lyrics are stored on the device in IndexedDB, and a snapshot of the library is kept so the app opens and plays downloaded songs with no connection. Songs that are not downloaded are greyed out while offline. **Settings** shows how much space downloads use and can remove them all.

@@ -2,6 +2,7 @@ import { API_URL, LOCAL_ONLY } from './config';
 import * as local from './lib/local-store';
 import { auth, SESSION_EXPIRED } from './auth';
 import { getOfflineAudio, getOfflineCover } from './lib/offline';
+import { thumbFor } from './lib/youtube';
 import type { Album, Folder, PlaylistTrack, Track } from './types';
 
 export class ApiError extends Error {
@@ -161,6 +162,8 @@ export const api: typeof cloudApi = LOCAL_ONLY ? localApi : cloudApi;
 
 const coverUrls = new Map<string, string>();
 export async function coverObjectUrl(fileId: string): Promise<string> {
+  const remote = thumbFor(fileId);
+  if (remote) return remote;
   const cached = coverUrls.get(fileId);
   if (cached) return cached;
   const saved = await getOfflineCover(fileId).catch(() => null);
@@ -186,6 +189,19 @@ function dropAudio(fileId: string) {
 }
 
 export async function audioObjectUrl(fileId: string): Promise<string> {
+  if (fileId.startsWith('yt:')) {
+    const cached = audioUrls.get(fileId);
+    if (cached) return cached.url;
+    const { youtubeObjectUrl } = await import('./lib/youtube-client');
+    const entry = { url: await youtubeObjectUrl(fileId.slice(3)), blob: true, expires: Infinity };
+    audioUrls.set(fileId, entry);
+    while (audioUrls.size > MAX_AUDIO) {
+      const oldest = audioUrls.keys().next().value;
+      if (!oldest || oldest === fileId) break;
+      dropAudio(oldest);
+    }
+    return entry.url;
+  }
   const cached = audioUrls.get(fileId);
   if (cached && cached.expires > Date.now()) {
     audioUrls.delete(fileId);

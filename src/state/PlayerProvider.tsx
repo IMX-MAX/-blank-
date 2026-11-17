@@ -361,8 +361,14 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
             artist: track.artist,
           });
         }
-      } catch {
-        if (!cancelled) setPlaying(false);
+      } catch (err) {
+        if (!cancelled) {
+          setPlaying(false);
+          const message = err instanceof Error ? err.message : '';
+          if (/YouTube|sign in|playable stream|Download failed/i.test(message)) {
+            window.dispatchEvent(new CustomEvent('blank:playback-error', { detail: message }));
+          }
+        }
       } finally {
         if (!cancelled) setLoading(false);
       }

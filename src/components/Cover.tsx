@@ -4,18 +4,25 @@ import { artGradient } from '../lib/format';
 
 export function Cover({
   fileId,
+  src,
   hue,
   radius,
   className,
 }: {
   fileId?: string | null;
+  /** A remote image, used for YouTube artwork that is not a file in the library. */
+  src?: string | null;
   hue?: number | null;
   radius?: number | string;
   className?: string;
 }) {
-  const [url, setUrl] = useState<string | null>(null);
+  const [url, setUrl] = useState<string | null>(src || null);
 
   useEffect(() => {
+    if (src) {
+      setUrl(src);
+      return;
+    }
     if (!fileId) {
       setUrl(null);
       return;
@@ -31,7 +38,7 @@ export function Cover({
     return () => {
       cancelled = true;
     };
-  }, [fileId]);
+  }, [fileId, src]);
 
   return (
     <div

@@ -5,6 +5,8 @@ import { hueFromName } from '../lib/format';
 import { forgetTrackLyrics } from '../lib/lyrics-cache';
 import { loadLibrarySnapshot, saveLibrarySnapshot } from '../lib/offline';
 import { coverFileFromPicture, isAudioFile, readMetadata } from '../lib/metadata';
+import { fetchRemoteBlob, loadYoutubeAudio } from '../lib/youtube-client';
+import { forgetImport, importedTrackId, rememberImport, type YtSong } from '../lib/youtube';
 import { peaksForUpload } from '../lib/peaks';
 import type { Album, Folder, PlaylistTrack, Track, UploadProgress } from '../types';
 import { useAuth } from './AuthProvider';
@@ -42,6 +44,8 @@ type LibraryContextValue = {
   moveTracksToAlbum: (albumId: string, trackIds: string[]) => Promise<number>;
   removeFromPlaylist: (playlistId: string, trackId: string) => Promise<void>;
   tracksFor: (album: Album) => Track[];
+  /** Saves a YouTube Music song into the library so it plays with no connection. */
+  saveYoutubeSong: (song: YtSong, onProgress?: (fraction: number) => void) => Promise<Track>;
 };
 
 const LibraryContext = createContext<LibraryContextValue | null>(null);
@@ -218,6 +222,7 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
     async (id: string) => {
       const track = tracks.find((item) => item.id === id);
       await api.deleteTrack(id);
+      forgetImport(id);
       setTracks((current) => current.filter((item) => item.id !== id));
       setPlaylistTracks((current) => current.filter((link) => link.trackId !== id));
       // The song is gone, so is every lyric kept for it.
@@ -353,6 +358,55 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
     [albums, createAlbumRow, user],
   );
 
+  const albumsRef = useRef(albums);
+  albumsRef.current = albums;
+
+  const saveYoutubeSong = useCallback(
+    async (song: YtSong, onProgress?: (fraction: number) => void) => {
+      const existingId = importedTrackId(song.videoId);
+      const existing = existingId ? tracks.find((track) => track.id === existingId) : undefined;
+      if (existing) return existing;
+
+      const audioBlob = await loadYoutubeAudio(song.videoId, onProgress);
+      const stored = await api.uploadAudio(audioBlob);
+      const albumName = song.album || song.title;
+      const artist = song.artist || 'YouTube Music';
+      let album = albumsRef.current.find((item) => item.kind === 'album' && item.name === albumName && item.artist === artist);
+      if (!album) {
+        album = await createAlbumRow({ name: albumName, artist, kind: 'album', hue: hueFromName(albumName) });
+        albumsRef.current = [album, ...albumsRef.current.filter((item) => item.id !== album!.id)];
+      }
+      let track = await api.createTrack({
+        title: song.title,
+        artist: song.artist,
+        albumId: album.id,
+        audioFileId: stored.fileId,
+        durationMs: song.durationMs,
+        trackNumber: song.trackNumber,
+        year: song.year,
+        hue: hueFromName(song.title),
+      });
+      if (song.thumbnail) {
+        try {
+          const cover = await fetchRemoteBlob(song.thumbnail);
+          if (!album.coverFileId) {
+            const nextAlbum = await api.setCover(album.id, cover);
+            albumsRef.current = albumsRef.current.map((item) => (item.id === album!.id ? nextAlbum : item));
+            setAlbums(albumsRef.current);
+            album = nextAlbum;
+          }
+          track = await api.setTrackCover(track.id, cover);
+        } catch {
+          /* the song still plays without artwork */
+        }
+      }
+      rememberImport(song.videoId, track.id);
+      setTracks((current) => [track, ...current.filter((item) => item.id !== track.id)]);
+      return track;
+    },
+    [createAlbumRow, tracks],
+  );
+
   const value = useMemo<LibraryContextValue>(
     () => ({
       ready,
@@ -379,6 +433,7 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
       moveTracksToAlbum,
       removeFromPlaylist,
       tracksFor,
+      saveYoutubeSong,
     }),
     [
       ready,
@@ -405,6 +460,7 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
       moveTracksToAlbum,
       removeFromPlaylist,
       tracksFor,
+      saveYoutubeSong,
     ],
   );
 
